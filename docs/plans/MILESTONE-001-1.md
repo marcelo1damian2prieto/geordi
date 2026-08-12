@@ -85,7 +85,9 @@ the backend quality source of truth; frontend commands remain lockfile installat
 tests, typecheck, lint and build. A required tagged Linux runner performs Compose and
 Collector validation, builds/starts the stack and runs the PowerShell OTel smoke test.
 It must provide Docker daemon access, Compose v2 and PowerShell 7. A resource group
-serializes fixed local ports. The job is not optional or silently skipped.
+serializes fixed local ports. The integration job builds with `--no-cache` before
+startup so a clean checkout is always rebuilt from source rather than stale local
+BuildKit layers. The job is not optional or silently skipped.
 
 ## Acceptance criteria
 
