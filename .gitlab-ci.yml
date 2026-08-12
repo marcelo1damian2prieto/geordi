@@ -2,6 +2,15 @@ stages:
   - verify
   - integration
 
+variables:
+  # Geordi builds Linux containers even when the GitLab Runner is Windows.
+  # Prevent Git for Windows from converting Unix scripts such as mvnw to CRLF.
+  GIT_CONFIG_COUNT: "2"
+  GIT_CONFIG_KEY_0: "core.autocrlf"
+  GIT_CONFIG_VALUE_0: "false"
+  GIT_CONFIG_KEY_1: "core.eol"
+  GIT_CONFIG_VALUE_1: "lf"
+
 default:
   interruptible: true
 
@@ -64,6 +73,7 @@ deployment_configuration:
     - docker version
     - docker compose version
     - pwsh --version
+    - git ls-files --eol backend/mvnw
     - docker compose config --quiet
     - docker run --rm -v "$CI_PROJECT_DIR/otel/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro" otel/opentelemetry-collector:0.157.0 validate --config=/etc/otelcol/config.yaml
 
@@ -81,6 +91,7 @@ local_stack_smoke:
   resource_group: geordi-local-stack
   timeout: 15m
   script:
+    - git ls-files --eol backend/mvnw
     - docker compose build --no-cache
     - docker compose up -d --wait --wait-timeout 180
     - pwsh -File ./scripts/verify-otel.ps1 -TimeoutSeconds 120
