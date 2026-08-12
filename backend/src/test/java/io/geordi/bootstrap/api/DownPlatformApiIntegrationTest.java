@@ -67,11 +67,6 @@ class DownPlatformApiIntegrationTest {
                 }
 
                 @Override
-                public boolean enabled() {
-                    return true;
-                }
-
-                @Override
                 public ModuleHealthCheck healthCheck() {
                     return () -> ModuleStatus.DOWN;
                 }

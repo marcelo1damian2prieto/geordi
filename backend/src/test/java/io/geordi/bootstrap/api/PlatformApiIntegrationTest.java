@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.info.BuildProperties;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -23,6 +24,9 @@ class PlatformApiIntegrationTest {
     @Autowired
     private TestRestTemplate restTemplate;
 
+    @Autowired
+    private BuildProperties buildProperties;
+
     @Test
     void exposesTheExactPlatformIdentity() {
         ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
@@ -36,7 +40,7 @@ class PlatformApiIntegrationTest {
         assertThat(response.getBody()).containsExactlyInAnyOrderEntriesOf(Map.of(
                 "id", "geordi",
                 "name", "Geordi",
-                "version", "0.1.0-SNAPSHOT"));
+                "version", buildProperties.getVersion()));
     }
 
     @Test
@@ -51,12 +55,17 @@ class PlatformApiIntegrationTest {
                 .containsExactly("core", "self-observability");
         assertThat(modules).allSatisfy(module -> {
             assertThat(module.get("enabled")).isEqualTo(true);
-            assertThat(module.get("status")).isEqualTo("UP");
+            assertThat(module).containsOnlyKeys("id", "name", "enabled");
         });
 
         assertThat(healthResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(healthResponse.getBody().get("status")).isEqualTo("UP");
-        assertThat(healthResponse.getBody().get("modules")).isEqualTo(modules);
+        List<Map<String, Object>> healthModules =
+                (List<Map<String, Object>>) healthResponse.getBody().get("modules");
+        assertThat(healthModules).allSatisfy(module -> {
+            assertThat(module.get("enabled")).isEqualTo(true);
+            assertThat(module.get("status")).isEqualTo("UP");
+        });
     }
 
     @Test

@@ -19,3 +19,5 @@ Do not implement dynamic JAR loading in milestone 1.
 - preserves a future path toward richer plugin mechanisms if justified.
 - discovery means registering compile-time definitions; it does not mean loading
   external code.
+
+ADR-007 refines discovery as module-owned Spring composition with generic activation.

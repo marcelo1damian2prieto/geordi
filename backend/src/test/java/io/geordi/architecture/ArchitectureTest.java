@@ -22,8 +22,9 @@ class ArchitectureTest {
     }
 
     @Test
-    void domainModulesDoNotDependOnFrameworkInfrastructureOrVendors() {
+    void domainAndModuleImplementationsDoNotDependOnFrameworkInfrastructureOrVendors() {
         noClasses().that().resideInAnyPackage("io.geordi.core..", "io.geordi.selfobservability..")
+                .and().resideOutsideOfPackage("io.geordi.selfobservability.adapter..")
                 .should().dependOnClassesThat().resideInAnyPackage(
                         "org.springframework..",
                         "io.opentelemetry..",
@@ -38,6 +39,13 @@ class ArchitectureTest {
                         "com.datadog..",
                         "com.dynatrace..",
                         "io.signoz..")
+                .check(productionClasses);
+    }
+
+    @Test
+    void bootstrapDoesNotKnowOptionalConcreteModules() {
+        noClasses().that().resideInAPackage("io.geordi.bootstrap..")
+                .should().dependOnClassesThat().resideInAPackage("io.geordi.selfobservability..")
                 .check(productionClasses);
     }
 

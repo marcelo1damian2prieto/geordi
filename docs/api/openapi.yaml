@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Geordi Platform API
-  version: 0.1.0-SNAPSHOT
-  description: Milestone 1 platform identity, module registry, and local health API.
+  version: milestone-1.1
+  description: Platform identity, module inventory, and local health API after Milestone 1.1 hardening.
 servers:
   - url: http://localhost:8080
 paths:
@@ -58,11 +58,25 @@ components:
           const: Geordi
         version:
           type: string
+          description: Application version derived from Maven build metadata.
           example: 0.1.0-SNAPSHOT
     ModuleStatus:
       type: string
       enum: [UP, DOWN, UNKNOWN, DISABLED]
-    Module:
+    ModuleInventory:
+      type: object
+      additionalProperties: false
+      required: [id, name, enabled]
+      properties:
+        id:
+          type: string
+          example: self-observability
+        name:
+          type: string
+          example: Self Observability
+        enabled:
+          type: boolean
+    ModuleHealth:
       type: object
       additionalProperties: false
       required: [id, name, enabled, status]
@@ -85,7 +99,7 @@ components:
         modules:
           type: array
           items:
-            $ref: '#/components/schemas/Module'
+            $ref: '#/components/schemas/ModuleInventory'
     PlatformHealth:
       type: object
       additionalProperties: false
@@ -96,4 +110,4 @@ components:
         modules:
           type: array
           items:
-            $ref: '#/components/schemas/Module'
+            $ref: '#/components/schemas/ModuleHealth'

@@ -43,3 +43,33 @@ The RED command `.\mvnw.cmd -B -ntp test` failed during `testCompile` because th
 Final post-review verification ran `verify` both on the host and in the Java 21 Docker
 build stage: 20 tests passed, PMD passed, and SpotBugs/Find Security Bugs reported zero
 bug instances and zero errors.
+
+## Milestone 1.1 architecture hardening
+
+Behavior tests were refactored/added before the production hardening. The focused RED
+run failed at test compilation because the desired `ModuleInventory`,
+`PlatformHealthService` and module-owned Spring configuration did not yet exist and the
+old `PlatformModule.enabled()` contract remained. The focused suite passed after the
+minimum implementation.
+
+Coverage added for:
+
+- generic activation, unknown configuration, duplicate IDs, deterministic ordering and
+  the mandatory core invariant;
+- discovery of a future `PlatformModule` bean without central optional-module edits;
+- inventory listing with zero health evaluations;
+- exactly one evaluation per enabled module per health snapshot and zero for disabled;
+- `DOWN`/`UNKNOWN` precedence, invalid results, health-check/accessor exceptions,
+  observer exceptions and continued evaluation;
+- inventory/health API separation and preserved product/readiness HTTP semantics;
+- required build metadata and build-derived API version;
+- bootstrap-to-optional-module dependency prohibition.
+
+The independent reviewer found one HIGH: registry metadata validation still invoked the
+`healthCheck()` accessor at startup. A regression test first demonstrated that a throwing
+accessor must leave inventory available and become isolated `DOWN` health while later
+modules are still checked. The registry call was removed and the test passed.
+
+Final Milestone 1.1 verification: `./mvnw verify` passes 23 tests, including four
+ArchUnit rules; PMD passes; SpotBugs and Find Security Bugs report zero findings. The
+Java 21 container build repeats the same successful verification.

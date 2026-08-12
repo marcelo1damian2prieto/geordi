@@ -94,6 +94,16 @@ function Get-CollectorLogs {
     return ($output -join [Environment]::NewLine)
 }
 
+function Get-PlatformVersion {
+    $platformJson = Invoke-TextRequest -Uri "$BackendBaseUrl/api/platform"
+    $platform = $platformJson | ConvertFrom-Json
+    $version = [string] $platform.version
+    if ([string]::IsNullOrWhiteSpace($version)) {
+        throw "GET /api/platform did not return a non-blank version."
+    }
+    return $version
+}
+
 function Assert-NoIncrease {
     param(
         [Parameter(Mandatory)][string] $Name,
@@ -115,6 +125,7 @@ try {
     Wait-ForHttp200 "backend readiness" "$BackendBaseUrl/actuator/health/readiness" $deadline
     Wait-ForHttp200 "Collector readiness" $CollectorHealthUrl $deadline
 
+    $platformVersion = Get-PlatformVersion
     $before = Get-Snapshot
 
     1..$RequestCount | ForEach-Object {
@@ -148,7 +159,8 @@ try {
     $requiredPatterns = [ordered]@{
         "backend service.name" = 'service\.name:\s+Str\(geordi-backend\)'
         "service namespace" = 'service\.namespace:\s+Str\(geordi\)'
-        "service version" = 'service\.version:\s+Str\([^\r\n)]+\)'
+        "service version matching the platform API" =
+            'service\.version:\s+Str\(' + [regex]::Escape($platformVersion) + '\)'
         "platform origin" = 'geordi\.telemetry\.origin:\s+Str\(platform\)'
         "backend component" = 'geordi\.platform\.component:\s+Str\(backend\)'
         "deployment environment" = 'deployment\.environment\.name:\s+Str\(development\)'
@@ -165,6 +177,7 @@ try {
     Write-Host "PASS: metric points accepted/exported increased by $($after.AcceptedMetricPoints - $before.AcceptedMetricPoints)/$($after.SentMetricPoints - $before.SentMetricPoints)."
     Write-Host "PASS: refused and send-failed counters did not increase."
     Write-Host "PASS: backend Resource identity and JVM telemetry are present in Collector output."
+    Write-Host "PASS: OpenTelemetry service.version matches API version $platformVersion."
     exit 0
 }
 catch {

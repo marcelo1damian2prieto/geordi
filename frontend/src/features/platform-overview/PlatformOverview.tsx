@@ -52,7 +52,7 @@ export function PlatformOverview() {
         <div className="module-grid">
           {modules.map((module) => {
             const healthModule = health.modules.find((candidate) => candidate.id === module.id)
-            const status = healthModule?.status ?? module.status
+            const status = healthModule?.status ?? 'UNKNOWN'
 
             return (
               <article className={`module-card ${module.enabled ? '' : 'module-disabled'}`} key={module.id}>

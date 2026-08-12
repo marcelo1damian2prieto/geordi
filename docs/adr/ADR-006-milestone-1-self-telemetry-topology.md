@@ -18,6 +18,12 @@ The backend Resource uses standard service and deployment attributes plus
 `geordi.telemetry.origin=platform` and `geordi.platform.component=backend`.
 `service.instance.id` is unique per runtime instance.
 
+Maven `project.version` is the application-version authority. Spring Boot packages it
+as build metadata for the platform API and the OpenTelemetry Java Agent derives
+`service.version` from the same packaged metadata. Deployment configuration must not
+override it with a separately maintained value. The smoke verification compares the
+API and telemetry values exactly.
+
 The Collector exposes a health endpoint and internal metrics and sends received traces
 and metrics to a local-only debug exporter. Its own internal telemetry is never routed
 to its OTLP receiver. There is no logs pipeline, production store, customer telemetry

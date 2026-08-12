@@ -32,3 +32,6 @@ remain active regardless of optional capability switches.
 - API responses can distinguish installed and enabled modules;
 - future modules can register through the same contract;
 - runtime JAR loading, repositories and speculative domain abstractions are excluded.
+
+ADR-007 refines this decision by removing central optional-module knowledge and by
+separating registered inventory from operational health evaluation.

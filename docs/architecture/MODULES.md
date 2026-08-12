@@ -11,8 +11,8 @@ Responsibilities:
 - platform identity;
 - module registry;
 - module metadata;
-- health aggregation;
-- configuration support.
+- activation validation;
+- platform health evaluation.
 
 ### self-observability
 Provides/coordinates Geordi's own telemetry and health visibility.
@@ -34,13 +34,21 @@ Provides/coordinates Geordi's own telemetry and health visibility.
 A platform module should expose, at minimum:
 - id;
 - name;
-- enabled state;
-- health/status.
+- health check.
 
-`id` is stable and unique and `name` is display metadata. A compile-time module is
-always registered (installed); configuration determines whether its capability is
-enabled. Disabled modules remain visible, report `DISABLED`, are not health-checked,
-and do not degrade platform health.
+`id` is stable and unique and `name` is display metadata. Optional modules contribute
+their own Spring configuration and `PlatformModule` bean. Generic bootstrap composition
+collects those beans without knowing concrete optional module types. A compile-time
+module is always registered (installed); the generic `geordi.modules.<id>.enabled`
+configuration map determines whether its capability is enabled. Missing settings default
+to enabled. Unknown configured IDs, duplicate discovered IDs, and a missing or disabled
+`core` module fail startup.
+
+`ModuleRegistry` exposes deterministic inventory (`id`, `name`, `enabled`) and never
+executes health checks. `PlatformHealthService` creates operational snapshots. Disabled
+modules report `DISABLED` only in health output, are not health-checked, and do not
+degrade platform health. Each enabled check runs once per snapshot and a failing check
+cannot prevent the remaining modules from being evaluated.
 
 Milestone 1 statuses are `UP`, `DOWN`, `UNKNOWN` and `DISABLED`. Platform health is
 `DOWN` when any enabled module is down, otherwise `UNKNOWN` when any enabled module is

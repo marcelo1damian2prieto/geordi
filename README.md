@@ -50,11 +50,11 @@
 ### Local runtime
 - Docker Compose
 
-## Milestone 1 — implemented
+## Milestone 1 / 1.1 — implemented
 
 **Platform Core + Self-Observability**
 
-The first milestone proves:
+The foundation proves:
 - modular architecture;
 - module registry;
 - enable/disable configuration;
@@ -63,6 +63,10 @@ The first milestone proves:
 - OpenTelemetry instrumentation;
 - Collector reception;
 - reproducible local startup.
+
+Milestone 1.1 hardens that foundation with generic optional-module composition,
+side-effect-free module inventory, separate health evaluation, build-derived version
+propagation, and equivalent GitHub/GitLab quality gates.
 
 It intentionally does **not** implement metrics storage, logs, trace exploration, APM, Kubernetes, AI or vendor migrations yet.
 
@@ -85,8 +89,8 @@ Verify the complete self-telemetry path:
 ```
 
 The smoke test verifies backend and Collector readiness separately, generates traffic,
-and proves that spans and JVM metrics are accepted and debug-exported without refused
-or failed telemetry.
+proves that spans and JVM metrics are accepted and debug-exported without refused or
+failed telemetry, and requires telemetry `service.version` to match the platform API.
 
 ## Quality gates
 
@@ -101,6 +105,11 @@ npm run typecheck
 npm run lint
 npm run build
 ```
+
+GitHub Actions and GitLab CI run the same commands. GitLab's required deployment and
+stack-smoke jobs use a trusted Linux runner tagged `geordi-docker-pwsh` with Docker
+daemon access, Docker Compose v2, PowerShell 7, outbound image access, and the fixed
+local ports available. The integration job is serialized by a resource group.
 
 ## Documentation
 

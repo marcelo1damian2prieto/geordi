@@ -53,6 +53,12 @@ Milestone 1 uses one Spring Boot deployable and one Maven project. Logical modul
 package boundaries enforced by ArchUnit. `core` never depends on
 `selfobservability`; runtime composition belongs to `bootstrap`.
 
+Compile-time modules contribute `PlatformModule` beans through module-owned Spring
+configuration. Generic bootstrap composition collects them, validates configuration and
+builds an ordered inventory without naming optional modules. `ModuleRegistry` answers
+inventory; `PlatformHealthService` separately evaluates operational health. This keeps
+module listing side-effect free and leaves future provider checks behind module ports.
+
 ## Future data providers
 
 Metrics providers may include Prometheus, Mimir or VictoriaMetrics.

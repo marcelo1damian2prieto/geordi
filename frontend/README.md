@@ -1,7 +1,8 @@
 # Geordi frontend
 
-Minimal React application for Milestone 1. It reads the platform identity, installed
-modules, and aggregate health from the real Geordi backend API.
+Minimal React application for the Milestone 1 foundation. It reads platform identity,
+side-effect-free installed-module inventory, and aggregate health from the real Geordi
+backend API.
 
 ## Local development
 
@@ -31,8 +32,8 @@ npm run build
 ## Container image
 
 ```powershell
-docker build -t geordi-frontend:0.1.0-SNAPSHOT .
-docker run --rm -p 127.0.0.1:3000:8080 geordi-frontend:0.1.0-SNAPSHOT
+docker build -t geordi-frontend:local .
+docker run --rm -p 127.0.0.1:3000:8080 geordi-frontend:local
 ```
 
 The container expects to share a Docker network with a backend service named

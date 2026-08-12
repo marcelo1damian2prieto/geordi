@@ -15,6 +15,8 @@ IMPLEMENTED
 - OpenTelemetry Collector
 - Backend quality gates
 - Frontend quality gates
+- Milestone 1.1 architecture hardening: GitLab CI, self-composed optional modules,
+  separated inventory/health evaluation, and build-derived telemetry version
 
 This release corresponds to Milestone 001. It does not include customer telemetry
 ingestion, persistence or exploration.

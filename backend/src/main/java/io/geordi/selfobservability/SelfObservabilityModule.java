@@ -8,12 +8,6 @@ public final class SelfObservabilityModule implements PlatformModule {
 
     private static final ModuleHealthCheck HEALTH_CHECK = () -> ModuleStatus.UP;
 
-    private final boolean enabled;
-
-    public SelfObservabilityModule(boolean enabled) {
-        this.enabled = enabled;
-    }
-
     @Override
     public String id() {
         return "self-observability";
@@ -22,11 +16,6 @@ public final class SelfObservabilityModule implements PlatformModule {
     @Override
     public String name() {
         return "Self Observability";
-    }
-
-    @Override
-    public boolean enabled() {
-        return enabled;
     }
 
     @Override

@@ -6,7 +6,5 @@ public interface PlatformModule {
 
     String name();
 
-    boolean enabled();
-
     ModuleHealthCheck healthCheck();
 }

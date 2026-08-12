@@ -1,16 +1,20 @@
 package io.geordi.bootstrap;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "geordi.modules", ignoreUnknownFields = false)
-public record GeordiModulesProperties(ModuleSettings core, ModuleSettings selfObservability) {
+@ConfigurationProperties(prefix = "geordi", ignoreUnknownFields = false)
+public record GeordiModulesProperties(Map<String, ModuleSettings> modules) {
 
-    public boolean coreEnabled() {
-        return enabledByDefault(core);
+    public GeordiModulesProperties {
+        modules = modules == null ? Map.of() : Map.copyOf(modules);
     }
 
-    public boolean selfObservabilityEnabled() {
-        return enabledByDefault(selfObservability);
+    public Map<String, Boolean> activation() {
+        Map<String, Boolean> activation = new LinkedHashMap<>();
+        modules.forEach((id, settings) -> activation.put(id, enabledByDefault(settings)));
+        return Map.copyOf(activation);
     }
 
     private static boolean enabledByDefault(ModuleSettings settings) {

@@ -2,6 +2,10 @@
 
 Status: COMPLETE
 
+Milestone 1.1 supersedes the module inventory response below: `GET /api/modules` now
+returns only `id`, `name` and `enabled`; operational `status` remains exclusively in
+`GET /api/platform/health`. See `MILESTONE-001-1.md` and ADR-007.
+
 ## Goal
 
 Create the smallest runnable vertical slice proving modular architecture, module discovery, health, backend/frontend integration, OpenTelemetry instrumentation and reproducible local startup.
@@ -59,8 +63,8 @@ codes independently.
 ```json
 {
   "modules": [
-    {"id": "core", "name": "Core", "enabled": true, "status": "UP"},
-    {"id": "self-observability", "name": "Self Observability", "enabled": true, "status": "UP"}
+    {"id": "core", "name": "Core", "enabled": true},
+    {"id": "self-observability", "name": "Self Observability", "enabled": true}
   ]
 }
 ```
@@ -78,8 +82,8 @@ codes independently.
 ```
 
 The contract is also maintained as a static OpenAPI document. Module order is by id.
-Allowed statuses are `UP`, `DOWN`, `UNKNOWN` and `DISABLED`. Disabled modules remain
-listed, are not health-checked and do not degrade platform health. Any enabled `DOWN`
+Allowed health statuses are `UP`, `DOWN`, `UNKNOWN` and `DISABLED`. Disabled modules
+remain listed, are not health-checked and do not degrade platform health. Any enabled `DOWN`
 module makes platform status `DOWN`; otherwise any enabled `UNKNOWN` makes it
 `UNKNOWN`; otherwise it is `UP`. Exceptions from a module health check are isolated and
 reported as `DOWN` without exposing exception details.

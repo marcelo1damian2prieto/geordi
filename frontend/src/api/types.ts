@@ -10,6 +10,9 @@ export interface ModuleResponse {
   id: string
   name: string
   enabled: boolean
+}
+
+export interface ModuleHealthResponse extends ModuleResponse {
   status: ModuleStatus
 }
 
@@ -19,5 +22,5 @@ export interface ModulesResponse {
 
 export interface PlatformHealthResponse {
   status: ModuleStatus
-  modules: ModuleResponse[]
+  modules: ModuleHealthResponse[]
 }

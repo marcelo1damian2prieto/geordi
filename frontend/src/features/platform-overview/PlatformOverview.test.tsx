@@ -8,11 +8,17 @@ import { App } from '../../App'
 const platform = { id: 'geordi', name: 'Geordi', version: '0.1.0-SNAPSHOT' }
 const modules = {
   modules: [
-    { id: 'core', name: 'Core', enabled: true, status: 'UP' },
-    { id: 'self-observability', name: 'Self Observability', enabled: false, status: 'DISABLED' },
+    { id: 'core', name: 'Core', enabled: true },
+    { id: 'self-observability', name: 'Self Observability', enabled: false },
   ],
 }
-const health = { status: 'UP', modules: modules.modules }
+const health = {
+  status: 'UP',
+  modules: [
+    { ...modules.modules[0], status: 'UP' },
+    { ...modules.modules[1], status: 'DISABLED' },
+  ],
+}
 
 function jsonResponse(body: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), {

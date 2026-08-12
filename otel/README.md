@@ -33,9 +33,12 @@ Compose attaches a version-pinned OpenTelemetry Java Agent to the backend and se
 - OTLP/HTTP export for traces and metrics to `http://otel-collector:4318`;
 - `OTEL_LOGS_EXPORTER=none`;
 - `service.namespace=geordi` and `service.name=geordi-backend`;
-- the backend build version and a unique runtime `service.instance.id`;
+- a unique runtime `service.instance.id`;
 - `deployment.environment.name=development`;
 - `geordi.telemetry.origin=platform` and `geordi.platform.component=backend`.
+
+Maven `project.version` is packaged as Spring Boot build metadata. The pinned Java Agent
+derives `service.version` from that metadata; Compose does not maintain a second value.
 
 ## Verification
 
@@ -48,5 +51,6 @@ After starting the local environment, run from the repository root:
 The bounded smoke test checks backend readiness and Collector readiness separately,
 generates backend HTTP traffic, and then verifies Collector acceptance/export counters,
 failure counters, backend Resource identity, and JVM metrics in Collector debug output.
-It exits non-zero on failure. The detailed debug exporter can expose payload data and is
+It also compares Collector `service.version` with the platform API version and exits
+non-zero on any mismatch. The detailed debug exporter can expose payload data and is
 therefore local-development-only.

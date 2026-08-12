@@ -15,11 +15,6 @@ public final class CorePlatformModule implements PlatformModule {
     }
 
     @Override
-    public boolean enabled() {
-        return true;
-    }
-
-    @Override
     public ModuleHealthCheck healthCheck() {
         return HEALTH_CHECK;
     }

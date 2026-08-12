@@ -21,7 +21,7 @@ jobs:
           java-version: '21'
           cache: maven
       - name: Verify backend
-        run: ./mvnw -B -ntp verify
+        run: chmod +x ./mvnw && ./mvnw -B -ntp verify
 
   frontend:
     runs-on: ubuntu-24.04

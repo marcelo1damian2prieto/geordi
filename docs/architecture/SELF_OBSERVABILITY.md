@@ -34,6 +34,12 @@ Backend telemetry must include:
 - `geordi.platform.component=backend`;
 - a unique, runtime-generated `service.instance.id`.
 
+Maven `project.version` is the single version authority. The build produces Spring Boot
+build metadata inside the application artifact. The API reads that metadata and the
+pinned OpenTelemetry Java Agent derives `service.version` from the same artifact.
+Compose supplies the remaining Resource attributes but does not duplicate or override
+the version. Automated verification requires the API and Collector values to match.
+
 The two `geordi.*` attributes are stable, low-cardinality classification attributes.
 Absence of `geordi.telemetry.origin` means unclassified, not customer telemetry.
 
@@ -45,6 +51,7 @@ Absence of `geordi.telemetry.origin` means unclassified, not customer telemetry.
 - Collector debug output proves resource identity and expected JVM/HTTP telemetry.
 - `GET /api/platform/health` reports local platform/module health and never claims
   end-to-end telemetry delivery.
+- `GET /api/modules` reports inventory without running operational health checks.
 
 ### Feedback-loop prevention
 

@@ -23,19 +23,19 @@ services:
       args:
         OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.28.1}
         OTEL_JAVA_AGENT_SHA256: ${OTEL_JAVA_AGENT_SHA256:-faa89bdeebf9b1f52be4a4374689176717b02a59df2d8f8b6eb9aa39f9292589}
-    image: geordi-backend:0.1.0-SNAPSHOT
+    image: geordi-backend:local
     depends_on:
       otel-collector:
         condition: service_healthy
         restart: true
     environment:
-      GEORDI_MODULES_SELF_OBSERVABILITY_ENABLED: ${GEORDI_MODULES_SELF_OBSERVABILITY_ENABLED:-true}
+      SPRING_APPLICATION_JSON: '{"geordi":{"modules":{"self-observability":{"enabled":${GEORDI_MODULES_SELF_OBSERVABILITY_ENABLED:-true}}}}}'
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       OTEL_LOGS_EXPORTER: none
       OTEL_METRICS_EXPORTER: otlp
       OTEL_METRIC_EXPORT_INTERVAL: "10000"
-      OTEL_RESOURCE_ATTRIBUTES: service.namespace=geordi,service.name=geordi-backend,service.version=0.1.0-SNAPSHOT,deployment.environment.name=development,geordi.telemetry.origin=platform,geordi.platform.component=backend
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=geordi,service.name=geordi-backend,deployment.environment.name=development,geordi.telemetry.origin=platform,geordi.platform.component=backend
       OTEL_TRACES_EXPORTER: otlp
       OTEL_TRACES_SAMPLER: always_on
     ports:
@@ -46,7 +46,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    image: geordi-frontend:0.1.0-SNAPSHOT
+    image: geordi-frontend:local
     depends_on:
       backend:
         condition: service_healthy

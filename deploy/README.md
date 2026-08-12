@@ -30,6 +30,12 @@ OpenTelemetry Java Agent, exports traces and metrics over OTLP/HTTP, disables OT
 export, samples locally with `always_on`, and gives each process a generated
 `service.instance.id`.
 
+Local images use neutral `:local` tags. The application version is not maintained in
+Compose: Maven writes it into the backend artifact, the API reads that build metadata,
+and the OpenTelemetry Java Agent derives `service.version` from the same artifact.
+Compose translates the `.env` self-observability toggle into Spring's JSON property
+form so the generic configuration map retains the stable hyphenated module ID.
+
 ## Verify
 
 ```powershell
@@ -51,3 +57,15 @@ Or run the automated end-to-end check:
 ```powershell
 .\scripts\verify-otel.ps1
 ```
+
+The smoke check also requires the Collector's backend `service.version` to equal the
+version returned by `GET /api/platform`.
+
+## GitLab runner
+
+The required GitLab deployment and integration jobs target a trusted Linux shell runner
+tagged `geordi-docker-pwsh`. It must provide Docker daemon access, Docker Compose v2,
+PowerShell 7, outbound access for pinned images/dependencies, and exclusive access to
+the published local ports. Do not remove the tag or mark these jobs optional; a missing
+runner must be visible as a pending required pipeline job. Docker daemon access is
+privileged, so the runner must not serve untrusted projects.

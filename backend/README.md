@@ -35,9 +35,17 @@ The product API is exposed on port 8080:
 - `GET /actuator/health/liveness`
 - `GET /actuator/health/readiness`
 
-Modules default to enabled. The optional self-observability capability can be disabled
-with `GEORDI_MODULES_SELF_OBSERVABILITY_ENABLED=false`. Core cannot be disabled and
-unknown or malformed module configuration fails startup.
+Modules register through normal Spring composition and default to enabled. Use the
+generic property form `geordi.modules.<module-id>.enabled`; for example, pass
+`--geordi.modules.self-observability.enabled=false` to Maven/local startup. Compose maps
+the documented `GEORDI_MODULES_SELF_OBSERVABILITY_ENABLED=false` `.env` toggle into the
+generic property. Core cannot be disabled and unknown or malformed module configuration
+fails startup. Module inventory never executes health checks; platform health and
+Actuator readiness use the separate health service.
+
+The API version comes from Maven-generated Spring Boot build metadata. Supported local
+startup through Maven and packaged/container startup provide that metadata; startup
+fails instead of inventing a fallback version when it is absent.
 
 Console logs use Spring Boot's Logstash-compatible structured JSON format. OpenTelemetry
 SDK dependencies are intentionally absent: local deployment attaches the version-pinned
