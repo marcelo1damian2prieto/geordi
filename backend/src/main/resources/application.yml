@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: geordi-backend
+
+geordi:
+  modules:
+    core:
+      enabled: true
+    self-observability:
+      enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,geordiPlatform
+
+logging:
+  structured:
+    format:
+      console: logstash

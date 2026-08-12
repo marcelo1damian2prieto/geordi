@@ -1,0 +1,99 @@
+openapi: 3.1.0
+info:
+  title: Geordi Platform API
+  version: 0.1.0-SNAPSHOT
+  description: Milestone 1 platform identity, module registry, and local health API.
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/platform:
+    get:
+      operationId: getPlatform
+      summary: Return Geordi platform identity.
+      responses:
+        '200':
+          description: Platform identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Platform'
+  /api/modules:
+    get:
+      operationId: getModules
+      summary: Return all installed compile-time modules ordered by id.
+      responses:
+        '200':
+          description: Registered modules, including disabled modules.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Modules'
+  /api/platform/health:
+    get:
+      operationId: getPlatformHealth
+      summary: Return aggregate platform and module health.
+      description: >-
+        Always returns HTTP 200 when the backend can answer, even when the reported
+        status is DOWN. Disabled modules are not health-checked and do not degrade
+        aggregate status.
+      responses:
+        '200':
+          description: Aggregate platform health and module health snapshots.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformHealth'
+components:
+  schemas:
+    Platform:
+      type: object
+      additionalProperties: false
+      required: [id, name, version]
+      properties:
+        id:
+          type: string
+          const: geordi
+        name:
+          type: string
+          const: Geordi
+        version:
+          type: string
+          example: 0.1.0-SNAPSHOT
+    ModuleStatus:
+      type: string
+      enum: [UP, DOWN, UNKNOWN, DISABLED]
+    Module:
+      type: object
+      additionalProperties: false
+      required: [id, name, enabled, status]
+      properties:
+        id:
+          type: string
+          example: self-observability
+        name:
+          type: string
+          example: Self Observability
+        enabled:
+          type: boolean
+        status:
+          $ref: '#/components/schemas/ModuleStatus'
+    Modules:
+      type: object
+      additionalProperties: false
+      required: [modules]
+      properties:
+        modules:
+          type: array
+          items:
+            $ref: '#/components/schemas/Module'
+    PlatformHealth:
+      type: object
+      additionalProperties: false
+      required: [status, modules]
+      properties:
+        status:
+          $ref: '#/components/schemas/ModuleStatus'
+        modules:
+          type: array
+          items:
+            $ref: '#/components/schemas/Module'

@@ -1,0 +1,62 @@
+name: geordi
+
+services:
+  otel-collector:
+    build:
+      context: ./deploy/collector
+      dockerfile: Dockerfile
+    image: geordi-otel-collector:0.157.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./otel/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+      - "127.0.0.1:13133:13133"
+      - "127.0.0.1:8888:8888"
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.28.1}
+        OTEL_JAVA_AGENT_SHA256: ${OTEL_JAVA_AGENT_SHA256:-faa89bdeebf9b1f52be4a4374689176717b02a59df2d8f8b6eb9aa39f9292589}
+    image: geordi-backend:0.1.0-SNAPSHOT
+    depends_on:
+      otel-collector:
+        condition: service_healthy
+        restart: true
+    environment:
+      GEORDI_MODULES_SELF_OBSERVABILITY_ENABLED: ${GEORDI_MODULES_SELF_OBSERVABILITY_ENABLED:-true}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_LOGS_EXPORTER: none
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_METRIC_EXPORT_INTERVAL: "10000"
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=geordi,service.name=geordi-backend,service.version=0.1.0-SNAPSHOT,deployment.environment.name=development,geordi.telemetry.origin=platform,geordi.platform.component=backend
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_TRACES_SAMPLER: always_on
+    ports:
+      - "127.0.0.1:8080:8080"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: geordi-frontend:0.1.0-SNAPSHOT
+    depends_on:
+      backend:
+        condition: service_healthy
+        restart: true
+    ports:
+      - "127.0.0.1:3000:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/"]
+      interval: 10s
+      timeout: 3s
+      start_period: 10s
+      retries: 6
+    restart: unless-stopped
