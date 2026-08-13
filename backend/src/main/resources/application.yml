@@ -6,8 +6,15 @@ geordi:
   modules:
     core:
       enabled: true
+    metrics:
+      enabled: true
     self-observability:
       enabled: true
+  metrics:
+    victoria-metrics:
+      base-url: http://localhost:8428
+      connect-timeout: 2s
+      read-timeout: 5s
 
 management:
   endpoints:

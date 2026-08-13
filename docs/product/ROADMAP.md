@@ -23,12 +23,16 @@ ingestion, persistence or exploration.
 
 ## v0.2 — Metrics Vertical Slice
 
-PLANNED
-- first real telemetry capability;
-- monitored sample Spring Boot service;
-- metrics ingestion/query path;
-- RED service view;
-- initial storage/provider decision validated by implementation.
+IMPLEMENTED LOCALLY — PENDING AUTHORITATIVE GITLAB REVALIDATION
+- first monitored-workload telemetry capability;
+- agent-instrumented sample Spring Boot service;
+- OTLP Collector ingestion into single-node VictoriaMetrics;
+- vendor-isolated query port/adapter and fixed Metrics APIs;
+- JVM and HTTP service-operations view with bounded preset ranges;
+- explicit workload/platform classification and pipeline verification.
+
+The release remains intentionally constrained to the fixed Java service-operations
+use case.
 
 ## v0.3 — Traces + Correlation
 

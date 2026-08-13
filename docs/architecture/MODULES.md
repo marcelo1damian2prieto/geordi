@@ -1,6 +1,6 @@
 # Module Architecture
 
-Status: IMPLEMENTED / Milestone 1
+Status: IMPLEMENTED / MILESTONE 2
 
 ## Initial modules
 
@@ -17,9 +17,19 @@ Responsibilities:
 ### self-observability
 Provides/coordinates Geordi's own telemetry and health visibility.
 
+### metrics
+
+Provides the read-only, fixed operational metrics capability. Its module definition is
+always registered through module-owned Spring configuration. When disabled, storage,
+application and REST capability beans are absent, health is skipped, and inventory
+still reports the installed module as disabled.
+
+When enabled, health performs a timeout-bounded real query through the outbound backend
+probe. `/api/modules` remains independent and performs no storage I/O. Metrics depends
+on the public core module contract; core and bootstrap do not know the concrete module.
+
 ## Planned modules
 
-- metrics
 - logs
 - traces
 - apm

@@ -20,7 +20,9 @@ The Spring Boot backend emits OpenTelemetry telemetry to an OpenTelemetry Collec
 
 The Collector must expose sufficient health/internal telemetry to verify that the pipeline is alive.
 
-Production telemetry storage is deferred.
+Milestone 1 had no production telemetry storage. Milestone 2 adds a local persistent
+metrics store for the monitored-service slice while retaining the existing platform
+self-telemetry verification path.
 
 ### Resource identity
 
@@ -59,6 +61,30 @@ Collector internal telemetry is emitted only through its internal metrics endpoi
 stderr. It is never exported to the Collector's own OTLP receiver. Milestone 1 has no
 Prometheus receiver scraping that endpoint, no log receiver ingesting Collector/debug
 output, and no OTLP logs pipeline. The debug exporter is terminal.
+
+## Milestone 2 additions
+
+The demo workload uses `geordi.telemetry.origin=monitored`, a distinct namespace/name,
+deployment environment and unique instance id. Platform components retain
+`geordi.telemetry.origin=platform`. Absence of origin remains unclassified. Metrics
+service discovery and queries require the explicit monitored value.
+
+Collector metrics are exported to VictoriaMetrics through OTLP/HTTP, with retry and a
+bounded sending queue. Collector internal telemetry remains isolated on port 8888 and
+is not routed to the Collector's own receiver, preventing a feedback loop.
+
+Geordi records low-cardinality platform metrics for Metrics query count, duration,
+failures, returned result count and backend probe outcomes. Raw provider expressions,
+selected service identity and error messages are never telemetry attributes.
+
+End-to-end verification distinguishes:
+
+- receiver acceptance;
+- exporter success, refusal, send failure and enqueue failure;
+- persisted OTel series with monitored resource identity;
+- Geordi service/overview/series query success.
+
+Acceptance alone does not prove persistence or queryability.
 
 ## Future health indicators
 

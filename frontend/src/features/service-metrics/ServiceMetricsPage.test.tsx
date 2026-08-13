@@ -1,15 +1,19 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { App } from '../../App'
+import type {
+  MetricSeriesResponse,
+  MetricsOverviewResponse,
+  ServiceIdentity,
+} from '../../api/metrics'
+import { ServiceMetricsPage } from './ServiceMetricsPage'
 
 vi.mock('./MetricChart', () => ({
   MetricChart: ({ title }: { title: string }) => <div role="img" aria-label={`${title} time series`} />,
 }))
 
-const service = { name: 'checkout', namespace: 'store', environment: 'local' }
+const service = { name: 'checkout', namespace: 'store', environment: 'local' } satisfies ServiceIdentity
 const overview = {
   service,
   range: { from: '2026-08-13T14:45:00.000Z', to: '2026-08-13T15:00:00.000Z' },
@@ -18,12 +22,12 @@ const overview = {
     { metric: 'HTTP_REQUEST_COUNT', unit: '{request}', value: 20, timestamp: '2026-08-13T15:00:00Z' },
     { metric: 'JVM_MEMORY_USED', unit: 'By', value: 1048576, timestamp: '2026-08-13T15:00:00Z' },
   ],
-}
+} satisfies MetricsOverviewResponse
 const series = {
   service,
   range: overview.range,
   series: [{ metric: 'HTTP_REQUEST_RATE', unit: '{request}/s', points: [{ timestamp: '2026-08-13T15:00:00Z', value: 0 }] }],
-}
+} satisfies MetricSeriesResponse
 
 function response(body: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }))
@@ -33,17 +37,29 @@ function renderMetrics() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/metrics']}><App /></MemoryRouter>
+      <ServiceMetricsPage />
     </QueryClientProvider>,
   )
 }
 
+function requestUrl(input: RequestInfo | URL) {
+  return new URL(
+    typeof input === 'string' ? input : input instanceof URL ? input : input.url,
+    'http://geordi.test',
+  )
+}
+
+function unexpectedRequest(url: URL): never {
+  throw new Error(`Unexpected metrics API request: ${url.pathname}`)
+}
+
 function mockMetricsApi() {
   return vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
-    const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input : input.url, 'http://geordi.test')
-    if (url.pathname.endsWith('/services')) return response({ services: [service] })
-    if (url.pathname.endsWith('/overview')) return response(overview)
-    return response(series)
+    const url = requestUrl(input)
+    if (url.pathname === '/api/metrics/services') return response({ services: [service] })
+    if (url.pathname === '/api/metrics/overview') return response(overview)
+    if (url.pathname === '/api/metrics/series') return response(series)
+    return unexpectedRequest(url)
   })
 }
 
@@ -67,7 +83,7 @@ describe('Service metrics', () => {
     expect(screen.getByRole('img', { name: 'HTTP requests time series' })).toBeInTheDocument()
     expect(screen.getAllByText('Not reported by this service in this range.')).toHaveLength(6)
 
-    const urls = fetchMock.mock.calls.map(([input]) => new URL(typeof input === 'string' ? input : input instanceof URL ? input : input.url, 'http://geordi.test'))
+    const urls = fetchMock.mock.calls.map(([input]) => requestUrl(input))
     expect(urls).toHaveLength(3)
     for (const url of urls) {
       expect(url.searchParams.get('from')).toBe('2026-08-13T14:45:00.000Z')
@@ -90,7 +106,7 @@ describe('Service metrics', () => {
     await userEvent.click(screen.getByRole('button', { name: '1h' }))
 
     await waitFor(() => {
-      const urls = fetchMock.mock.calls.map(([input]) => new URL(typeof input === 'string' ? input : input instanceof URL ? input : input.url, 'http://geordi.test'))
+      const urls = fetchMock.mock.calls.map(([input]) => requestUrl(input))
       const updated = urls.filter((url) => url.searchParams.get('to') === '2026-08-13T16:00:00.000Z')
       expect(updated).toHaveLength(3)
       updated.forEach((url) => expect(url.searchParams.get('from')).toBe('2026-08-13T15:00:00.000Z'))
@@ -98,12 +114,13 @@ describe('Service metrics', () => {
   })
 
   it('queries the selected composite service identity', async () => {
-    const second = { name: 'checkout', namespace: null, environment: 'staging' }
+    const second = { name: 'checkout', namespace: null, environment: 'staging' } satisfies ServiceIdentity
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
-      const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input : input.url, 'http://geordi.test')
-      if (url.pathname.endsWith('/services')) return response({ services: [service, second] })
-      if (url.pathname.endsWith('/overview')) return response({ ...overview, service: second })
-      return response({ ...series, service: second })
+      const url = requestUrl(input)
+      if (url.pathname === '/api/metrics/services') return response({ services: [service, second] })
+      if (url.pathname === '/api/metrics/overview') return response({ ...overview, service: second })
+      if (url.pathname === '/api/metrics/series') return response({ ...series, service: second })
+      return unexpectedRequest(url)
     })
     renderMetrics()
     const selector = await screen.findByRole('combobox', { name: 'Service' })
@@ -112,25 +129,26 @@ describe('Service metrics', () => {
 
     await waitFor(() => {
       const matchingCalls = fetchMock.mock.calls.filter(([input]) => {
-        const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input : input.url, 'http://geordi.test')
+        const url = requestUrl(input)
         return url.searchParams.get('environment') === 'staging'
       })
       expect(matchingCalls).toHaveLength(2)
       matchingCalls.forEach(([input]) => {
-        const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input : input.url, 'http://geordi.test')
+        const url = requestUrl(input)
         expect(url.searchParams.get('serviceNamespace')).toBeNull()
       })
     })
   })
 
   it('never presents the previous service values while a new identity is loading', async () => {
-    const second = { name: 'checkout', namespace: null, environment: 'staging' }
+    const second = { name: 'checkout', namespace: null, environment: 'staging' } satisfies ServiceIdentity
     vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
-      const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input : input.url, 'http://geordi.test')
-      if (url.pathname.endsWith('/services')) return response({ services: [service, second] })
+      const url = requestUrl(input)
+      if (url.pathname === '/api/metrics/services') return response({ services: [service, second] })
       if (url.searchParams.get('environment') === 'staging') return new Promise<Response>(() => undefined)
-      if (url.pathname.endsWith('/overview')) return response(overview)
-      return response(series)
+      if (url.pathname === '/api/metrics/overview') return response(overview)
+      if (url.pathname === '/api/metrics/series') return response(series)
+      return unexpectedRequest(url)
     })
     renderMetrics()
     const selector = await screen.findByRole('combobox', { name: 'Service' })
@@ -165,10 +183,11 @@ describe('Service metrics', () => {
 
   it('shows a whole-range empty state without treating absence as zero', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
-      const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input : input.url, 'http://geordi.test')
-      if (url.pathname.endsWith('/services')) return response({ services: [service] })
-      if (url.pathname.endsWith('/overview')) return response({ ...overview, values: [] })
-      return response({ ...series, series: [] })
+      const url = requestUrl(input)
+      if (url.pathname === '/api/metrics/services') return response({ services: [service] })
+      if (url.pathname === '/api/metrics/overview') return response({ ...overview, values: [] })
+      if (url.pathname === '/api/metrics/series') return response({ ...series, series: [] })
+      return unexpectedRequest(url)
     })
     renderMetrics()
 
@@ -178,10 +197,11 @@ describe('Service metrics', () => {
 
   it('keeps summary and chart failures independent', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
-      const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input : input.url, 'http://geordi.test')
-      if (url.pathname.endsWith('/services')) return response({ services: [service] })
-      if (url.pathname.endsWith('/overview')) return response({}, 500)
-      return response(series)
+      const url = requestUrl(input)
+      if (url.pathname === '/api/metrics/services') return response({ services: [service] })
+      if (url.pathname === '/api/metrics/overview') return response({}, 500)
+      if (url.pathname === '/api/metrics/series') return response(series)
+      return unexpectedRequest(url)
     })
     renderMetrics()
 

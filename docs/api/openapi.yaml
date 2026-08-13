@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Geordi Platform API
-  version: milestone-1.1
-  description: Platform identity, module inventory, and local health API after Milestone 1.1 hardening.
+  version: milestone-2
+  description: Platform APIs and the fixed Milestone 2 monitored-service metrics capability.
 servers:
   - url: http://localhost:8080
 paths:
@@ -43,7 +43,137 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PlatformHealth'
+  /api/metrics/services:
+    get:
+      operationId: listMonitoredServices
+      summary: List monitored services with metrics in a bounded time range.
+      description: Only explicitly classified monitored workload telemetry is returned.
+      parameters:
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+      responses:
+        '200':
+          description: Services ordered by their composite OpenTelemetry identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitoredServices'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '503':
+          $ref: '#/components/responses/MetricsUnavailable'
+        '404':
+          $ref: '#/components/responses/MetricsDisabled'
+  /api/metrics/overview:
+    get:
+      operationId: getMetricsOverview
+      summary: Return the fixed operational metrics overview for one service.
+      parameters:
+        - $ref: '#/components/parameters/ServiceName'
+        - $ref: '#/components/parameters/ServiceNamespace'
+        - $ref: '#/components/parameters/Environment'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+      responses:
+        '200':
+          description: Latest available values for the supported operational metrics.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsOverview'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '503':
+          $ref: '#/components/responses/MetricsUnavailable'
+        '404':
+          $ref: '#/components/responses/MetricsDisabled'
+  /api/metrics/series:
+    get:
+      operationId: queryMetricSeries
+      summary: Query one or more supported operational metric series.
+      description: Resolution is selected by Geordi; backend query languages are never accepted.
+      parameters:
+        - $ref: '#/components/parameters/ServiceName'
+        - $ref: '#/components/parameters/ServiceNamespace'
+        - $ref: '#/components/parameters/Environment'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - name: metric
+          in: query
+          required: true
+          description: Repeat this parameter to request several supported series.
+          schema:
+            type: array
+            minItems: 1
+            uniqueItems: true
+            items:
+              $ref: '#/components/schemas/OperationalMetric'
+          explode: true
+      responses:
+        '200':
+          description: Ordered requested series; missing telemetry produces an empty points array.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricSeriesResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '503':
+          $ref: '#/components/responses/MetricsUnavailable'
+        '404':
+          $ref: '#/components/responses/MetricsDisabled'
 components:
+  parameters:
+    ServiceName:
+      name: serviceName
+      in: query
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    ServiceNamespace:
+      name: serviceNamespace
+      in: query
+      required: false
+      schema:
+        type: string
+        minLength: 1
+    Environment:
+      name: environment
+      in: query
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    From:
+      name: from
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date-time
+    To:
+      name: to
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date-time
+  responses:
+    BadRequest:
+      description: The service identity, range, or requested metric is invalid.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    MetricsUnavailable:
+      description: Metrics storage could not answer the bounded query.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    MetricsDisabled:
+      description: The Metrics capability is disabled and its routes are absent.
   schemas:
     Platform:
       type: object
@@ -111,3 +241,130 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ModuleHealth'
+    ServiceIdentity:
+      type: object
+      additionalProperties: false
+      required: [name, namespace, environment]
+      properties:
+        name:
+          type: string
+          example: geordi-demo-service
+        namespace:
+          type: [string, 'null']
+          example: geordi-demo
+        environment:
+          type: string
+          example: development
+    TimeRange:
+      type: object
+      additionalProperties: false
+      required: [from, to]
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+    OperationalMetric:
+      type: string
+      enum:
+        - JVM_MEMORY_USED
+        - JVM_CPU_UTILIZATION
+        - JVM_THREAD_COUNT
+        - JVM_GC_DURATION
+        - HTTP_REQUEST_RATE
+        - HTTP_REQUEST_COUNT
+        - HTTP_REQUEST_LATENCY_P95
+        - HTTP_ERROR_RATE
+        - HTTP_ERROR_COUNT
+    MetricUnit:
+      type: string
+      enum: [By, '1', '{thread}', s, '{request}/s', '{request}']
+    MetricPoint:
+      type: object
+      additionalProperties: false
+      required: [timestamp, value]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        value:
+          type: number
+          format: double
+    MetricValue:
+      type: object
+      additionalProperties: false
+      required: [metric, unit, value, timestamp]
+      properties:
+        metric:
+          $ref: '#/components/schemas/OperationalMetric'
+        unit:
+          $ref: '#/components/schemas/MetricUnit'
+        value:
+          type: number
+          format: double
+        timestamp:
+          type: string
+          format: date-time
+    MetricSeries:
+      type: object
+      additionalProperties: false
+      required: [metric, unit, points]
+      properties:
+        metric:
+          $ref: '#/components/schemas/OperationalMetric'
+        unit:
+          $ref: '#/components/schemas/MetricUnit'
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetricPoint'
+    MonitoredServices:
+      type: object
+      additionalProperties: false
+      required: [services]
+      properties:
+        services:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceIdentity'
+    MetricsOverview:
+      type: object
+      additionalProperties: false
+      required: [service, range, values]
+      properties:
+        service:
+          $ref: '#/components/schemas/ServiceIdentity'
+        range:
+          $ref: '#/components/schemas/TimeRange'
+        values:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetricValue'
+    MetricSeriesResult:
+      type: object
+      additionalProperties: false
+      required: [service, range, series]
+      properties:
+        service:
+          $ref: '#/components/schemas/ServiceIdentity'
+        range:
+          $ref: '#/components/schemas/TimeRange'
+        series:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetricSeries'
+    Problem:
+      type: object
+      description: RFC 9457 problem details without provider-specific query text.
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string

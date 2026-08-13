@@ -29,11 +29,11 @@ final class VictoriaMetricsQueryTranslator {
         };
     }
 
-    private static String errorRate(String selectors, long step) {
-        String all = "sum(rate(" + vector("http.server.request.duration_count", selectors)
-                + "[" + step + "s]))";
-        String errors = "sum(rate(" + vector("http.server.request.duration_count",
-                selectors + ",\"http.response.status_code\"=~\"5..\"") + "[" + step + "s]))";
+    private static String errorRate(String selectors, long window) {
+        String all = "sum(increase_pure(" + vector("http.server.request.duration_count", selectors)
+                + "[" + window + "s]))";
+        String errors = "sum(increase_pure(" + vector("http.server.request.duration_count",
+                selectors + ",\"http.response.status_code\"=~\"5..\"") + "[" + window + "s]))";
         return errors + " / " + all;
     }
 

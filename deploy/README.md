@@ -1,7 +1,8 @@
 # Local deployment
 
-Milestone 1 runs the frontend, backend and OpenTelemetry Collector with Docker Compose.
-It has no database, telemetry storage, customer-telemetry ingestion, or Kubernetes.
+Milestone 2 runs the frontend, backend, monitored demo application, OpenTelemetry
+Collector and VictoriaMetrics single-node storage with Docker Compose. It has no
+Kubernetes or production multi-node metrics cluster.
 
 ## Start
 
@@ -23,11 +24,16 @@ All published ports are loopback-only:
 - Collector OTLP gRPC/HTTP: `127.0.0.1:4317` and `127.0.0.1:4318`;
 - Collector health: `http://127.0.0.1:13133`;
 - Collector internal metrics: `http://127.0.0.1:8888/metrics`.
+- VictoriaMetrics health/query API: `http://127.0.0.1:8428/health` and
+  `http://127.0.0.1:8428/api/v1/query`.
+- monitored demo service: `http://127.0.0.1:8081`.
 
-The backend waits for the Collector health check before starting, and the frontend waits
-for the backend health check. Its Java 21 runtime runs as UID `10001`, attaches the
-OpenTelemetry Java Agent, exports traces and metrics over OTLP/HTTP, disables OTel logs
-export, samples locally with `always_on`, and gives each process a generated
+VictoriaMetrics stores seven days of local development metric data in the named
+`victoriametrics-data` volume. The Collector waits for VictoriaMetrics and sends metrics
+to its native OTLP endpoint. The backend waits for both the Collector and
+VictoriaMetrics; the frontend waits for the backend. Both Java 21 runtimes run as UID
+`10001`, attach the OpenTelemetry Java Agent, export traces and metrics over OTLP/HTTP,
+disable OTel logs export, sample locally with `always_on`, and give each process a generated
 `service.instance.id`.
 
 Local images use neutral `:local` tags. The application version is not maintained in
@@ -44,6 +50,8 @@ Invoke-WebRequest http://127.0.0.1:3000/
 Invoke-WebRequest http://127.0.0.1:8080/actuator/health/readiness
 Invoke-WebRequest http://127.0.0.1:13133/
 Invoke-WebRequest http://127.0.0.1:8888/metrics
+Invoke-WebRequest http://127.0.0.1:8428/health
+Invoke-WebRequest http://127.0.0.1:8081/actuator/health/readiness
 ```
 
 Generate requests to the backend and inspect the Collector debug output:
@@ -56,16 +64,19 @@ Or run the automated end-to-end check:
 
 ```powershell
 .\scripts\verify-otel.ps1
+.\scripts\verify-metrics.ps1
 ```
 
-The smoke check also requires the Collector's backend `service.version` to equal the
-version returned by `GET /api/platform`.
+The OpenTelemetry smoke check requires the Collector's backend `service.version` to
+equal the version returned by `GET /api/platform`. The metrics smoke generates demo
+traffic, proves Collector metric export, verifies VictoriaMetrics persistence, and calls
+the Geordi service/overview/series APIs with stored demo telemetry.
 
 ## GitLab runner
 
 The required GitLab deployment and integration jobs target a trusted Linux shell runner
 tagged `geordi-docker-pwsh`. It must provide Docker daemon access, Docker Compose v2,
 PowerShell 7, outbound access for pinned images/dependencies, and exclusive access to
-the published local ports. Do not remove the tag or mark these jobs optional; a missing
+the published local ports, including `8428`. Do not remove the tag or mark these jobs optional; a missing
 runner must be visible as a pending required pipeline job. Docker daemon access is
 privileged, so the runner must not serve untrusted projects.

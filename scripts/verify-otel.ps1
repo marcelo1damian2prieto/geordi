@@ -73,8 +73,8 @@ function Get-Snapshot {
     $metrics = Invoke-TextRequest -Uri $CollectorMetricsUrl
 
     return @{
-        # This milestone topology contains one receiver (otlp) and one exporter
-        # (debug), so summing all series is independent of Collector label naming.
+        # Counters are summed across all matching receiver/exporter label series, so
+        # smoke evidence remains independent of Collector label naming.
         AcceptedSpans = Get-CounterTotal $metrics "otelcol_receiver_accepted_spans"
         AcceptedMetricPoints = Get-CounterTotal $metrics "otelcol_receiver_accepted_metric_points"
         RefusedSpans = Get-CounterTotal $metrics "otelcol_receiver_refused_spans"

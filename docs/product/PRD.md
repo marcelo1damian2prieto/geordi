@@ -86,3 +86,17 @@ DEFERRED:
 - Kubernetes;
 - AI;
 - vendor-specific migration adapters.
+
+## Milestone 2 scope
+
+Status: IMPLEMENTED LOCALLY / PENDING AUTHORITATIVE GITLAB REVALIDATION
+
+Milestone 2 adds the first monitored-workload telemetry path. A sample Spring Boot
+service emits OpenTelemetry JVM and HTTP metrics through the Collector to one persistent
+store. Geordi lists monitored services and returns a fixed operational overview and
+bounded series through a vendor-neutral query boundary. React presents the same fixed
+concepts with service/range selection and explicit loading, empty and failure states.
+
+Milestone 2 does not provide arbitrary metric queries, editable/saved dashboards, APM,
+logs, traces, correlation, service maps, alerts, SLOs, tenancy, Kubernetes, AI or
+provider migration.

@@ -1,4 +1,19 @@
-# TDD evidence — Milestone 1 backend
+# TDD evidence — backend
+
+## Milestone 2 — Metrics vertical slice
+
+Behavior-first coverage was added for time/service/series invariants, closed metric
+selection, bounded resolution, VictoriaMetrics translation and mapping, REST contracts,
+ISO-8601 binding through embedded Tomcat, failure versus empty data, module activation,
+inventory isolation, real query health, low-cardinality query telemetry and ArchUnit
+dependency rules.
+
+The Docker smoke supplies the real VictoriaMetrics boundary: it generates demo OTLP
+metrics, verifies Collector export/loss counters, queries persisted metric families and
+exercises the Geordi Metrics APIs. Adapter unit tests use deterministic fixtures; the
+store is not mocked in end-to-end verification.
+
+## Milestone 1
 
 ## RED
 

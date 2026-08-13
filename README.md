@@ -50,7 +50,7 @@
 ### Local runtime
 - Docker Compose
 
-## Milestone 1 / 1.1 — implemented
+## Milestones 1 / 1.1 — implemented
 
 **Platform Core + Self-Observability**
 
@@ -68,7 +68,15 @@ Milestone 1.1 hardens that foundation with generic optional-module composition,
 side-effect-free module inventory, separate health evaluation, build-derived version
 propagation, and equivalent GitHub/GitLab quality gates.
 
-It intentionally does **not** implement metrics storage, logs, trace exploration, APM, Kubernetes, AI or vendor migrations yet.
+## Milestone 2 — Metrics vertical slice
+
+**Implemented locally; pending authoritative GitLab revalidation.** A demo Spring Boot service emits OTLP metrics through
+the Collector into VictoriaMetrics; Geordi queries that store through a replaceable
+adapter and exposes a fixed service-operations view at `/metrics`.
+
+The slice covers JVM memory, CPU, threads and GC plus HTTP request volume/rate, p95
+latency and errors. It is not a generic explorer, dashboard builder, APM implementation
+or multi-provider storage layer.
 
 ## Run locally
 
@@ -91,6 +99,15 @@ Verify the complete self-telemetry path:
 The smoke test verifies backend and Collector readiness separately, generates traffic,
 proves that spans and JVM metrics are accepted and debug-exported without refused or
 failed telemetry, and requires telemetry `service.version` to match the platform API.
+
+Verify monitored-service ingestion, persistence and the Geordi query APIs:
+
+```powershell
+.\scripts\verify-metrics.ps1
+```
+
+This smoke generates predictable demo traffic, checks Collector failure/loss counters,
+queries stored OTel metrics, and exercises the service, overview and series APIs.
 
 ## Quality gates
 

@@ -118,6 +118,18 @@ class VictoriaMetricsMappingTest {
     }
 
     @Test
+    void errorRateUsesRollingCounterIncreasesSoTheFirstCumulativeErrorSampleIsVisible() {
+        TimeRange range = new TimeRange(NOW.minusSeconds(900), NOW);
+        MetricsQuery query = MetricsQuery.of(
+                new ServiceIdentity("orders", "shop", "dev"), range,
+                List.of(OperationalMetric.HTTP_ERROR_RATE));
+
+        assertThat(new VictoriaMetricsQueryTranslator().translate(query, OperationalMetric.HTTP_ERROR_RATE))
+                .contains("sum(increase_pure(", "[10s])) / sum(increase_pure(")
+                .doesNotContain("rate(");
+    }
+
+    @Test
     void parsesValidSamplesAndDropsNonFiniteProviderValues() throws Exception {
         String json = """
                 {"status":"success","data":{"result":[{"values":[

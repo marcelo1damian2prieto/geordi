@@ -17,7 +17,7 @@ class ArchitectureTest {
     void coreDoesNotDependOnBootstrapOrSelfObservability() {
         noClasses().that().resideInAPackage("io.geordi.core..")
                 .should().dependOnClassesThat().resideInAnyPackage(
-                        "io.geordi.bootstrap..", "io.geordi.selfobservability..")
+                        "io.geordi.bootstrap..", "io.geordi.selfobservability..", "io.geordi.metrics..")
                 .check(productionClasses);
     }
 
@@ -45,7 +45,8 @@ class ArchitectureTest {
     @Test
     void bootstrapDoesNotKnowOptionalConcreteModules() {
         noClasses().that().resideInAPackage("io.geordi.bootstrap..")
-                .should().dependOnClassesThat().resideInAPackage("io.geordi.selfobservability..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "io.geordi.selfobservability..", "io.geordi.metrics..")
                 .check(productionClasses);
     }
 
@@ -53,6 +54,32 @@ class ArchitectureTest {
     void selfObservabilityDoesNotDependOnBootstrap() {
         noClasses().that().resideInAPackage("io.geordi.selfobservability..")
                 .should().dependOnClassesThat().resideInAPackage("io.geordi.bootstrap..")
+                .check(productionClasses);
+    }
+
+    @Test
+    void metricsDomainAndApplicationAreIndependentFromFrameworkAndProviderAdapters() {
+        noClasses().that().resideInAnyPackage(
+                        "io.geordi.metrics.domain..", "io.geordi.metrics.application..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "org.springframework..",
+                        "com.fasterxml.jackson..",
+                        "io.opentelemetry..",
+                        "java.net.http..",
+                        "jakarta.persistence..",
+                        "io.geordi.metrics.adapter..")
+                .check(productionClasses);
+    }
+
+    @Test
+    void metricsDomainDependsOnlyOnItselfAndTheJavaRuntime() {
+        noClasses().that().resideInAPackage("io.geordi.metrics.domain..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "io.geordi.metrics.application..",
+                        "io.geordi.metrics.adapter..",
+                        "io.geordi.core..",
+                        "io.geordi.bootstrap..",
+                        "io.geordi.selfobservability..")
                 .check(productionClasses);
     }
 }

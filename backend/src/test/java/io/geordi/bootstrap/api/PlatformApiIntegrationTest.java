@@ -15,7 +15,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.ResponseEntity;
 
-@SpringBootTest(classes = GeordiApplication.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+        classes = GeordiApplication.class,
+        properties = "geordi.modules.metrics.enabled=false",
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class PlatformApiIntegrationTest {
 
     @LocalServerPort
@@ -52,20 +55,19 @@ class PlatformApiIntegrationTest {
         assertThat(modulesResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         List<Map<String, Object>> modules = (List<Map<String, Object>>) modulesResponse.getBody().get("modules");
         assertThat(modules).extracting(module -> module.get("id"))
-                .containsExactly("core", "self-observability");
+                .containsExactly("core", "metrics", "self-observability");
         assertThat(modules).allSatisfy(module -> {
-            assertThat(module.get("enabled")).isEqualTo(true);
             assertThat(module).containsOnlyKeys("id", "name", "enabled");
         });
+        assertThat(modules).filteredOn(module -> module.get("id").equals("metrics"))
+                .singleElement().satisfies(module -> assertThat(module).containsEntry("enabled", false));
 
         assertThat(healthResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(healthResponse.getBody().get("status")).isEqualTo("UP");
         List<Map<String, Object>> healthModules =
                 (List<Map<String, Object>>) healthResponse.getBody().get("modules");
-        assertThat(healthModules).allSatisfy(module -> {
-            assertThat(module.get("enabled")).isEqualTo(true);
-            assertThat(module.get("status")).isEqualTo("UP");
-        });
+        assertThat(healthModules).filteredOn(module -> module.get("id").equals("metrics"))
+                .singleElement().satisfies(module -> assertThat(module).containsEntry("status", "DISABLED"));
     }
 
     @Test

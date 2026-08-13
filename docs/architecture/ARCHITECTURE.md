@@ -1,6 +1,6 @@
 # Architecture
 
-Status: IMPLEMENTED / FOUNDATION
+Status: IMPLEMENTED / MILESTONE 2
 
 ## Initial style
 
@@ -18,7 +18,26 @@ Geordi Spring Boot backend -- OTLP --> OpenTelemetry Collector
 The Collector is external runtime infrastructure. In Milestone 1 Geordi does not
 receive customer application telemetry and does not provide storage or query adapters.
 
-## Target logical view (PLANNED)
+## Milestone 2 metrics flow
+
+```text
+Demo Spring Boot service -- OTLP --> OpenTelemetry Collector
+                                          |
+                                          | OTLP/HTTP metrics
+                                          v
+                                    VictoriaMetrics
+                                          ^
+                                          |
+React Metrics view <- REST <- Metrics application <- query port <- VM adapter
+```
+
+VictoriaMetrics, MetricsQL and provider JSON remain confined to the outbound adapter.
+The application accepts only a composite OTel service identity, bounded time range and
+closed operational-metric catalog. The backend does not participate in ingestion.
+
+See `METRICS.md`, ADR-008 and ADR-009.
+
+## Target logical view (PLANNED beyond Milestone 2)
 
 ```text
 Applications
@@ -32,7 +51,7 @@ Geordi Platform
     |
     +-- Core
     +-- Self Observability
-    +-- Metrics (planned)
+    +-- Metrics (implemented)
     +-- Logs (planned)
     +-- Traces (planned)
     +-- APM (planned)
@@ -61,7 +80,8 @@ module listing side-effect free and leaves future provider checks behind module 
 
 ## Future data providers
 
-Metrics providers may include Prometheus, Mimir or VictoriaMetrics.
+VictoriaMetrics is the single Milestone 2 metrics provider behind a replaceable adapter.
+Prometheus or Mimir may be implemented as future adapters, but are not supported now.
 Logs providers may include Loki, OpenSearch or ClickHouse.
 Trace providers may include Tempo, Jaeger or ClickHouse.
 

@@ -1,8 +1,9 @@
 # Geordi frontend
 
-Minimal React application for the Milestone 1 foundation. It reads platform identity,
-side-effect-free installed-module inventory, and aggregate health from the real Geordi
-backend API.
+React application for the Geordi platform overview and Milestone 2 service metrics
+vertical slice. The fixed service-operations view discovers monitored services and
+shows HTTP and JVM metrics for 15-minute, 1-hour, or 6-hour ranges. It intentionally
+does not expose arbitrary metrics queries or dashboard editing.
 
 ## Local development
 

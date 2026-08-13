@@ -3,6 +3,18 @@
 This document tracks non-blocking technical debt identified during milestone validation.
 Entries do not change the completion status of the milestone in which they were detected.
 
+## Metrics view JavaScript bundle
+
+- **Status:** Pending / Non-blocking
+- **Detected in:** Milestone 2
+- **Description:** The modular ECharts integration produces a main production chunk of
+  approximately 774 kB (258 kB gzip), above Vite's default 500 kB advisory threshold.
+- **Current impact:** Frontend build, tests, type checking and linting pass. Initial page
+  download includes chart code even when the user opens only Platform Overview.
+- **Follow-up:** Evaluate route-level lazy loading/code splitting for `/metrics` during
+  frontend performance hardening. Do not add another chart wrapper dependency solely to
+  suppress the advisory.
+
 ## Mockito / ByteBuddy dynamic agent loading
 
 - **Status:** Pending / Non-blocking

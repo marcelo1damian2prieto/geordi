@@ -4,7 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "geordi", ignoreUnknownFields = false)
+@ConfigurationProperties(prefix = "geordi")
 public record GeordiModulesProperties(Map<String, ModuleSettings> modules) {
 
     public GeordiModulesProperties {
