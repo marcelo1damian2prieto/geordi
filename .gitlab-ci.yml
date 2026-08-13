@@ -82,7 +82,7 @@ deployment_configuration:
     - git ls-files --eol backend/mvnw
     - docker compose config --quiet
     - docker run --rm -v "$CI_PROJECT_DIR/otel/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro" otel/opentelemetry-collector:0.157.0 validate --config=/etc/otelcol/config.yaml
-    - docker run --rm -v "$CI_PROJECT_DIR/deploy/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro" grafana/tempo:2.7.2 -config.file=/etc/tempo/tempo.yaml -config.verify=true
+    - docker run --rm -v "$CI_PROJECT_DIR/deploy/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro" grafana/tempo:2.7.2 "-config.file=/etc/tempo/tempo.yaml" "-config.verify=true"
 
 local_stack_smoke:
   stage: integration
