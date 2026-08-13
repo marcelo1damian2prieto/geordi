@@ -13,6 +13,10 @@ variables:
 
 default:
   interruptible: true
+  hooks:
+  pre_get_sources_script:
+    - git config --global core.autocrlf false
+    - git config --global core.eol lf
 
 backend:
   stage: verify
@@ -69,6 +73,8 @@ deployment_configuration:
   stage: verify
   tags:
     - geordi-docker-pwsh
+  variables:
+    GIT_STRATEGY: clone
   script:
     - docker version
     - docker compose version
@@ -90,6 +96,8 @@ local_stack_smoke:
       artifacts: false
   resource_group: geordi-local-stack
   timeout: 15m
+  variables:
+    GIT_STRATEGY: clone
   script:
     - git ls-files --eol backend/mvnw
     - docker compose build --no-cache
