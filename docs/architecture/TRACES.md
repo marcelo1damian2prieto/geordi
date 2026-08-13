@@ -1,6 +1,6 @@
 # Traces Architecture
 
-Status: IMPLEMENTED LOCALLY / Milestone 3 — PENDING GITLAB REVALIDATION
+Status: IMPLEMENTED / MILESTONE 3 COMPLETE
 
 ## Scope
 
@@ -36,7 +36,7 @@ summaries. Results have deterministic ordering. The only optional filter is
 `io.geordi.traces.domain` contains provider-neutral validation/value concepts such as
 trace/span IDs, service identity, time range, trace summary/detail, span status,
 span kind and duration. `io.geordi.traces.application` validates canonical search
-criteria, enforce query bounds, order/map results, and use an outbound trace-query
+criteria, enforces query bounds, orders/maps results, and uses an outbound trace-query
 port. It does not depend on Spring, OpenTelemetry SDK implementations, HTTP/JSON,
 Tempo, Jaeger or TraceQL.
 
@@ -58,8 +58,8 @@ not synthesize missing fields or infer error state from unrelated services.
 ## Health and self-observability
 
 When enabled, Traces health executes one bounded real Tempo probe. A probe failure
-reports the module down without crashing Geordi; inventory remains I/O-free. Planned
-low-cardinality platform telemetry covers search/detail/probe counts, latency,
+reports the module down without crashing Geordi; inventory remains I/O-free.
+Low-cardinality platform telemetry covers search/detail/probe counts, latency,
 failures, result size and backend availability. It excludes provider query text,
 selected identity and exception messages, and preserves the platform origin attribute.
 

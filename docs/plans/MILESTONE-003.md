@@ -1,6 +1,6 @@
 # Milestone 003 — Traces Vertical Slice
 
-Status: READY FOR GITLAB REVALIDATION
+Status: COMPLETE
 
 ## Objective
 
@@ -86,9 +86,9 @@ is in this milestone.
 - [x] Run complete backend, frontend, Compose and regression smoke gates.
 - [x] Obtain independent review; fix all BLOCKER/HIGH findings.
 - [x] Update remaining implementation-facing documentation truthfully.
-- [ ] Obtain authoritative GitLab CI confirmation from the project owner.
+- [x] Obtain authoritative GitLab CI confirmation from the project owner.
 
-## Local verification evidence
+## Verification evidence
 
 - Backend clean verification passes with 85 tests, nine ArchUnit rules, PMD,
   SpotBugs and Find Security Bugs.
@@ -97,11 +97,18 @@ is in this milestone.
 - Compose configuration and pinned Collector/Tempo configuration validation pass;
   all six services become healthy.
 - Collector self-observability, Metrics, and Traces semantic smoke scripts pass. The
-  trace smoke verifies exact identity/range isolation, persistence, success/error/
-  latency scenarios, hierarchy, IDs, details, and frontend proxy routes.
+  trace smoke verifies successful OTLP ingestion and persistence; search and detail;
+  valid trace/span IDs and parent-child relationships; successful, controlled-error,
+  and predictable-latency traces; exact monitored identity and namespace isolation;
+  selected half-open time-window semantics; and error-only filtering.
+- Metrics → Traces context navigation, the frontend `/traces` search/detail routes,
+  and the frontend API proxy are verified. Metrics and self-observability regression
+  smokes remain green.
 - Independent review reported no blockers. Its disabled-module UI, sub-second upper
   bound, and carried-range HIGH findings were fixed and regression-tested. Bounded
   service discovery remains documented medium technical debt.
+- The project owner confirmed that the authoritative GitLab CI pipeline passed all
+  required jobs, including deployment configuration and the full stack smoke flow.
 
 ## Acceptance criteria
 
@@ -129,7 +136,6 @@ Bugs, frontend tests with zero unhandled errors/typecheck/lint/build, Compose st
 semantic trace smoke and Metrics/self-observability regression verification, plus an
 independent review with no unresolved BLOCKER/HIGH findings.
 
-Even after all local gates pass, set status only to `READY FOR GITLAB REVALIDATION`.
-The milestone becomes `COMPLETE` only after the project owner confirms the
-authoritative GitLab CI pipeline is green for the candidate commit. Until then it is
-not complete.
+A milestone is not complete until its authoritative GitLab CI pipeline passes all
+required jobs. The project owner has confirmed that gate is green for Milestone 3, so
+this milestone is `COMPLETE`.

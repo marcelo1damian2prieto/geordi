@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Geordi Platform API
-  version: milestone-3-local
-  description: Platform APIs and the locally implemented Metrics and Traces capabilities, pending GitLab revalidation.
+  version: milestone-3
+  description: Platform APIs and the implemented Metrics and Traces capabilities.
 servers:
   - url: http://localhost:8080
 paths:

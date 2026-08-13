@@ -1,6 +1,6 @@
 # Module Architecture
 
-Status: IMPLEMENTED LOCALLY / MILESTONE 3 — PENDING GITLAB REVALIDATION
+Status: IMPLEMENTED / MILESTONE 3 COMPLETE
 
 ## Initial modules
 

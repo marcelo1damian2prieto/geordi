@@ -89,7 +89,7 @@ DEFERRED:
 
 ## Milestone 2 scope
 
-Status: IMPLEMENTED LOCALLY / PENDING AUTHORITATIVE GITLAB REVALIDATION
+Status: COMPLETE
 
 Milestone 2 adds the first monitored-workload telemetry path. A sample Spring Boot
 service emits OpenTelemetry JVM and HTTP metrics through the Collector to one persistent
@@ -103,7 +103,7 @@ provider migration.
 
 ## Milestone 3 scope
 
-Status: IMPLEMENTED LOCALLY / PENDING AUTHORITATIVE GITLAB REVALIDATION
+Status: COMPLETE
 
 Milestone 3 adds persistent distributed traces through Tempo behind a vendor-neutral
 query port. Operators can discover and search an exact monitored service identity in a

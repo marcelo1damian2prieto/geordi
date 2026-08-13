@@ -1,6 +1,6 @@
 # Architecture
 
-Status: IMPLEMENTED LOCALLY / MILESTONE 3 — PENDING GITLAB REVALIDATION
+Status: IMPLEMENTED / MILESTONE 3 COMPLETE
 
 ## Initial style
 
@@ -51,7 +51,7 @@ The public boundary uses exact monitored service identity, a bounded half-open t
 range, canonical trace/span IDs and OpenTelemetry-aligned span semantics. See
 `TRACES.md`, ADR-010 and ADR-011.
 
-## Target logical view (PLANNED beyond Milestone 2)
+## Target logical view (PLANNED beyond Milestone 3)
 
 ```text
 Applications
@@ -67,7 +67,7 @@ Geordi Platform
     +-- Self Observability
     +-- Metrics (implemented)
     +-- Logs (planned)
-    +-- Traces (implemented locally)
+    +-- Traces (implemented)
     +-- APM (planned)
     +-- Compatibility (planned)
 ```

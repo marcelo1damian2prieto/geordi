@@ -23,7 +23,7 @@ ingestion, persistence or exploration.
 
 ## v0.2 — Metrics Vertical Slice
 
-IMPLEMENTED LOCALLY — PENDING AUTHORITATIVE GITLAB REVALIDATION
+COMPLETE
 - first monitored-workload telemetry capability;
 - agent-instrumented sample Spring Boot service;
 - OTLP Collector ingestion into single-node VictoriaMetrics;
@@ -36,7 +36,7 @@ use case.
 
 ## v0.3 — Traces + Correlation
 
-IMPLEMENTED LOCALLY — PENDING AUTHORITATIVE GITLAB REVALIDATION
+COMPLETE
 - trace search;
 - trace detail;
 - span hierarchy;

@@ -1,12 +1,10 @@
 # Milestone 002 — Metrics Vertical Slice
 
-Status: IMPLEMENTED LOCALLY / PENDING AUTHORITATIVE GITLAB REVALIDATION
+Status: COMPLETE
 
-Milestone 2 remains open. Commit `755ea0cf` failed the authoritative GitLab
-pipeline because the committed backend omitted the OpenTelemetry API dependency
-required by its telemetry adapter and the committed frontend omitted the `/metrics`
-route exercised by its metrics tests. These are blocking Milestone 2 defects, not
-technical debt.
+The earlier candidate at commit `755ea0cf` failed authoritative GitLab validation.
+Those blocking dependency and frontend-route defects were corrected, and the required
+Metrics gates and regression smoke subsequently passed in the authoritative pipeline.
 
 > A milestone is not complete until its authoritative GitLab CI pipeline passes
 > all required jobs.
@@ -108,13 +106,12 @@ configuration. Missing optional telemetry is empty, never synthesized as zero.
 - [x] Run frontend tests, typecheck, ESLint and production build.
 - [x] Validate Compose; start stack; verify storage, ingestion, APIs and frontend route.
 - [x] Run independent reviewer; fix every BLOCKER/HIGH finding and assess MEDIUM items.
-- [ ] Confirm the final authoritative GitLab pipeline passes every required job.
+- [x] Confirm the final authoritative GitLab pipeline passes every required job.
 
-## Local revalidation evidence
+## Verification evidence
 
-The evidence below establishes readiness to re-run GitLab CI. It is not completion
-evidence and cannot change this milestone to `COMPLETE` without a green authoritative
-pipeline.
+The local evidence below was supplemented by the green authoritative GitLab pipeline,
+including the Metrics regression smoke.
 
 - Backend `mvnw clean verify`: 54 tests; 6 ArchUnit rules; PMD passed; SpotBugs and
   Find Security Bugs reported zero findings.
@@ -154,8 +151,8 @@ Collector accepted/sent/refused/failed counters, stored series, Geordi Metrics A
 the rendered frontend route and retained Milestone 1 OTel smoke verification.
 
 Local verification and independent review are prerequisites for CI, not substitutes
-for it. The final GitLab pipeline for the exact candidate commit must be green before
-Milestone 2 may be marked `COMPLETE`.
+for it. A milestone is not complete until its authoritative GitLab CI pipeline passes
+all required jobs; that gate has passed for Milestone 2.
 
 ## Explicit non-goals
 

@@ -6,10 +6,10 @@ This is the product MVP target, not the scope of Milestone 1. Milestone 1 establ
 only the platform foundation required for it. Roadmap milestones v0.2 through v0.4
 introduce the P0 telemetry capabilities incrementally.
 
-Milestone 2 delivered a constrained operational Metrics view. Milestone 3 is the second
-P0 increment: persistent trace search/detail plus Metrics → Traces context navigation,
-implemented locally and pending authoritative GitLab revalidation. Logs and trace/log
-correlation remain planned for Milestone 4, so the correlated-telemetry MVP is not yet complete.
+Milestone 2 delivered a constrained operational Metrics view. Milestone 3 completed the
+second P0 increment: persistent trace search/detail plus Metrics → Traces context
+navigation. Logs and trace/log correlation remain planned, so the correlated-telemetry
+MVP is not yet complete.
 
 ## Goal
 

@@ -50,7 +50,7 @@
 ### Local runtime
 - Docker Compose
 
-## Milestones 1 / 1.1 — implemented
+## Milestones 1 / 1.1 — COMPLETE
 
 **Platform Core + Self-Observability**
 
@@ -70,9 +70,9 @@ propagation, and equivalent GitHub/GitLab quality gates.
 
 ## Milestone 2 — Metrics vertical slice
 
-**Implemented locally; pending authoritative GitLab revalidation.** A demo Spring Boot service emits OTLP metrics through
-the Collector into VictoriaMetrics; Geordi queries that store through a replaceable
-adapter and exposes a fixed service-operations view at `/metrics`.
+**COMPLETE.** A demo Spring Boot service emits OTLP metrics through the Collector into
+VictoriaMetrics; Geordi queries that store through a replaceable adapter and exposes a
+fixed service-operations view at `/metrics`.
 
 The slice covers JVM memory, CPU, threads and GC plus HTTP request volume/rate, p95
 latency and errors. It is not a generic explorer, dashboard builder, APM implementation
@@ -80,11 +80,21 @@ or multi-provider storage layer.
 
 ## Milestone 3 — Traces vertical slice
 
-**Implemented locally; pending authoritative GitLab revalidation.** The demo exports
-OTLP traces through the Collector into Tempo. Geordi discovers and searches traces by
-the exact monitored service identity and time range, exposes complete trace detail,
-and renders a simple span waterfall at `/traces`. The Metrics view links to Traces
-while preserving service, environment, namespace and the absolute investigation range.
+**COMPLETE.** The demo exports OTLP traces through the Collector into Tempo. Geordi
+discovers and searches traces by the exact monitored service identity and time range,
+exposes complete trace detail, and renders a simple span waterfall at `/traces`. The
+Metrics view links to Traces while preserving service, environment, namespace and the
+absolute investigation range.
+
+## Current capabilities
+
+- **Metrics:** OTLP Metrics → Collector → VictoriaMetrics → vendor-neutral Metrics
+  query layer → REST API → React Metrics UI.
+- **Traces:** OTLP Traces → Collector → Tempo → vendor-neutral Traces query layer →
+  REST API → React Traces UI.
+- **Correlation:** Metrics → service/environment/time context → Traces.
+
+This is a bounded service-investigation foundation, not full APM.
 
 ## Run locally
 
@@ -138,7 +148,7 @@ npm run build
 ```
 
 GitHub Actions and GitLab CI run the same commands. GitLab's required deployment and
-stack-smoke jobs use a trusted Linux runner tagged `geordi-docker-pwsh` with Docker
+stack-smoke jobs use a trusted Windows runner tagged `geordi-docker-pwsh` with Docker
 daemon access, Docker Compose v2, PowerShell 7, outbound image access, and the fixed
 local ports available. The integration job is serialized by a resource group.
 
