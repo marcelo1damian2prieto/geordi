@@ -1,6 +1,6 @@
 # Milestone 002 — Metrics Vertical Slice
 
-Status: READY FOR GITLAB REVALIDATION
+Status: COMPLETE
 
 Milestone 2 remains open. Commit `755ea0cf` failed the authoritative GitLab
 pipeline because the committed backend omitted the OpenTelemetry API dependency
