@@ -36,11 +36,13 @@ use case.
 
 ## v0.3 — Traces + Correlation
 
-PLANNED
+IMPLEMENTED LOCALLY — PENDING AUTHORITATIVE GITLAB REVALIDATION
 - trace search;
 - trace detail;
 - span hierarchy;
-- trace-related logs groundwork.
+- Metrics → Traces context navigation.
+
+Trace-related logs remain planned for v0.4; no Logs capability is implemented here.
 
 ## v0.4 — Logs + Service Map + Alerts
 

@@ -78,6 +78,14 @@ The slice covers JVM memory, CPU, threads and GC plus HTTP request volume/rate, 
 latency and errors. It is not a generic explorer, dashboard builder, APM implementation
 or multi-provider storage layer.
 
+## Milestone 3 — Traces vertical slice
+
+**Implemented locally; pending authoritative GitLab revalidation.** The demo exports
+OTLP traces through the Collector into Tempo. Geordi discovers and searches traces by
+the exact monitored service identity and time range, exposes complete trace detail,
+and renders a simple span waterfall at `/traces`. The Metrics view links to Traces
+while preserving service, environment, namespace and the absolute investigation range.
+
 ## Run locally
 
 Prerequisites: Docker Desktop with Compose.
@@ -108,6 +116,12 @@ Verify monitored-service ingestion, persistence and the Geordi query APIs:
 
 This smoke generates predictable demo traffic, checks Collector failure/loss counters,
 queries stored OTel metrics, and exercises the service, overview and series APIs.
+
+Verify trace ingestion, persistence, search, detail and correlation semantics:
+
+```powershell
+.\scripts\verify-traces.ps1
+```
 
 ## Quality gates
 

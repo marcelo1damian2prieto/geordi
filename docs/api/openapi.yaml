@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Geordi Platform API
-  version: milestone-2
-  description: Platform APIs and the fixed Milestone 2 monitored-service metrics capability.
+  version: milestone-3-local
+  description: Platform APIs and the locally implemented Metrics and Traces capabilities, pending GitLab revalidation.
 servers:
   - url: http://localhost:8080
 paths:
@@ -122,6 +122,98 @@ paths:
           $ref: '#/components/responses/MetricsUnavailable'
         '404':
           $ref: '#/components/responses/MetricsDisabled'
+  /api/traces/services:
+    get:
+      operationId: listTraceServices
+      summary: List monitored services with traces in a bounded half-open time range.
+      description: >-
+        Results include only explicitly monitored traces
+        and are ordered by exact service namespace/name/environment identity.
+      parameters:
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+      responses:
+        '200':
+          description: Services with monitored traces in the requested [from, to) interval.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TraceServices'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '503':
+          $ref: '#/components/responses/TracesUnavailable'
+        '502':
+          $ref: '#/components/responses/TracesMalformedResponse'
+        '504':
+          $ref: '#/components/responses/TracesTimeout'
+        '404':
+          $ref: '#/components/responses/TracesDisabled'
+  /api/traces:
+    get:
+      operationId: searchTraces
+      summary: Search trace summaries for one exact monitored service identity.
+      description: >-
+        Search is constrained to [from, to), at most six
+        hours and 50 summaries. TraceQL, arbitrary attributes and provider filters are
+        never accepted.
+      parameters:
+        - $ref: '#/components/parameters/TraceServiceName'
+        - $ref: '#/components/parameters/TraceServiceNamespace'
+        - $ref: '#/components/parameters/TraceEnvironment'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - name: errorOnly
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Deterministically ordered trace summaries, up to 50.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TraceSearchResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '503':
+          $ref: '#/components/responses/TracesUnavailable'
+        '502':
+          $ref: '#/components/responses/TracesMalformedResponse'
+        '504':
+          $ref: '#/components/responses/TracesTimeout'
+        '404':
+          $ref: '#/components/responses/TracesDisabled'
+  /api/traces/{traceId}:
+    get:
+      operationId: getTrace
+      summary: Return complete available span data for one trace.
+      description: Provider-specific payloads are never returned.
+      parameters:
+        - name: traceId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/TraceId'
+      responses:
+        '200':
+          description: Trace detail with complete available span data and deterministic hierarchy ordering.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TraceDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/TraceNotFound'
+        '503':
+          $ref: '#/components/responses/TracesUnavailable'
+        '502':
+          $ref: '#/components/responses/TracesMalformedResponse'
+        '504':
+          $ref: '#/components/responses/TracesTimeout'
 components:
   parameters:
     ServiceName:
@@ -139,6 +231,30 @@ components:
         type: string
         minLength: 1
     Environment:
+      name: environment
+      in: query
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    TraceServiceName:
+      name: serviceName
+      in: query
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    TraceServiceNamespace:
+      name: serviceNamespace
+      in: query
+      required: false
+      description: >-
+        When omitted, matches only traces with a canonical null/absent service namespace;
+        it never widens the search to every namespace.
+      schema:
+        type: string
+        minLength: 1
+    TraceEnvironment:
       name: environment
       in: query
       required: true
@@ -174,6 +290,32 @@ components:
             $ref: '#/components/schemas/Problem'
     MetricsDisabled:
       description: The Metrics capability is disabled and its routes are absent.
+    TracesUnavailable:
+      description: Trace storage could not answer the bounded query.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    TracesMalformedResponse:
+      description: Trace storage returned a malformed or partial response.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    TracesTimeout:
+      description: Trace storage exceeded the bounded query timeout.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    TracesDisabled:
+      description: The Traces capability is disabled and its routes are absent.
+    TraceNotFound:
+      description: No trace exists for the valid requested trace ID.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
   schemas:
     Platform:
       type: object
@@ -355,6 +497,165 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/MetricSeries'
+    TraceId:
+      type: string
+      description: Lowercase 32-character hexadecimal OpenTelemetry trace ID.
+      pattern: '^[0-9a-f]{32}$'
+      example: 4bf92f3577b34da6a3ce929d0e0e4736
+    SpanId:
+      type: string
+      description: Lowercase 16-character hexadecimal OpenTelemetry span ID.
+      pattern: '^[0-9a-f]{16}$'
+      example: 00f067aa0ba902b7
+    TraceServiceIdentity:
+      type: object
+      additionalProperties: false
+      required: [name, namespace, environment]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        namespace:
+          type: [string, 'null']
+        environment:
+          type: [string, 'null']
+    TraceServices:
+      type: object
+      additionalProperties: false
+      required: [services]
+      properties:
+        services:
+          type: array
+          items:
+            $ref: '#/components/schemas/TraceServiceIdentity'
+    TraceSummary:
+      type: object
+      additionalProperties: false
+      required: [traceId, rootSpanName, startTime, durationNanos, spanCount, error]
+      properties:
+        traceId:
+          $ref: '#/components/schemas/TraceId'
+        rootSpanName:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        durationNanos:
+          type: integer
+          format: int64
+          minimum: 0
+        spanCount:
+          type: integer
+          minimum: 1
+        error:
+          type: boolean
+    TraceSearchResult:
+      type: object
+      additionalProperties: false
+      required: [service, range, traces]
+      properties:
+        service:
+          $ref: '#/components/schemas/TraceServiceIdentity'
+        range:
+          $ref: '#/components/schemas/TimeRange'
+        traces:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/TraceSummary'
+    SpanKind:
+      type: string
+      enum: [UNSPECIFIED, INTERNAL, SERVER, CLIENT, PRODUCER, CONSUMER]
+    SpanStatus:
+      type: string
+      enum: [UNSET, OK, ERROR]
+    HttpMetadata:
+      type: object
+      additionalProperties: false
+      required: [requestMethod, route, path, responseStatusCode, serverAddress, serverPort]
+      properties:
+        requestMethod:
+          type: [string, 'null']
+        route:
+          type: [string, 'null']
+        path:
+          type: [string, 'null']
+        responseStatusCode:
+          type: [integer, 'null']
+          minimum: 100
+          maximum: 599
+        serverAddress:
+          type: [string, 'null']
+        serverPort:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 65535
+    TraceSpan:
+      type: object
+      additionalProperties: false
+      required: [traceId, spanId, parentSpanId, name, service, telemetryOrigin, kind, status, startTime, startOffsetNanos, durationNanos, error, errorType, http]
+      properties:
+        traceId:
+          $ref: '#/components/schemas/TraceId'
+        spanId:
+          $ref: '#/components/schemas/SpanId'
+        parentSpanId:
+          oneOf:
+            - $ref: '#/components/schemas/SpanId'
+            - type: 'null'
+        name:
+          type: string
+        service:
+          $ref: '#/components/schemas/TraceServiceIdentity'
+        telemetryOrigin:
+          type: [string, 'null']
+        kind:
+          $ref: '#/components/schemas/SpanKind'
+        status:
+          $ref: '#/components/schemas/SpanStatus'
+        startTime:
+          type: string
+          format: date-time
+        startOffsetNanos:
+          type: integer
+          format: int64
+          minimum: 0
+        durationNanos:
+          type: integer
+          format: int64
+          minimum: 0
+        error:
+          type: boolean
+        errorType:
+          type: [string, 'null']
+        http:
+          oneOf:
+            - $ref: '#/components/schemas/HttpMetadata'
+            - type: 'null'
+    TraceDetail:
+      type: object
+      additionalProperties: false
+      required: [traceId, startTime, durationNanos, spanCount, error, spans]
+      properties:
+        traceId:
+          $ref: '#/components/schemas/TraceId'
+        startTime:
+          type: string
+          format: date-time
+        durationNanos:
+          type: integer
+          format: int64
+          minimum: 0
+        spanCount:
+          type: integer
+          minimum: 1
+        error:
+          type: boolean
+        spans:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TraceSpan'
     Problem:
       type: object
       description: RFC 9457 problem details without provider-specific query text.

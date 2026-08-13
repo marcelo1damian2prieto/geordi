@@ -86,6 +86,20 @@ End-to-end verification distinguishes:
 
 Acceptance alone does not prove persistence or queryability.
 
+## Milestone 3 additions
+
+Collector traces are exported both to the local debug sink and Tempo through a bounded
+retry queue. Traces searches and detail reads record low-cardinality request, duration,
+failure, result-size and probe telemetry; service identity, trace IDs, TraceQL, response
+bodies and exception text are never telemetry attributes.
+
+Platform telemetry retains `geordi.telemetry.origin=platform`; monitored demo telemetry
+uses `monitored`. Trace discovery/search require the exact monitored origin and composite
+identity, and direct detail rejects platform-only traces. Tempo process health, the
+Traces query-path probe, Collector delivery counters and successful Geordi search/detail
+are separate verification facts. Collector internal telemetry remains pull-only and is
+never routed back through its OTLP receiver.
+
 ## Future health indicators
 
 - received telemetry;

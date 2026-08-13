@@ -1,6 +1,6 @@
 # Module Architecture
 
-Status: IMPLEMENTED / MILESTONE 2
+Status: IMPLEMENTED LOCALLY / MILESTONE 3 — PENDING GITLAB REVALIDATION
 
 ## Initial modules
 
@@ -28,10 +28,17 @@ When enabled, health performs a timeout-bounded real query through the outbound 
 probe. `/api/modules` remains independent and performs no storage I/O. Metrics depends
 on the public core module contract; core and bootstrap do not know the concrete module.
 
+### traces
+
+Provides bounded service discovery, trace search and complete trace detail through a
+vendor-neutral query boundary. Its module definition is always registered. Capability
+beans and routes exist only when enabled; health performs one timeout-bounded Tempo
+query-path probe, while inventory remains I/O-free. Traces and Metrics do not depend on
+each other; cross-signal navigation is composed in the frontend with canonical context.
+
 ## Planned modules
 
 - logs
-- traces
 - apm
 - infrastructure
 - service-map

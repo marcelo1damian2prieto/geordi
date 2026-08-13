@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { ApiError } from '../../api/client'
-import type { ServiceIdentity, TimeRange } from '../../api/metrics'
+import type { TimeRange } from '../../api/metrics'
+import { contextSearchParams, serviceKey, serviceLabel } from '../../api/telemetryContext'
 import { MetricChart } from './MetricChart'
 import { metricConcepts, formatMetricValue, seriesMetricIds } from './metricPresentation'
 import { useMetricSeries, useMetricServices, useMetricsOverview } from './useServiceMetrics'
@@ -11,15 +13,6 @@ const ranges: Record<RangePreset, number> = { '15m': 15, '1h': 60, '6h': 360 }
 function absoluteRange(preset: RangePreset): TimeRange {
   const to = new Date()
   return { from: new Date(to.getTime() - ranges[preset] * 60_000).toISOString(), to: to.toISOString() }
-}
-
-function serviceKey(service: ServiceIdentity) {
-  return JSON.stringify([service.namespace, service.name, service.environment])
-}
-
-function serviceLabel(service: ServiceIdentity) {
-  const qualifiedName = service.namespace ? `${service.namespace} / ${service.name}` : service.name
-  return `${qualifiedName} · ${service.environment}`
 }
 
 function failureMessage(error: Error | null) {
@@ -102,6 +95,7 @@ export function ServiceMetricsPage() {
               <button key={candidate} type="button" aria-pressed={preset === candidate} onClick={() => changeRange(candidate)}>{candidate}</button>
             ))}
           </fieldset>
+          <Link className="view-traces-link" to={`/traces?${contextSearchParams(selected, range).toString()}`}>View traces</Link>
           <button className="refresh-button" type="button" onClick={refresh}>{refreshing ? 'Refreshing…' : 'Refresh'}</button>
         </div>
       </header>

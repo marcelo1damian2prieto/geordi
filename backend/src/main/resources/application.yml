@@ -8,6 +8,8 @@ geordi:
       enabled: true
     metrics:
       enabled: true
+    traces:
+      enabled: true
     self-observability:
       enabled: true
   metrics:
@@ -15,6 +17,11 @@ geordi:
       base-url: http://localhost:8428
       connect-timeout: 2s
       read-timeout: 5s
+  traces:
+    tempo:
+      base-url: http://localhost:3200
+      connect-timeout: 2s
+      read-timeout: 3s
 
 management:
   endpoints:

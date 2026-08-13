@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   MetricSeriesResponse,
@@ -37,7 +38,7 @@ function renderMetrics() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <ServiceMetricsPage />
+      <MemoryRouter><ServiceMetricsPage /></MemoryRouter>
     </QueryClientProvider>,
   )
 }
@@ -77,6 +78,10 @@ describe('Service metrics', () => {
     expect(screen.getByText('Discovering monitored services…')).toBeInTheDocument()
     expect(await screen.findByRole('heading', { name: 'Metrics' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Service' })).toHaveDisplayValue('store / checkout · local')
+    expect(screen.getByRole('link', { name: 'View traces' })).toHaveAttribute(
+      'href',
+      '/traces?serviceName=checkout&serviceNamespace=store&environment=local&from=2026-08-13T14%3A45%3A00.000Z&to=2026-08-13T15%3A00%3A00.000Z',
+    )
     expect(await screen.findByText('0.00 req/s')).toBeInTheDocument()
     expect(screen.getByText('20 requests in selected range')).toBeInTheDocument()
     expect(screen.getByText('1.0 MiB')).toBeInTheDocument()
@@ -111,6 +116,9 @@ describe('Service metrics', () => {
       expect(updated).toHaveLength(3)
       updated.forEach((url) => expect(url.searchParams.get('from')).toBe('2026-08-13T15:00:00.000Z'))
     })
+    expect(screen.getByRole('link', { name: 'View traces' })).toHaveAttribute(
+      'href', expect.stringContaining('from=2026-08-13T15%3A00%3A00.000Z&to=2026-08-13T16%3A00%3A00.000Z'),
+    )
   })
 
   it('queries the selected composite service identity', async () => {
@@ -138,6 +146,10 @@ describe('Service metrics', () => {
         expect(url.searchParams.get('serviceNamespace')).toBeNull()
       })
     })
+    const tracesLink = new URL(screen.getByRole('link', { name: 'View traces' }).getAttribute('href')!, 'http://geordi.test')
+    expect(tracesLink.searchParams.get('serviceName')).toBe('checkout')
+    expect(tracesLink.searchParams.get('environment')).toBe('staging')
+    expect(tracesLink.searchParams.has('serviceNamespace')).toBe(false)
   })
 
   it('never presents the previous service values while a new identity is loading', async () => {

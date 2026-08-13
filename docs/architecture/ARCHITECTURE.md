@@ -1,6 +1,6 @@
 # Architecture
 
-Status: IMPLEMENTED / MILESTONE 2
+Status: IMPLEMENTED LOCALLY / MILESTONE 3 — PENDING GITLAB REVALIDATION
 
 ## Initial style
 
@@ -37,6 +37,20 @@ closed operational-metric catalog. The backend does not participate in ingestion
 
 See `METRICS.md`, ADR-008 and ADR-009.
 
+## Milestone 3 traces flow
+
+```text
+Demo service -- OTLP --> Collector -- OTLP/HTTP --> Tempo
+                                                    ^
+                                                    |
+React Traces <- REST <- Traces application <- query port <- Tempo adapter
+```
+
+TraceQL, Tempo HTTP envelopes and OTLP JSON mapping remain inside the outbound adapter.
+The public boundary uses exact monitored service identity, a bounded half-open time
+range, canonical trace/span IDs and OpenTelemetry-aligned span semantics. See
+`TRACES.md`, ADR-010 and ADR-011.
+
 ## Target logical view (PLANNED beyond Milestone 2)
 
 ```text
@@ -53,7 +67,7 @@ Geordi Platform
     +-- Self Observability
     +-- Metrics (implemented)
     +-- Logs (planned)
-    +-- Traces (planned)
+    +-- Traces (implemented locally)
     +-- APM (planned)
     +-- Compatibility (planned)
 ```
@@ -83,6 +97,7 @@ module listing side-effect free and leaves future provider checks behind module 
 VictoriaMetrics is the single Milestone 2 metrics provider behind a replaceable adapter.
 Prometheus or Mimir may be implemented as future adapters, but are not supported now.
 Logs providers may include Loki, OpenSearch or ClickHouse.
-Trace providers may include Tempo, Jaeger or ClickHouse.
+Tempo is the single Milestone 3 trace provider behind a replaceable adapter. Jaeger or
+other stores require a separate future adapter and deployment decision.
 
 The final storage architecture is intentionally not locked in during milestone 1.

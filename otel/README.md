@@ -1,32 +1,34 @@
 # OpenTelemetry
 
-Milestone 2 uses the version-pinned OpenTelemetry Collector image
+Milestone 3 uses the version-pinned OpenTelemetry Collector image
 `otel/opentelemetry-collector:0.157.0` with
 [`otel-collector-config.yaml`](./otel-collector-config.yaml).
 The official image currently resolves to
 `sha256:4019ce4d7e7791a1a255fffb2f407af66d5017cc65543469ba565c4f47f795b8`.
 
-The local flow keeps the Milestone 1 debug route and adds persisted workload metrics:
+The local flow keeps the Milestone 1 debug route and persists workload metrics and
+traces in separate stores:
 
 ```text
 geordi-backend -- OTLP/HTTP --> otel-collector -- debug exporter --> stderr
 backend + geordi-demo-service -- OTLP/HTTP --> otel-collector -- OTLP/HTTP --> VictoriaMetrics
+backend + geordi-demo-service -- OTLP/HTTP --> otel-collector -- OTLP/HTTP --> Tempo
 ```
 
 The Collector accepts OTLP/gRPC on `4317` and OTLP/HTTP on `4318`. Its readiness
 endpoint is `/` on port `13133`, and its internal Prometheus metrics are available at
 `/metrics` on port `8888`. The Compose services are `backend`, `demo`,
-`otel-collector` and `victoriametrics`.
+`otel-collector`, `victoriametrics` and `tempo`.
 
 Only traces and metrics have data pipelines. Each pipeline applies `memory_limiter`
-before `batch`. Traces terminate at the detailed local `debug` exporter. Metrics are
-debug-exported as local evidence and sent using compressed OTLP/HTTP to
-VictoriaMetrics at `/opentelemetry/v1/metrics`; the exporter has a bounded queue and
-retry policy. There is no logs pipeline.
+before `batch`. Traces retain the detailed local `debug` route and are sent using
+compressed OTLP/HTTP to Tempo. Metrics are debug-exported as local evidence and sent
+using compressed OTLP/HTTP to VictoriaMetrics at `/opentelemetry/v1/metrics`. Both
+storage exporters have bounded queues and retry policies. There is no logs pipeline.
 
 Collector internal metrics are exposed only through port `8888`; internal JSON logs
 and debug-exported payloads go only to stderr. They are not sent to OTLP. The
-configuration has no scrape receiver, log receiver, or internal OTLP exporter, so it
+configuration has no scrape receiver, log receiver, or internal self-export route, so it
 cannot feed its own telemetry back into its input. The Collector's `:8888` internal
 metrics remain pull-only and are not persisted by VictoriaMetrics.
 
@@ -48,7 +50,9 @@ derives `service.version` from that metadata; Compose does not maintain a second
 
 The local-only `geordi-demo-service` is a predictable monitored Spring Boot workload.
 It supplies success, controlled HTTP 500, delayed and CPU-active endpoints strictly for
-pipeline verification. Its Resource has `service.namespace=geordi-demo`,
+pipeline verification. The delayed endpoint also creates the deterministic child
+`INTERNAL` span `demo.slow.work`, allowing trace hierarchy and timing to be verified.
+Its Resource has `service.namespace=geordi-demo`,
 `service.name=geordi-demo-service`, `deployment.environment.name=development`, and
 `geordi.telemetry.origin=monitored`; it is deliberately distinct from Geordi platform
 telemetry. The Java agent exports cumulative metrics and opts into stable HTTP semantic

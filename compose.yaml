@@ -18,6 +18,19 @@ services:
       retries: 12
     restart: unless-stopped
 
+  tempo:
+    build:
+      context: ./deploy/tempo
+      dockerfile: Dockerfile
+    image: geordi-tempo:2.7.2
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./deploy/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "127.0.0.1:3200:3200"
+    restart: unless-stopped
+
   otel-collector:
     build:
       context: ./deploy/collector
@@ -33,6 +46,9 @@ services:
       - "127.0.0.1:8888:8888"
     depends_on:
       victoriametrics:
+        condition: service_healthy
+        restart: true
+      tempo:
         condition: service_healthy
         restart: true
     restart: unless-stopped
@@ -52,8 +68,11 @@ services:
       victoriametrics:
         condition: service_healthy
         restart: true
+      tempo:
+        condition: service_healthy
+        restart: true
     environment:
-      SPRING_APPLICATION_JSON: '{"geordi":{"modules":{"self-observability":{"enabled":${GEORDI_MODULES_SELF_OBSERVABILITY_ENABLED:-true}},"metrics":{"enabled":${GEORDI_MODULES_METRICS_ENABLED:-true}}},"metrics":{"victoria-metrics":{"base-url":"http://victoriametrics:8428"}}}}'
+      SPRING_APPLICATION_JSON: '{"geordi":{"modules":{"self-observability":{"enabled":${GEORDI_MODULES_SELF_OBSERVABILITY_ENABLED:-true}},"metrics":{"enabled":${GEORDI_MODULES_METRICS_ENABLED:-true}},"traces":{"enabled":${GEORDI_MODULES_TRACES_ENABLED:-true}}},"metrics":{"victoria-metrics":{"base-url":"http://victoriametrics:8428"}},"traces":{"tempo":{"base-url":"http://tempo:3200"}}}}'
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       OTEL_LOGS_EXPORTER: none
@@ -61,6 +80,7 @@ services:
       OTEL_METRIC_EXPORT_INTERVAL: "10000"
       OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE: cumulative
       OTEL_RESOURCE_ATTRIBUTES: service.namespace=geordi,service.name=geordi-backend,deployment.environment.name=development,geordi.telemetry.origin=platform,geordi.platform.component=backend
+      OTEL_SEMCONV_STABILITY_OPT_IN: http
       OTEL_TRACES_EXPORTER: otlp
       OTEL_TRACES_SAMPLER: always_on
     ports:
@@ -115,3 +135,4 @@ services:
 
 volumes:
   victoriametrics-data:
+  tempo-data:

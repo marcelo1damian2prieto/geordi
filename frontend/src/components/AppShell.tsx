@@ -7,6 +7,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <nav className="app-nav" aria-label="Primary navigation">
         <NavLink to="/" end>Platform</NavLink>
         <NavLink to="/metrics">Service metrics</NavLink>
+        <NavLink to="/traces">Traces</NavLink>
       </nav>
       {children}
     </>

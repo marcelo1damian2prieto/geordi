@@ -17,7 +17,8 @@ class ArchitectureTest {
     void coreDoesNotDependOnBootstrapOrSelfObservability() {
         noClasses().that().resideInAPackage("io.geordi.core..")
                 .should().dependOnClassesThat().resideInAnyPackage(
-                        "io.geordi.bootstrap..", "io.geordi.selfobservability..", "io.geordi.metrics..")
+                        "io.geordi.bootstrap..", "io.geordi.selfobservability..",
+                        "io.geordi.metrics..", "io.geordi.traces..")
                 .check(productionClasses);
     }
 
@@ -38,7 +39,8 @@ class ArchitectureTest {
                         "io.tempo..",
                         "com.datadog..",
                         "com.dynatrace..",
-                        "io.signoz..")
+                        "io.signoz..",
+                        "io.geordi.traces..")
                 .check(productionClasses);
     }
 
@@ -46,7 +48,7 @@ class ArchitectureTest {
     void bootstrapDoesNotKnowOptionalConcreteModules() {
         noClasses().that().resideInAPackage("io.geordi.bootstrap..")
                 .should().dependOnClassesThat().resideInAnyPackage(
-                        "io.geordi.selfobservability..", "io.geordi.metrics..")
+                        "io.geordi.selfobservability..", "io.geordi.metrics..", "io.geordi.traces..")
                 .check(productionClasses);
     }
 
@@ -80,6 +82,43 @@ class ArchitectureTest {
                         "io.geordi.core..",
                         "io.geordi.bootstrap..",
                         "io.geordi.selfobservability..")
+                .check(productionClasses);
+    }
+
+    @Test
+    void tracesDomainAndApplicationAreIndependentFromFrameworkAndProviderAdapters() {
+        noClasses().that().resideInAnyPackage(
+                        "io.geordi.traces.domain..", "io.geordi.traces.application..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "org.springframework..",
+                        "com.fasterxml.jackson..",
+                        "io.opentelemetry..",
+                        "java.net.http..",
+                        "jakarta.persistence..",
+                        "io.geordi.traces.adapter..")
+                .check(productionClasses);
+    }
+
+    @Test
+    void tracesDomainDependsOnlyOnItselfAndTheJavaRuntime() {
+        noClasses().that().resideInAPackage("io.geordi.traces.domain..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "io.geordi.traces.application..",
+                        "io.geordi.traces.adapter..",
+                        "io.geordi.core..",
+                        "io.geordi.bootstrap..",
+                        "io.geordi.metrics..",
+                        "io.geordi.selfobservability..")
+                .check(productionClasses);
+    }
+
+    @Test
+    void metricsAndTracesDoNotDependOnEachOther() {
+        noClasses().that().resideInAPackage("io.geordi.metrics..")
+                .should().dependOnClassesThat().resideInAPackage("io.geordi.traces..")
+                .check(productionClasses);
+        noClasses().that().resideInAPackage("io.geordi.traces..")
+                .should().dependOnClassesThat().resideInAPackage("io.geordi.metrics..")
                 .check(productionClasses);
     }
 }

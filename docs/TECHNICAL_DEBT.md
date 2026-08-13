@@ -36,3 +36,16 @@ Entries do not change the completion status of the milestone in which they were 
   cycle, or before adopting a JDK version that disables this behavior.
 
 This debt is not a defect in Milestone 1.1. The milestone remains successfully completed.
+
+## Tempo bounded service discovery
+
+- **Status:** Pending / Non-blocking
+- **Detected in:** Milestone 3
+- **Description:** Service discovery derives exact identity tuples from a bounded Tempo
+  search because independent tag-value APIs cannot safely reconstruct tuples.
+- **Current impact:** The implementation prevents cross-service identity combinations,
+  but a very high-cardinality window can omit a low-volume service after the fixed
+  provider/result bound is reached.
+- **Follow-up:** Introduce a canonical service catalog only when scale evidence justifies
+  it; do not couple Traces discovery to Metrics or cross-product independent tag values.
+- **Priority:** Medium

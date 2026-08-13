@@ -21,6 +21,18 @@ processors:
 exporters:
   debug:
     verbosity: detailed
+  otlphttp/tempo:
+    compression: gzip
+    encoding: proto
+    endpoint: http://tempo:4318
+    sending_queue:
+      enabled: true
+      queue_size: 1000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 10s
+      max_elapsed_time: 30s
   otlphttp/victoriametrics:
     compression: gzip
     encoding: proto
@@ -66,7 +78,7 @@ service:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [debug]
+      exporters: [debug, otlphttp/tempo]
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, batch]

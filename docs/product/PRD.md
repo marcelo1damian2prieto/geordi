@@ -100,3 +100,15 @@ concepts with service/range selection and explicit loading, empty and failure st
 Milestone 2 does not provide arbitrary metric queries, editable/saved dashboards, APM,
 logs, traces, correlation, service maps, alerts, SLOs, tenancy, Kubernetes, AI or
 provider migration.
+
+## Milestone 3 scope
+
+Status: IMPLEMENTED LOCALLY / PENDING AUTHORITATIVE GITLAB REVALIDATION
+
+Milestone 3 adds persistent distributed traces through Tempo behind a vendor-neutral
+query port. Operators can discover and search an exact monitored service identity in a
+bounded time range, inspect complete span hierarchy/timing/error data, and move from
+Metrics to Traces with the same canonical context.
+
+Milestone 3 does not add logs, full APM, service maps, alerting, arbitrary TraceQL,
+saved searches, multiple trace stores, tenancy, Kubernetes, AI or Milestone 4 work.

@@ -1,8 +1,8 @@
 # Local deployment
 
 Milestone 2 runs the frontend, backend, monitored demo application, OpenTelemetry
-Collector and VictoriaMetrics single-node storage with Docker Compose. It has no
-Kubernetes or production multi-node metrics cluster.
+Collector, VictoriaMetrics and Grafana Tempo single-node storage with Docker Compose.
+It has no Kubernetes or production multi-node storage cluster.
 
 ## Start
 
@@ -13,9 +13,10 @@ Copy-Item .env.example .env
 docker compose up --build
 ```
 
-The Compose file pins the OpenTelemetry Collector to `0.157.0` and the Java Agent to
-`2.28.1`. The Java Agent download is checked against its pinned SHA-256 digest. `.env`
-only contains non-secret local settings and is ignored by Git.
+The Compose file pins Grafana Tempo to `2.7.2`, the OpenTelemetry Collector to
+`0.157.0`, and the Java Agent to `2.28.1`. The Java Agent download is checked against
+its pinned SHA-256 digest. `.env` only contains non-secret local settings and is ignored
+by Git.
 
 All published ports are loopback-only:
 
@@ -26,14 +27,18 @@ All published ports are loopback-only:
 - Collector internal metrics: `http://127.0.0.1:8888/metrics`.
 - VictoriaMetrics health/query API: `http://127.0.0.1:8428/health` and
   `http://127.0.0.1:8428/api/v1/query`.
+- Tempo readiness/query API: `http://127.0.0.1:3200/ready` and
+  `http://127.0.0.1:3200/api/search`.
 - monitored demo service: `http://127.0.0.1:8081`.
 
 VictoriaMetrics stores seven days of local development metric data in the named
-`victoriametrics-data` volume. The Collector waits for VictoriaMetrics and sends metrics
-to its native OTLP endpoint. The backend waits for both the Collector and
-VictoriaMetrics; the frontend waits for the backend. Both Java 21 runtimes run as UID
-`10001`, attach the OpenTelemetry Java Agent, export traces and metrics over OTLP/HTTP,
-disable OTel logs export, sample locally with `always_on`, and give each process a generated
+`victoriametrics-data` volume. Tempo stores local trace WAL and blocks in the named
+`tempo-data` volume. Both storage choices are intentionally single-node local-development
+topologies. The Collector waits for both stores, sending metrics to VictoriaMetrics and
+traces to Tempo over OTLP. The backend waits for the Collector and both stores; the
+frontend waits for the backend. Both Java 21 runtimes run as UID `10001`, attach the
+OpenTelemetry Java Agent, export traces and metrics over OTLP/HTTP, disable OTel logs
+export, sample locally with `always_on`, and give each process a generated
 `service.instance.id`.
 
 Local images use neutral `:local` tags. The application version is not maintained in
@@ -51,6 +56,7 @@ Invoke-WebRequest http://127.0.0.1:8080/actuator/health/readiness
 Invoke-WebRequest http://127.0.0.1:13133/
 Invoke-WebRequest http://127.0.0.1:8888/metrics
 Invoke-WebRequest http://127.0.0.1:8428/health
+Invoke-WebRequest http://127.0.0.1:3200/ready
 Invoke-WebRequest http://127.0.0.1:8081/actuator/health/readiness
 ```
 
@@ -65,12 +71,18 @@ Or run the automated end-to-end check:
 ```powershell
 .\scripts\verify-otel.ps1
 .\scripts\verify-metrics.ps1
+.\scripts\verify-traces.ps1
 ```
 
 The OpenTelemetry smoke check requires the Collector's backend `service.version` to
 equal the version returned by `GET /api/platform`. The metrics smoke generates demo
 traffic, proves Collector metric export, verifies VictoriaMetrics persistence, and calls
 the Geordi service/overview/series APIs with stored demo telemetry.
+
+The trace smoke generates deterministic success, controlled-error and latency traffic;
+the latency scenario includes an internal child span. It verifies Tempo persistence and
+Geordi's exact identity/time-range trace search, trace detail, error, hierarchy and
+frontend-proxy semantics.
 
 ## GitLab runner
 

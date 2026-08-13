@@ -1,4 +1,7 @@
 import { getJson } from './client'
+import { identityParams, rangeParams, type ServiceIdentity, type TimeRange } from './telemetryContext'
+
+export type { ServiceIdentity, TimeRange } from './telemetryContext'
 
 export type OperationalMetric =
   | 'JVM_MEMORY_USED'
@@ -12,17 +15,6 @@ export type OperationalMetric =
   | 'HTTP_ERROR_COUNT'
 
 export type MetricUnit = 'By' | '1' | '{thread}' | 's' | '{request}/s' | '{request}'
-
-export interface ServiceIdentity {
-  name: string
-  namespace: string | null
-  environment: string
-}
-
-export interface TimeRange {
-  from: string
-  to: string
-}
 
 export interface MetricValue {
   metric: OperationalMetric
@@ -45,18 +37,6 @@ export interface MetricSeries {
 export interface ServicesResponse { services: ServiceIdentity[] }
 export interface MetricsOverviewResponse { service: ServiceIdentity; range: TimeRange; values: MetricValue[] }
 export interface MetricSeriesResponse { service: ServiceIdentity; range: TimeRange; series: MetricSeries[] }
-
-function rangeParams(range: TimeRange) {
-  return new URLSearchParams({ from: range.from, to: range.to })
-}
-
-function identityParams(service: ServiceIdentity, range: TimeRange) {
-  const params = rangeParams(range)
-  params.set('serviceName', service.name)
-  if (service.namespace !== null) params.set('serviceNamespace', service.namespace)
-  params.set('environment', service.environment)
-  return params
-}
 
 export function getMetricServices(range: TimeRange) {
   return getJson<ServicesResponse>(`/api/metrics/services?${rangeParams(range).toString()}`)

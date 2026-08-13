@@ -1,9 +1,11 @@
 # Geordi frontend
 
-React application for the Geordi platform overview and Milestone 2 service metrics
-vertical slice. The fixed service-operations view discovers monitored services and
-shows HTTP and JVM metrics for 15-minute, 1-hour, or 6-hour ranges. It intentionally
-does not expose arbitrary metrics queries or dashboard editing.
+React application for the Geordi platform overview and its Metrics and Traces vertical
+slices. The fixed service-operations view shows HTTP and JVM metrics; trace search and
+detail provide service-scoped investigation and an accessible span waterfall. Metrics
+links to Traces using the same canonical service identity and absolute time range.
+The UI intentionally does not expose backend query languages, arbitrary dashboards,
+or a generic visualization engine.
 
 ## Local development
 
