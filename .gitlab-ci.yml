@@ -14,9 +14,9 @@ variables:
 default:
   interruptible: true
   hooks:
-  pre_get_sources_script:
-    - git config --global core.autocrlf false
-    - git config --global core.eol lf
+   pre_get_sources_script:
+     - git config --global core.autocrlf false
+     - git config --global core.eol lf
 
 backend:
   stage: verify
