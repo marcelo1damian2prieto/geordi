@@ -1,6 +1,6 @@
 # Service Investigation Architecture
 
-Status: LOCALLY IMPLEMENTED / PENDING GITLAB REVALIDATION
+Status: IMPLEMENTED / MILESTONE 4 COMPLETE
 
 ## Scope
 

@@ -1,10 +1,10 @@
 # Milestone 004 — Lightweight Service Investigation
 
-Status: READY FOR GITLAB REVALIDATION
+Status: COMPLETE
 
-> Local implementation can reach `READY FOR GITLAB REVALIDATION` only. This milestone
-> must not be marked `COMPLETE` until the project owner confirms the authoritative
-> GitLab pipeline is green.
+> The project owner confirmed that the authoritative GitLab pipeline is green. The
+> implementation, local verification, independent review, and authoritative CI gate
+> are complete.
 
 ## Objective
 
@@ -183,11 +183,12 @@ verify semantic identity/range/data contracts, while frontend acceptance tests c
 verify actual cross-signal composition and navigation. A new HTTP-200-only route check
 would not add meaningful semantic coverage.
 
-## Definition of done and status rule
+## Definition of done and completion
 
 Local readiness requires all implementation acceptance criteria, complete CI-equivalent
 verification, semantic regression smokes, synchronized documentation, and independent
 review with no unresolved BLOCKER/HIGH findings.
 
-The only permitted final local statuses are `READY FOR GITLAB REVALIDATION` or
-`NOT READY`. Never mark Milestone 4 `COMPLETE` locally.
+The local implementation reached `READY FOR GITLAB REVALIDATION` with all acceptance
+criteria satisfied and no unresolved BLOCKER/HIGH findings. The project owner then
+confirmed the authoritative GitLab pipeline was green, so Milestone 4 is `COMPLETE`.

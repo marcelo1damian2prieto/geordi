@@ -88,15 +88,20 @@ absolute investigation range.
 
 ## Milestone 4 — Lightweight Service Investigation
 
-**LOCAL IMPLEMENTATION — PENDING GITLAB REVALIDATION.** The `/investigate` workflow
-composes the existing Metrics and Traces APIs around one exact service namespace, name,
-environment, and absolute time range. It presents RED and JVM/resource signals, recent
-traces, error traces, and the slowest traces among the bounded recent results, with
-independent partial-data states and context-preserving Trace Detail navigation.
+**COMPLETE.** The `/investigate` workflow composes the existing Metrics and Traces APIs
+around one exact service namespace, name, environment, and absolute time range. The
+milestone delivers:
+
+- canonical, bookmarkable investigation context;
+- RED and JVM/resource evidence;
+- recent, slowest-among-recent, and error traces;
+- independent partial-failure isolation;
+- stale-data protection across identity and range changes;
+- context-preserving Investigation → Trace Detail → Investigation navigation.
 
 Milestone 4 adds no backend aggregation API, Logs capability, full APM, or new telemetry
-infrastructure. Only an owner-confirmed green authoritative GitLab pipeline can complete
-it.
+infrastructure. Its local verification, independent review, and authoritative GitLab CI
+gate are green.
 
 ## Current capabilities
 
