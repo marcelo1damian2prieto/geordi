@@ -9,6 +9,7 @@ import {
   type TimeRange,
 } from '../../api/metrics'
 import { getTraceServices, type TraceSearchResponse, type TraceSummary } from '../../api/traces'
+import { getLogServices, type LogSearchResponse } from '../../api/logs'
 import {
   contextSearchParams,
   parseTelemetryContext,
@@ -28,6 +29,9 @@ import { useMetricSeries } from '../service-metrics/useServiceMetrics'
 import { formatDuration } from '../traces/tracePresentation'
 import { useTraceSearch } from '../traces/useTraces'
 import { latestPoint, recentTraces, slowestRecentTraces } from './investigationPresentation'
+import { useLogSearch } from '../logs/useLogs'
+import { LogRecordList } from '../logs/LogRecordList'
+import { logsFailureMessage } from '../logs/logPresentation'
 
 type RangePreset = '15m' | '1h' | '6h'
 type RangeSelection = RangePreset | 'custom'
@@ -235,6 +239,31 @@ function RecentTraceEvidence({
   )
 }
 
+function LogsEvidenceSection({
+  query,
+  service,
+  range,
+}: {
+  query: UseQueryResult<LogSearchResponse, Error>
+  service: ServiceIdentity
+  range: TimeRange
+}) {
+  return (
+    <section aria-label="Recent logs">
+      <div className="section-heading"><h2>Recent logs</h2><span>Newest first, bounded to 5 records</span></div>
+      {query.isPending && <div className="metrics-loading" aria-busy="true">Loading recent logs…</div>}
+      {query.isError && (
+        <div className="inline-state" role="alert">
+          <p>{logsFailureMessage(query.error)}</p>
+          <button type="button" onClick={() => void query.refetch()}>Retry recent logs</button>
+        </div>
+      )}
+      {query.data && <LogRecordList logs={query.data.logs} emptyText="No recent logs in this range." />}
+      <p><Link className="view-traces-link" to={`/logs?${contextSearchParams(service, range).toString()}`}>View all logs</Link></p>
+    </section>
+  )
+}
+
 export function ServiceInvestigationPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const parsed = useMemo(() => parseTelemetryContext(searchParams), [searchParams])
@@ -252,21 +281,28 @@ export function ServiceInvestigationPage() {
     queryFn: () => getTraceServices(range),
     enabled: discoveryEnabled,
   })
+  const logServices = useQuery({
+    queryKey: ['investigation', 'logs', 'services', range.from, range.to],
+    queryFn: () => getLogServices(range),
+    enabled: discoveryEnabled,
+  })
   const services = useMemo(() => exactServiceUnion(
     activeContext ? [activeContext.service] : undefined,
     metricsServices.data?.services,
     traceServices.data?.services,
-  ), [activeContext, metricsServices.data?.services, traceServices.data?.services])
+    logServices.data?.services,
+  ), [activeContext, logServices.data?.services, metricsServices.data?.services, traceServices.data?.services])
   const service = activeContext?.service
   const redMetrics = useMetricSeries(service, range, redMetricIds)
   const jvmMetrics = useMetricSeries(service, range, jvmMetricIds)
   const recent = useTraceSearch(service, range, false)
   const errorTraces = useTraceSearch(service, range, true)
+  const recentLogs = useLogSearch(service, range, {}, 5)
 
   useEffect(() => {
-    if (parsed.status !== 'absent' || metricsServices.isPending || traceServices.isPending || services.length === 0) return
+    if (parsed.status !== 'absent' || metricsServices.isPending || traceServices.isPending || logServices.isPending || services.length === 0) return
     setSearchParams(contextSearchParams(services[0], discoveryRange), { replace: true })
-  }, [discoveryRange, metricsServices.isPending, parsed.status, services, setSearchParams, traceServices.isPending])
+  }, [discoveryRange, logServices.isPending, metricsServices.isPending, parsed.status, services, setSearchParams, traceServices.isPending])
 
   if (parsed.status === 'invalid') {
     return (
@@ -279,26 +315,27 @@ export function ServiceInvestigationPage() {
   }
 
   if (parsed.status === 'absent') {
-    const discoveryFinished = !metricsServices.isPending && !traceServices.isPending
-    const discoveryFailed = metricsServices.isError || traceServices.isError
+    const discoveryFinished = !metricsServices.isPending && !traceServices.isPending && !logServices.isPending
+    const discoveryFailed = metricsServices.isError || traceServices.isError || logServices.isError
     return (
       <main>
         <header className="metrics-hero"><div><p className="eyebrow">Cross-signal evidence</p><h1>Service investigation</h1></div></header>
         {!discoveryFinished && <section className="metrics-loading" aria-busy="true">Discovering monitored services…</section>}
         {metricsServices.isError && <section className="inline-state" role="alert">{discoveryFailureMessage(metricsFailureMessage(metricsServices.error))}</section>}
         {traceServices.isError && <section className="inline-state" role="alert">{discoveryFailureMessage(tracesFailureMessage(traceServices.error))}</section>}
+        {logServices.isError && <section className="inline-state" role="alert">{discoveryFailureMessage(logsFailureMessage(logServices.error))}</section>}
         {discoveryFinished && services.length === 0 && discoveryFailed && (
           <section className="state-panel">
             <h2>Service discovery unavailable</h2>
             <p className="state-detail">No service identity can be selected until at least one provider returns one.</p>
-            <button type="button" onClick={() => { void metricsServices.refetch(); void traceServices.refetch() }}>Retry discovery</button>
+            <button type="button" onClick={() => { void metricsServices.refetch(); void traceServices.refetch(); void logServices.refetch() }}>Retry discovery</button>
           </section>
         )}
         {discoveryFinished && services.length === 0 && !discoveryFailed && (
           <section className="state-panel">
             <h2>No monitored services found</h2>
             <p className="state-detail">Send OpenTelemetry metrics or traces from a workload, then retry.</p>
-            <button type="button" onClick={() => { void metricsServices.refetch(); void traceServices.refetch() }}>Retry discovery</button>
+            <button type="button" onClick={() => { void metricsServices.refetch(); void traceServices.refetch(); void logServices.refetch() }}>Retry discovery</button>
           </section>
         )}
       </main>
@@ -315,10 +352,12 @@ export function ServiceInvestigationPage() {
   function refresh() {
     void metricsServices.refetch()
     void traceServices.refetch()
+    void logServices.refetch()
     void redMetrics.refetch()
     void jvmMetrics.refetch()
     void recent.refetch()
     void errorTraces.refetch()
+    void recentLogs.refetch()
   }
 
   return (
@@ -350,6 +389,7 @@ export function ServiceInvestigationPage() {
 
       {metricsServices.isError && <section className="discovery-note" role="status">{discoveryFailureMessage(metricsFailureMessage(metricsServices.error))} The selected context remains active.</section>}
       {traceServices.isError && <section className="discovery-note" role="status">{discoveryFailureMessage(tracesFailureMessage(traceServices.error))} The selected context remains active.</section>}
+      {logServices.isError && <section className="discovery-note" role="status">{discoveryFailureMessage(logsFailureMessage(logServices.error))} The selected context remains active.</section>}
 
       <MetricEvidenceSection title="RED metrics" loadingText="Loading RED metrics…" emptyText="No RED metrics in this range." concepts={redMetricConcepts} query={redMetrics} />
       <MetricEvidenceSection title="JVM and resources" loadingText="Loading JVM and resource metrics…" emptyText="No JVM or resource telemetry in this range." concepts={jvmMetricConcepts} query={jvmMetrics} />
@@ -357,6 +397,8 @@ export function ServiceInvestigationPage() {
       <div className="investigation-traces-heading"><p className="eyebrow">Relevant traces</p><h2>Trace evidence</h2></div>
       <RecentTraceEvidence query={recent} service={selectedService} range={range} />
       <TraceEvidenceSection title="Error traces" subtitle="Traces containing provider-reported errors" loadingText="Loading error traces…" emptyText="No error traces in this range." query={errorTraces} select={recentTraces} service={selectedService} range={range} />
+      <div className="investigation-traces-heading"><p className="eyebrow">Textual evidence</p><h2>Log evidence</h2></div>
+      <LogsEvidenceSection query={recentLogs} service={selectedService} range={range} />
     </main>
   )
 }

@@ -10,6 +10,8 @@ geordi:
       enabled: true
     traces:
       enabled: true
+    logs:
+      enabled: true
     self-observability:
       enabled: true
   metrics:
@@ -20,6 +22,11 @@ geordi:
   traces:
     tempo:
       base-url: http://localhost:3200
+      connect-timeout: 2s
+      read-timeout: 3s
+  logs:
+    loki:
+      base-url: http://localhost:3100
       connect-timeout: 2s
       read-timeout: 3s
 

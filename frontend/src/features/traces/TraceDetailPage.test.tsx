@@ -62,6 +62,27 @@ describe('Trace detail', () => {
     )
   })
 
+  it('opens related logs with the carried exact context and trace ID', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(detail), { status: 200 }))
+    renderDetail(`/traces/${traceId}?serviceName=checkout&serviceNamespace=store&environment=local&from=2026-08-13T14%3A45%3A00.000Z&to=2026-08-13T15%3A00%3A00.000Z`)
+
+    const target = new URL((await screen.findByRole('link', { name: 'View related logs' })).getAttribute('href')!, 'http://geordi.test')
+    expect(target.pathname).toBe('/logs')
+    expect(target.searchParams.get('serviceNamespace')).toBe('store')
+    expect(target.searchParams.get('environment')).toBe('local')
+    expect(target.searchParams.get('from')).toBe('2026-08-13T14:45:00.000Z')
+    expect(target.searchParams.get('to')).toBe('2026-08-13T15:00:00.000Z')
+    expect(target.searchParams.get('traceId')).toBe(traceId)
+  })
+
+  it('does not invent service context for related logs on a direct trace bookmark', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(detail), { status: 200 }))
+    renderDetail(`/traces/${traceId}`)
+
+    await screen.findByRole('heading', { name: 'Error trace' })
+    expect(screen.queryByRole('link', { name: 'View related logs' })).not.toBeInTheDocument()
+  })
+
   it('keeps investigation return copy and context when trace detail fails', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 503 }))
     renderDetail(`/traces/${traceId}?serviceName=checkout&serviceNamespace=store&environment=local&from=2026-08-13T14%3A45%3A00.000Z&to=2026-08-13T15%3A00%3A00.000Z&origin=investigate`)

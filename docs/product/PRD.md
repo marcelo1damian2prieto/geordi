@@ -1,6 +1,6 @@
 # Geordi Product Requirements Document
 
-Status: FOUNDATION IMPLEMENTED / FUTURE CAPABILITIES PLANNED
+Status: MILESTONE 5 LOCALLY VERIFIED / GITLAB REVALIDATION PENDING
 
 ## Vision
 
@@ -44,11 +44,11 @@ Some signals/providers are owned by Geordi and others remain external.
 ### Full Replacement
 Geordi owns the complete telemetry path and user experience.
 
-## Planned capabilities
+## Capabilities
 
 - core platform;
 - metrics;
-- logs;
+- logs (locally verified; GitLab revalidation pending);
 - traces;
 - APM;
 - infrastructure monitoring;
@@ -115,7 +115,7 @@ saved searches, multiple trace stores, tenancy, Kubernetes, AI or Milestone 4 wo
 
 ## Milestone 4 scope
 
-Status: LOCAL IMPLEMENTATION / PENDING GITLAB REVALIDATION
+Status: COMPLETE
 
 Milestone 4 composes the existing Metrics and Traces capabilities into one fixed,
 service-centric `/investigate` workflow. Operators carry an exact namespace/name/
@@ -128,5 +128,25 @@ Composition is frontend-only. Milestone 4 does not add Logs, backend aggregation
 APM, dashboards/widgets, service maps, alerts/SLOs, anomaly detection, new providers,
 infrastructure product features, arbitrary query languages, or Milestone 5 work.
 
-Local success does not complete the milestone. Its maximum local status is `READY FOR
-GITLAB REVALIDATION`; the project owner must confirm the authoritative GitLab pipeline.
+The project owner confirmed the authoritative GitLab pipeline for Milestone 4 is green.
+
+## Milestone 5 scope
+
+Status: READY FOR GITLAB REVALIDATION
+
+Milestone 5 adds the bounded Logs vertical slice: a demo workload emits OTLP Logs to
+the Collector and Loki; Geordi queries Loki through a vendor-neutral port/adapter and
+serves `/api/logs/services`, `/api/logs`, and `/logs`. Operators use one exact monitored
+service identity and absolute range, filter with canonical severity or literal text,
+and inspect record body, attributes, and available trace/span correlation.
+
+Service Investigation composes Logs independently with Metrics and Traces. Trace Detail
+opens related Logs only with valid carried identity/range context and trace correlation.
+No LogQL reaches the public API or UI. Loki labels are limited to low-cardinality
+service/environment/origin fields; correlation IDs and arbitrary fields remain
+structured metadata.
+
+Milestone 5 does not add service maps, alerts, dashboards, saved searches, arbitrary
+query languages, multiple providers, advanced retention, multi-tenancy, Kubernetes,
+APM, or AI/RCA. Local verification is not completion: only project-owner confirmation
+of the authoritative GitLab pipeline may change the milestone to `COMPLETE`.

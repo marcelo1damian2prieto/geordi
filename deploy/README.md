@@ -1,8 +1,8 @@
 # Local deployment
 
-Milestone 2 runs the frontend, backend, monitored demo application, OpenTelemetry
-Collector, VictoriaMetrics and Grafana Tempo single-node storage with Docker Compose.
-It has no Kubernetes or production multi-node storage cluster.
+Milestone 5 runs the frontend, backend, monitored demo application, OpenTelemetry
+Collector, VictoriaMetrics, Grafana Tempo, and Grafana Loki single-node storage with
+Docker Compose. It has no Kubernetes or production multi-node storage cluster.
 
 ## Start
 
@@ -13,10 +13,10 @@ Copy-Item .env.example .env
 docker compose up --build
 ```
 
-The Compose file pins Grafana Tempo to `2.7.2`, the OpenTelemetry Collector to
-`0.157.0`, and the Java Agent to `2.28.1`. The Java Agent download is checked against
-its pinned SHA-256 digest. `.env` only contains non-secret local settings and is ignored
-by Git.
+The Compose file pins Grafana Tempo to `2.7.2`, Grafana Loki to `3.7.2`, the
+OpenTelemetry Collector to `0.157.0`, and the Java Agent to `2.28.1`. The Java Agent
+download is checked against its pinned SHA-256 digest. `.env` only contains non-secret
+local settings and is ignored by Git.
 
 All published ports are loopback-only:
 
@@ -29,17 +29,19 @@ All published ports are loopback-only:
   `http://127.0.0.1:8428/api/v1/query`.
 - Tempo readiness/query API: `http://127.0.0.1:3200/ready` and
   `http://127.0.0.1:3200/api/search`.
+- Loki readiness/query API: `http://127.0.0.1:3100/ready` and
+  `http://127.0.0.1:3100/loki/api/v1/query_range`.
 - monitored demo service: `http://127.0.0.1:8081`.
 
 VictoriaMetrics stores seven days of local development metric data in the named
 `victoriametrics-data` volume. Tempo stores local trace WAL and blocks in the named
-`tempo-data` volume. Both storage choices are intentionally single-node local-development
-topologies. The Collector waits for both stores, sending metrics to VictoriaMetrics and
-traces to Tempo over OTLP. The backend waits for the Collector and both stores; the
-frontend waits for the backend. Both Java 21 runtimes run as UID `10001`, attach the
-OpenTelemetry Java Agent, export traces and metrics over OTLP/HTTP, disable OTel logs
-export, sample locally with `always_on`, and give each process a generated
-`service.instance.id`.
+`tempo-data` volume. Loki stores local TSDB v13 data in the named `loki-data` volume.
+All are intentionally single-node local-development topologies. The Collector waits for
+the stores, sending metrics to VictoriaMetrics and traces/logs to Tempo/Loki over OTLP.
+The backend waits for the Collector and stores; the frontend waits for the backend. Both
+Java 21 runtimes run as UID `10001`, attach the OpenTelemetry Java Agent, export traces,
+metrics, and logs over OTLP/HTTP, sample locally with `always_on`, and give each process
+a generated `service.instance.id`.
 
 Local images use neutral `:local` tags. The application version is not maintained in
 Compose: Maven writes it into the backend artifact, the API reads that build metadata,
@@ -57,6 +59,7 @@ Invoke-WebRequest http://127.0.0.1:13133/
 Invoke-WebRequest http://127.0.0.1:8888/metrics
 Invoke-WebRequest http://127.0.0.1:8428/health
 Invoke-WebRequest http://127.0.0.1:3200/ready
+Invoke-WebRequest http://127.0.0.1:3100/ready
 Invoke-WebRequest http://127.0.0.1:8081/actuator/health/readiness
 ```
 
@@ -72,6 +75,7 @@ Or run the automated end-to-end check:
 .\scripts\verify-otel.ps1
 .\scripts\verify-metrics.ps1
 .\scripts\verify-traces.ps1
+.\scripts\verify-logs.ps1
 ```
 
 The OpenTelemetry smoke check requires the Collector's backend `service.version` to
@@ -84,11 +88,17 @@ the latency scenario includes an internal child span. It verifies Tempo persiste
 Geordi's exact identity/time-range trace search, trace detail, error, hierarchy and
 frontend-proxy semantics.
 
+The Logs smoke generates deterministic INFO, WARN, ERROR, and nested-span records. It
+verifies Loki persistence, Geordi's exact identity/range/severity/body/correlation semantics,
+Trace Search → Detail → trace/span-filtered Logs, frontend proxy behavior, and that trace/span,
+request ID, and full URL metadata remain queryable without becoming Loki labels.
+
 ## GitLab runner
 
-The required GitLab deployment and integration jobs target a trusted Linux shell runner
+The required GitLab deployment and integration jobs target a trusted Windows runner
 tagged `geordi-docker-pwsh`. It must provide Docker daemon access, Docker Compose v2,
 PowerShell 7, outbound access for pinned images/dependencies, and exclusive access to
-the published local ports, including `8428`. Do not remove the tag or mark these jobs optional; a missing
-runner must be visible as a pending required pipeline job. Docker daemon access is
-privileged, so the runner must not serve untrusted projects.
+the published local ports, including `8428` and `3100`. Do not remove the tag or mark
+these jobs optional; a missing runner must be visible as a pending required pipeline
+job. Docker daemon access is privileged, so the runner must not serve untrusted
+projects.

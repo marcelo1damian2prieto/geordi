@@ -42,11 +42,12 @@ COMPLETE
 - span hierarchy;
 - Metrics → Traces context navigation.
 
-Trace-related logs remain planned for v0.4; no Logs capability is implemented here.
+Trace-related logs are delivered by Milestone 5 and remain subject to its GitLab
+revalidation status.
 
 ## Milestone 4 — Lightweight Service Investigation
 
-LOCAL IMPLEMENTATION / PENDING GITLAB REVALIDATION
+COMPLETE
 
 - bookmarkable service/environment/absolute-time investigation context;
 - fixed RED and JVM/resource evidence from existing Metrics contracts;
@@ -55,14 +56,24 @@ LOCAL IMPLEMENTATION / PENDING GITLAB REVALIDATION
 - context-preserving navigation to existing Trace Detail;
 - frontend composition with no backend aggregation or full APM abstraction.
 
-The milestone is not `COMPLETE` until the project owner confirms the authoritative
-GitLab pipeline is green.
+The project owner confirmed the authoritative GitLab pipeline is green.
 
-## v0.4 — Logs + Service Map + Alerts
+## Milestone 5 — Logs Vertical Slice
 
-PLANNED
+READY FOR GITLAB REVALIDATION
 - logs explorer;
 - trace/log correlation;
+- Logs evidence in Service Investigation;
+- bounded Loki-backed vendor-neutral Logs APIs;
+- cardinality-safe structured correlation metadata.
+
+Local verification does not complete the milestone. The authoritative GitLab pipeline
+must be green and confirmed by the project owner before the status may become
+`COMPLETE`.
+
+## Later — Service Map + Alerts
+
+DEFERRED
 - service dependency topology;
 - threshold alerts;
 - webhook/email notifications.

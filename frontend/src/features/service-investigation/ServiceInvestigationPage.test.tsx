@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MetricSeriesResponse, ServiceIdentity } from '../../api/metrics'
 import type { TraceSearchResponse } from '../../api/traces'
+import type { LogSearchResponse } from '../../api/logs'
 import { ServiceInvestigationPage } from './ServiceInvestigationPage'
 
 vi.mock('../service-metrics/MetricChart', () => ({
@@ -34,6 +35,21 @@ const errors = {
   service, range,
   traces: [{ traceId: 'c'.repeat(32), rootSpanName: 'POST /error', startTime: '2026-08-13T14:57:00Z', durationNanos: 250_000_000, spanCount: 2, error: true }],
 } satisfies TraceSearchResponse
+const logResult = {
+  service,
+  range,
+  logs: [{
+    timestamp: '2026-08-13T14:56:00.000Z',
+    observedTimestamp: '2026-08-13T14:56:00.010Z',
+    severity: 'WARN',
+    severityText: 'WARN',
+    body: 'Inventory reservation is slow',
+    service,
+    traceId: 'd'.repeat(32),
+    spanId: 'e'.repeat(16),
+    attributes: { 'event.name': 'inventory.reservation.slow' },
+  }],
+} satisfies LogSearchResponse
 
 function response(body: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }))
@@ -55,12 +71,15 @@ function renderPage(initialEntry = entry) {
 function mockSuccess() {
   return vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
     const url = urlOf(input)
-    if (url.pathname === '/api/metrics/services' || url.pathname === '/api/traces/services') return response({ services: [service] })
+    if (url.pathname === '/api/metrics/services' || url.pathname === '/api/traces/services' || url.pathname === '/api/logs/services') {
+      return response({ services: [service] })
+    }
     if (url.pathname === '/api/metrics/series') {
       const requestedMetrics = new Set(url.searchParams.getAll('metric'))
       return response({ ...metricSeries, series: metricSeries.series.filter((series) => requestedMetrics.has(series.metric)) })
     }
     if (url.pathname === '/api/traces') return response(url.searchParams.get('errorOnly') === 'true' ? errors : recent)
+    if (url.pathname === '/api/logs') return response(logResult)
     throw new Error(`Unexpected request: ${url.pathname}`)
   })
 }
@@ -69,7 +88,7 @@ beforeEach(() => vi.setSystemTime(new Date(range.to)))
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
 describe('Service investigation', () => {
-  it('uses one exact canonical context for RED, JVM, recent, and error evidence', async () => {
+  it('uses one exact canonical context for RED, JVM, trace, and log evidence', async () => {
     const fetchMock = mockSuccess()
     renderPage()
 
@@ -81,11 +100,13 @@ describe('Service investigation', () => {
     expect(screen.getAllByText('GET /recent').length).toBeGreaterThan(0)
     expect(screen.getAllByText('GET /slow').length).toBeGreaterThan(0)
     expect(screen.getByText('POST /error')).toBeInTheDocument()
+    expect(screen.getByText('Inventory reservation is slow')).toBeInTheDocument()
+    expect(screen.getByText('Trace linked')).toBeInTheDocument()
 
     const evidence = fetchMock.mock.calls.map(([input]) => urlOf(input)).filter((url) =>
-      url.pathname === '/api/metrics/series' || url.pathname === '/api/traces',
+      url.pathname === '/api/metrics/series' || url.pathname === '/api/traces' || url.pathname === '/api/logs',
     )
-    expect(evidence).toHaveLength(4)
+    expect(evidence).toHaveLength(5)
     evidence.forEach((url) => {
       expect(url.searchParams.get('serviceName')).toBe('checkout')
       expect(url.searchParams.get('serviceNamespace')).toBe('store')
@@ -96,6 +117,8 @@ describe('Service investigation', () => {
     const metricCalls = evidence.filter((url) => url.pathname === '/api/metrics/series')
     expect(metricCalls.map((url) => url.searchParams.getAll('metric').length).sort()).toEqual([4, 5])
     expect(evidence.filter((url) => url.searchParams.get('errorOnly') === 'true')).toHaveLength(1)
+    expect(evidence.filter((url) => url.pathname === '/api/logs')).toHaveLength(1)
+    expect(evidence.find((url) => url.pathname === '/api/logs')?.searchParams.get('limit')).toBe('5')
   })
 
   it('keeps Metrics visible when Traces fails and Traces visible when Metrics fails', async () => {
@@ -104,6 +127,7 @@ describe('Service investigation', () => {
       if (url.pathname.endsWith('/services')) return response({ services: [service] })
       if (url.pathname === '/api/metrics/series') return response(metricSeries)
       if (url.pathname === '/api/traces') return response({}, 503)
+      if (url.pathname === '/api/logs') return response(logResult)
       throw new Error(`Unexpected request: ${url.pathname}`)
     })
     const first = renderPage()
@@ -117,11 +141,30 @@ describe('Service investigation', () => {
       if (url.pathname.endsWith('/services')) return response({ services: [service] })
       if (url.pathname === '/api/metrics/series') return response({}, 503)
       if (url.pathname === '/api/traces') return response(url.searchParams.get('errorOnly') === 'true' ? errors : recent)
+      if (url.pathname === '/api/logs') return response(logResult)
       throw new Error(`Unexpected request: ${url.pathname}`)
     })
     renderPage()
     expect(await screen.findByText('POST /error')).toBeInTheDocument()
+    expect(screen.getByText('Inventory reservation is slow')).toBeInTheDocument()
     expect((await screen.findAllByRole('alert')).some((node) => node.textContent?.includes('Metrics storage is unavailable.'))).toBe(true)
+  })
+
+  it('keeps Metrics and Traces visible when recent Logs fails', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      const url = urlOf(input)
+      if (url.pathname.endsWith('/services')) return response({ services: [service] })
+      if (url.pathname === '/api/metrics/series') return response(metricSeries)
+      if (url.pathname === '/api/traces') return response(url.searchParams.get('errorOnly') === 'true' ? errors : recent)
+      if (url.pathname === '/api/logs') return response({}, 503)
+      throw new Error(`Unexpected request: ${url.pathname}`)
+    })
+    renderPage()
+
+    expect(await screen.findByText('20 requests in selected range')).toBeInTheDocument()
+    expect(screen.getByText('POST /error')).toBeInTheDocument()
+    expect((await screen.findAllByRole('alert')).some((node) => node.textContent?.includes('Log storage is unavailable.'))).toBe(true)
+    expect(screen.getByRole('link', { name: 'View all logs' })).toHaveAttribute('href', expect.stringContaining('serviceNamespace=store'))
   })
 
   it('isolates JVM failure from RED and error-trace failure from recent traces', async () => {
@@ -132,6 +175,7 @@ describe('Service investigation', () => {
         return url.searchParams.has('metric', 'JVM_MEMORY_USED') ? response({}, 503) : response(metricSeries)
       }
       if (url.pathname === '/api/traces') return url.searchParams.get('errorOnly') === 'true' ? response({}, 503) : response(recent)
+      if (url.pathname === '/api/logs') return response(logResult)
       throw new Error(`Unexpected request: ${url.pathname}`)
     })
     renderPage()
@@ -148,6 +192,7 @@ describe('Service investigation', () => {
       const url = urlOf(input)
       if (url.pathname.endsWith('/services')) return response({ services: [service] })
       if (url.pathname === '/api/metrics/series' || url.pathname === '/api/traces') return response({}, 503)
+      if (url.pathname === '/api/logs') return response(logResult)
       throw new Error(`Unexpected request: ${url.pathname}`)
     })
     renderPage()
@@ -166,6 +211,7 @@ describe('Service investigation', () => {
         return response(metrics.includes('HTTP_REQUEST_RATE') ? { ...metricSeries, series: metricSeries.series.slice(0, 1) } : { ...metricSeries, series: [] })
       }
       if (url.pathname === '/api/traces') return response({ ...recent, traces: [] })
+      if (url.pathname === '/api/logs') return response(logResult)
       throw new Error(`Unexpected request: ${url.pathname}`)
     })
     renderPage()
@@ -197,6 +243,7 @@ describe('Service investigation', () => {
       if (url.searchParams.get('environment') === 'staging') return new Promise<Response>(() => undefined)
       if (url.pathname === '/api/metrics/series') return response(metricSeries)
       if (url.pathname === '/api/traces') return response(url.searchParams.get('errorOnly') === 'true' ? errors : recent)
+      if (url.pathname === '/api/logs') return response({ ...logResult, service: second })
       throw new Error(`Unexpected request: ${url.pathname}`)
     })
     renderPage()
@@ -226,8 +273,10 @@ describe('Service investigation', () => {
       const url = urlOf(input)
       if (url.pathname === '/api/metrics/services') return response({}, 503)
       if (url.pathname === '/api/traces/services') return response({ services: [traceOnly] })
+      if (url.pathname === '/api/logs/services') return response({ services: [] })
       if (url.pathname === '/api/metrics/series') return response({ ...metricSeries, service: traceOnly, series: [] })
       if (url.pathname === '/api/traces') return response({ ...recent, service: traceOnly, traces: [] })
+      if (url.pathname === '/api/logs') return response({ ...logResult, service: traceOnly })
       throw new Error(`Unexpected request: ${url.pathname}`)
     })
     renderPage('/investigate')
@@ -239,13 +288,13 @@ describe('Service investigation', () => {
   it('does not report telemetry absence when bare-route discovery fails', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
       const url = urlOf(input)
-      if (url.pathname === '/api/metrics/services' || url.pathname === '/api/traces/services') return response({}, 503)
+      if (url.pathname.endsWith('/services')) return response({}, 503)
       throw new Error(`Unexpected request: ${url.pathname}`)
     })
     renderPage('/investigate')
 
     expect(await screen.findByRole('heading', { name: 'Service discovery unavailable' })).toBeInTheDocument()
-    expect(screen.getAllByRole('alert')).toHaveLength(2)
+    expect(screen.getAllByRole('alert')).toHaveLength(3)
     expect(screen.queryByRole('heading', { name: 'No monitored services found' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Retry discovery' })).toBeInTheDocument()
   })
@@ -276,6 +325,7 @@ describe('Service investigation', () => {
       if (url.searchParams.get('to') === '2026-08-13T16:00:00.000Z') return new Promise<Response>(() => undefined)
       if (url.pathname === '/api/metrics/series') return response(metricSeries)
       if (url.pathname === '/api/traces') return response(url.searchParams.get('errorOnly') === 'true' ? errors : recent)
+      if (url.pathname === '/api/logs') return response(logResult)
       throw new Error(`Unexpected request: ${url.pathname}`)
     })
     renderPage()

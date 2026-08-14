@@ -62,3 +62,19 @@ This debt is not a defect in Milestone 1.1. The milestone remains successfully c
 - **Follow-up:** Clarify and contract-test Metrics boundary semantics when a real
   boundary-sensitive use case or provider replacement requires it.
 - **Priority:** Low
+
+## Loki service-discovery response bound
+
+- **Status:** Pending / Non-blocking
+- **Detected in:** Milestone 5 independent review
+- **Description:** Loki's `/series` endpoint accepts a selector and time bounds but no
+  documented result-limit parameter. Geordi restricts discovery to monitored streams
+  in a maximum six-hour window and returns at most 200 distinct canonical identities,
+  but the adapter must materialize the provider response before applying that cap.
+- **Current impact:** The four-label local/MVP topology keeps the practical response
+  small. A deployment with a very large service/environment population could consume
+  disproportionate response memory during discovery.
+- **Follow-up:** Introduce a bounded canonical service catalog or a provider with
+  server-side pagination only when scale evidence justifies it; do not reconstruct
+  identity tuples by cross-producting independent label-value queries.
+- **Priority:** Medium

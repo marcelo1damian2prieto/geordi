@@ -1,8 +1,7 @@
 # Geordi backend
 
-Single-project Java 21 / Spring Boot modular monolith for Milestone 1. Logical module
-boundaries are the `core`, `selfobservability`, and `bootstrap` packages and are
-enforced by ArchUnit.
+Single-project Java 21 / Spring Boot modular monolith. Logical module boundaries for
+core, self-observability, Metrics, Traces, and Logs are enforced by ArchUnit.
 
 ## Verify
 
@@ -32,6 +31,8 @@ The product API is exposed on port 8080:
 - `GET /api/platform`
 - `GET /api/modules`
 - `GET /api/platform/health`
+- `GET /api/logs/services`
+- `GET /api/logs`
 - `GET /actuator/health/liveness`
 - `GET /actuator/health/readiness`
 
@@ -49,4 +50,6 @@ fails instead of inventing a fallback version when it is absent.
 
 Console logs use Spring Boot's Logstash-compatible structured JSON format. OpenTelemetry
 SDK dependencies are intentionally absent: local deployment attaches the version-pinned
-OpenTelemetry Java Agent and supplies its OTLP endpoint and resource attributes.
+OpenTelemetry Java Agent and supplies its OTLP endpoint and resource attributes. The
+Logs module is enabled by default; `geordi.modules.logs.enabled=false` removes its
+capability routes and skips its bounded Loki health probe while preserving inventory.

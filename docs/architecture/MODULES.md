@@ -1,6 +1,6 @@
 # Module Architecture
 
-Status: IMPLEMENTED THROUGH LOCAL MILESTONE 4 / PENDING GITLAB REVALIDATION
+Status: IMPLEMENTED THROUGH MILESTONE 5 LOCAL VERIFICATION / GITLAB REVALIDATION PENDING
 
 ## Initial modules
 
@@ -36,16 +36,23 @@ beans and routes exist only when enabled; health performs one timeout-bounded Te
 query-path probe, while inventory remains I/O-free. Traces and Metrics do not depend on
 each other; cross-signal navigation is composed in the frontend with canonical context.
 
+### logs
+
+Provides bounded monitored-service discovery and log search through a vendor-neutral
+query boundary. Its module definition is always registered. Capability beans and routes
+exist only when enabled; health performs one timeout-bounded Loki read-path probe while
+inventory remains I/O-free. Logs does not depend on Metrics or Traces; Service
+Investigation and Trace-to-Logs are frontend composition using canonical context.
+
 ### service investigation (frontend capability)
 
-Milestone 4 Service Investigation is not a backend platform module. The frontend
-composes the public Metrics and Traces contracts at `/investigate`; it adds no module
-registration, health check, backend aggregation service, or bounded-context dependency.
-Metrics and Traces activation and health remain independent.
+Service Investigation is not a backend platform module. The frontend composes the public
+Metrics, Traces, and Logs contracts at `/investigate`; it adds no module registration,
+health check, backend aggregation service, or bounded-context dependency. Signal
+activation and health remain independent.
 
 ## Planned modules
 
-- logs
 - apm
 - infrastructure
 - service-map

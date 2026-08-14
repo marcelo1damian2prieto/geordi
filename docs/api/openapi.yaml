@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Geordi Platform API
-  version: milestone-3
-  description: Platform APIs and the implemented Metrics and Traces capabilities.
+  version: milestone-5
+  description: Platform APIs and bounded Metrics, Traces, and Logs capabilities.
 servers:
   - url: http://localhost:8080
 paths:
@@ -214,6 +214,93 @@ paths:
           $ref: '#/components/responses/TracesMalformedResponse'
         '504':
           $ref: '#/components/responses/TracesTimeout'
+  /api/logs/services:
+    get:
+      operationId: listLogServices
+      summary: List monitored services with logs in a bounded half-open time range.
+      description: Only explicitly classified monitored workload logs are returned.
+      parameters:
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+      responses:
+        '200':
+          description: Services with monitored logs in the requested [from, to) interval.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogServices'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '502':
+          $ref: '#/components/responses/LogsMalformedResponse'
+        '503':
+          $ref: '#/components/responses/LogsUnavailable'
+        '504':
+          $ref: '#/components/responses/LogsTimeout'
+        '404':
+          $ref: '#/components/responses/LogsDisabled'
+  /api/logs:
+    get:
+      operationId: searchLogs
+      summary: Search bounded log records for one exact monitored service identity.
+      description: >-
+        Search is constrained to [from, to), at most six hours and at most 200 records.
+        Text is a literal substring, not LogQL, regex, or a provider query language.
+      parameters:
+        - $ref: '#/components/parameters/LogServiceName'
+        - $ref: '#/components/parameters/LogServiceNamespace'
+        - $ref: '#/components/parameters/LogEnvironment'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - name: severity
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/LogSeverity'
+        - name: text
+          in: query
+          required: false
+          description: Literal substring filter; no regex or provider syntax.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 256
+        - name: traceId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/TraceId'
+        - name: spanId
+          in: query
+          required: false
+          description: Requires traceId when supplied.
+          schema:
+            $ref: '#/components/schemas/SpanId'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 200
+      responses:
+        '200':
+          description: Deterministically newest-first log records; an empty logs array is valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogSearchResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '502':
+          $ref: '#/components/responses/LogsMalformedResponse'
+        '503':
+          $ref: '#/components/responses/LogsUnavailable'
+        '504':
+          $ref: '#/components/responses/LogsTimeout'
+        '404':
+          $ref: '#/components/responses/LogsDisabled'
 components:
   parameters:
     ServiceName:
@@ -255,6 +342,30 @@ components:
         type: string
         minLength: 1
     TraceEnvironment:
+      name: environment
+      in: query
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    LogServiceName:
+      name: serviceName
+      in: query
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    LogServiceNamespace:
+      name: serviceNamespace
+      in: query
+      required: false
+      description: >-
+        When omitted, matches only logs with a canonical null/absent service namespace;
+        it never widens the search to every namespace.
+      schema:
+        type: string
+        minLength: 1
+    LogEnvironment:
       name: environment
       in: query
       required: true
@@ -316,6 +427,26 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
+    LogsUnavailable:
+      description: Log storage could not answer the bounded query.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    LogsMalformedResponse:
+      description: Log storage returned a malformed or partial response.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    LogsTimeout:
+      description: Log storage exceeded the bounded query timeout.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    LogsDisabled:
+      description: The Logs capability is disabled and its routes are absent.
   schemas:
     Platform:
       type: object
@@ -507,6 +638,64 @@ components:
       description: Lowercase 16-character hexadecimal OpenTelemetry span ID.
       pattern: '^[0-9a-f]{16}$'
       example: 00f067aa0ba902b7
+    LogSeverity:
+      type: string
+      description: Canonical group mapped from OpenTelemetry numeric severity.
+      enum: [UNSPECIFIED, TRACE, DEBUG, INFO, WARN, ERROR, FATAL]
+    LogRecord:
+      type: object
+      additionalProperties: false
+      required: [timestamp, observedTimestamp, severity, severityText, body, service, traceId, spanId, attributes]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        observedTimestamp:
+          type: [string, 'null']
+          format: date-time
+        severity:
+          $ref: '#/components/schemas/LogSeverity'
+        severityText:
+          type: [string, 'null']
+        body:
+          type: string
+        service:
+          $ref: '#/components/schemas/ServiceIdentity'
+        traceId:
+          oneOf:
+            - $ref: '#/components/schemas/TraceId'
+            - type: 'null'
+        spanId:
+          oneOf:
+            - $ref: '#/components/schemas/SpanId'
+            - type: 'null'
+        attributes:
+          type: object
+          additionalProperties:
+            type: string
+    LogServices:
+      type: object
+      additionalProperties: false
+      required: [services]
+      properties:
+        services:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceIdentity'
+    LogSearchResult:
+      type: object
+      additionalProperties: false
+      required: [service, range, logs]
+      properties:
+        service:
+          $ref: '#/components/schemas/ServiceIdentity'
+        range:
+          $ref: '#/components/schemas/TimeRange'
+        logs:
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/LogRecord'
     TraceSpanServiceIdentity:
       type: object
       additionalProperties: false

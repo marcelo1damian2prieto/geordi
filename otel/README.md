@@ -1,30 +1,31 @@
 # OpenTelemetry
 
-Milestone 3 uses the version-pinned OpenTelemetry Collector image
+Milestone 5 uses the version-pinned OpenTelemetry Collector image
 `otel/opentelemetry-collector:0.157.0` with
 [`otel-collector-config.yaml`](./otel-collector-config.yaml).
 The official image currently resolves to
 `sha256:4019ce4d7e7791a1a255fffb2f407af66d5017cc65543469ba565c4f47f795b8`.
 
-The local flow keeps the Milestone 1 debug route and persists workload metrics and
-traces in separate stores:
+The local flow keeps the Milestone 1 debug route and persists workload metrics, traces,
+and logs in separate stores:
 
 ```text
 geordi-backend -- OTLP/HTTP --> otel-collector -- debug exporter --> stderr
 backend + geordi-demo-service -- OTLP/HTTP --> otel-collector -- OTLP/HTTP --> VictoriaMetrics
 backend + geordi-demo-service -- OTLP/HTTP --> otel-collector -- OTLP/HTTP --> Tempo
+backend + geordi-demo-service -- OTLP/HTTP --> otel-collector -- OTLP/HTTP --> Loki
 ```
 
 The Collector accepts OTLP/gRPC on `4317` and OTLP/HTTP on `4318`. Its readiness
 endpoint is `/` on port `13133`, and its internal Prometheus metrics are available at
 `/metrics` on port `8888`. The Compose services are `backend`, `demo`,
-`otel-collector`, `victoriametrics` and `tempo`.
+`otel-collector`, `victoriametrics`, `tempo`, and `loki`.
 
-Only traces and metrics have data pipelines. Each pipeline applies `memory_limiter`
-before `batch`. Traces retain the detailed local `debug` route and are sent using
-compressed OTLP/HTTP to Tempo. Metrics are debug-exported as local evidence and sent
-using compressed OTLP/HTTP to VictoriaMetrics at `/opentelemetry/v1/metrics`. Both
-storage exporters have bounded queues and retry policies. There is no logs pipeline.
+Each data pipeline applies `memory_limiter` before `batch`. Traces retain the detailed
+local `debug` route and are sent using compressed OTLP/HTTP to Tempo. Metrics are
+debug-exported as local evidence and sent using compressed OTLP/HTTP to VictoriaMetrics
+at `/opentelemetry/v1/metrics`. Logs are sent using compressed OTLP/HTTP to Loki's
+native `/otlp` endpoint. Every storage exporter has a bounded queue and retry policy.
 
 Collector internal metrics are exposed only through port `8888`; internal JSON logs
 and debug-exported payloads go only to stderr. They are not sent to OTLP. The
@@ -37,7 +38,8 @@ metrics remain pull-only and are not persisted by VictoriaMetrics.
 Compose attaches a version-pinned OpenTelemetry Java Agent to the backend and sets:
 
 - OTLP/HTTP export for traces and metrics to `http://otel-collector:4318`;
-- `OTEL_LOGS_EXPORTER=none`;
+- OTLP/HTTP export for logs as well as traces and metrics;
+- `OTEL_LOGS_EXPORTER=otlp`;
 - `service.namespace=geordi` and `service.name=geordi-backend`;
 - a unique runtime `service.instance.id`;
 - `deployment.environment.name=development`;
@@ -65,6 +67,8 @@ After starting the local environment, run from the repository root:
 ```powershell
 .\scripts\verify-otel.ps1
 .\scripts\verify-metrics.ps1
+.\scripts\verify-traces.ps1
+.\scripts\verify-logs.ps1
 ```
 
 The bounded smoke test checks backend readiness and Collector readiness separately,
@@ -78,3 +82,10 @@ The metrics smoke generates all demo traffic shapes, waits for Collector export 
 VictoriaMetrics queries to return JVM, CPU, GC and HTTP metric data, then verifies the
 Geordi metrics service, overview and series APIs. This proves persistence rather than
 only Collector receipt.
+
+The trace smoke verifies Tempo persistence, exact service identity/time-range search,
+detail, hierarchy, and correlation navigation. The Logs smoke verifies deterministic
+INFO/WARN/ERROR persistence in Loki, exact identity/range/severity/body semantics,
+trace/span preservation, Geordi API/frontend-proxy access, and absence of
+high-cardinality Loki labels. Collector acceptance alone does not prove persistence or
+queryability for any signal.

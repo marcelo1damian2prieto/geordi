@@ -99,9 +99,25 @@ milestone delivers:
 - stale-data protection across identity and range changes;
 - context-preserving Investigation → Trace Detail → Investigation navigation.
 
-Milestone 4 adds no backend aggregation API, Logs capability, full APM, or new telemetry
-infrastructure. Its local verification, independent review, and authoritative GitLab CI
-gate are green.
+Milestone 4 itself added no backend aggregation API, Logs capability, full APM, or new
+telemetry infrastructure. Its local verification, independent review, and authoritative
+GitLab CI gate are green.
+
+## Milestone 5 — Logs vertical slice
+
+**READY FOR GITLAB REVALIDATION.** The demo emits OTLP Logs through the Collector into
+Grafana Loki 3.7.2. Geordi exposes a bounded, vendor-neutral Logs API and `/logs` UI
+for one exact monitored service identity and absolute range, with severity, literal
+text, and trace/span correlation filters. Trace Detail can open related Logs with valid
+carried context, and Service Investigation composes an independently failing Logs
+section alongside Metrics and Traces.
+
+Loki is isolated behind the Logs query port. Only `service.name`,
+`service.namespace`, `deployment.environment.name`, and `geordi.telemetry.origin` are
+Loki labels; correlation IDs and other high-cardinality data remain structured metadata.
+Local verification is not completion: GitLab CI remains the authoritative acceptance
+gate, and only project-owner confirmation of a green pipeline may mark this milestone
+`COMPLETE`.
 
 ## Current capabilities
 
@@ -109,9 +125,12 @@ gate are green.
   query layer → REST API → React Metrics UI.
 - **Traces:** OTLP Traces → Collector → Tempo → vendor-neutral Traces query layer →
   REST API → React Traces UI.
-- **Correlation:** Metrics → service/environment/time context → Traces.
+- **Logs:** OTLP Logs → Collector → Loki → vendor-neutral Logs query layer → REST API
+  → React Logs UI.
+- **Correlation:** Metrics → service/environment/time context → Traces; Trace Detail →
+  related Logs when valid context and trace correlation are available.
 - **Service investigation:** `/investigate` → fixed RED/JVM evidence plus relevant
-  traces for one canonical, bookmarkable context.
+  traces and recent Logs for one canonical, bookmarkable context.
 
 This is a bounded service-investigation foundation, not full APM.
 
@@ -152,6 +171,13 @@ Verify trace ingestion, persistence, search, detail and correlation semantics:
 .\scripts\verify-traces.ps1
 ```
 
+Verify Logs ingestion, exact identity/range/severity semantics, correlation, and the
+absence of high-cardinality Loki labels:
+
+```powershell
+.\scripts\verify-logs.ps1
+```
+
 ## Quality gates
 
 ```powershell
@@ -170,6 +196,9 @@ GitHub Actions and GitLab CI run the same commands. GitLab's required deployment
 stack-smoke jobs use a trusted Windows runner tagged `geordi-docker-pwsh` with Docker
 daemon access, Docker Compose v2, PowerShell 7, outbound image access, and the fixed
 local ports available. The integration job is serialized by a resource group.
+
+Milestone 5 is locally ready for GitLab revalidation; it is not complete until the
+project owner confirms the authoritative GitLab pipeline is green.
 
 ## Documentation
 

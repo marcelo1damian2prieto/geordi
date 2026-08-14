@@ -58,9 +58,9 @@ Absence of `geordi.telemetry.origin` means unclassified, not customer telemetry.
 ### Feedback-loop prevention
 
 Collector internal telemetry is emitted only through its internal metrics endpoint and
-stderr. It is never exported to the Collector's own OTLP receiver. Milestone 1 has no
-Prometheus receiver scraping that endpoint, no log receiver ingesting Collector/debug
-output, and no OTLP logs pipeline. The debug exporter is terminal.
+stderr. It is never exported to the Collector's own OTLP receiver. There is no
+Prometheus receiver scraping that endpoint and no log receiver ingesting Collector/debug
+output. The debug exporter is terminal.
 
 ## Milestone 2 additions
 
@@ -117,6 +117,20 @@ instrumentation otherwise records provider query strings in `url.full`. The loca
 deployment therefore disables that one outbound auto-instrumentation. Inbound backend
 HTTP traces remain enabled, while the Metrics and Traces adapters continue to expose
 safe operation-only request, duration, failure, result-size and probe metrics.
+
+## Milestone 5 additions
+
+The Collector exports OTLP Logs to Loki. Platform runtime logs retain
+`geordi.telemetry.origin=platform`; workload discovery/search requires
+`geordi.telemetry.origin=monitored` and the exact monitored service identity. Collector
+internal logs and debug output remain terminal and are not re-ingested, preserving
+feedback-loop prevention.
+
+Logs query/probe telemetry records only low-cardinality operation, duration, outcome,
+availability, and result-size information. It excludes log bodies, literal text search,
+service identity, trace/span/request IDs, URLs, structured metadata, and exception text.
+Loki indexes only service name, service namespace, deployment environment, and telemetry
+origin; high-cardinality correlation values remain structured metadata.
 
 ## Future health indicators
 

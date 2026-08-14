@@ -23,6 +23,10 @@ vi.mock('./features/service-investigation/ServiceInvestigationPage', () => ({
   ServiceInvestigationPage: () => <main>Service investigation route</main>,
 }))
 
+vi.mock('./features/logs/LogsPage', () => ({
+  LogsPage: () => <main>Logs route</main>,
+}))
+
 describe('application routes', () => {
   it('renders service metrics at its public route', () => {
     render(<MemoryRouter initialEntries={['/metrics']}><App /></MemoryRouter>)
@@ -51,5 +55,12 @@ describe('application routes', () => {
 
     expect(screen.getByText('Service investigation route')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Investigate' })).toBeInTheDocument()
+  })
+
+  it('renders logs at its public route', () => {
+    render(<MemoryRouter initialEntries={['/logs']}><App /></MemoryRouter>)
+
+    expect(screen.getByText('Logs route')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Logs' })).toBeInTheDocument()
   })
 })

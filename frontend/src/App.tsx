@@ -5,6 +5,7 @@ import { ServiceMetricsPage } from './features/service-metrics/ServiceMetricsPag
 import { TraceDetailPage } from './features/traces/TraceDetailPage'
 import { TraceSearchPage } from './features/traces/TraceSearchPage'
 import { ServiceInvestigationPage } from './features/service-investigation/ServiceInvestigationPage'
+import { LogsPage } from './features/logs/LogsPage'
 
 export function App() {
   return (
@@ -14,6 +15,7 @@ export function App() {
         <Route path="/metrics" element={<ServiceMetricsPage />} />
         <Route path="/traces" element={<TraceSearchPage />} />
         <Route path="/traces/:traceId" element={<TraceDetailPage />} />
+        <Route path="/logs" element={<LogsPage />} />
         <Route path="/investigate" element={<ServiceInvestigationPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

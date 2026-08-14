@@ -8,9 +8,9 @@ introduce the P0 telemetry capabilities incrementally.
 
 Milestone 2 delivered a constrained operational Metrics view. Milestone 3 completed the
 second P0 increment: persistent trace search/detail plus Metrics → Traces context
-navigation. Milestone 4 locally implements a coherent Metrics + Traces service
-investigation workflow, pending GitLab revalidation. Logs and trace/log correlation
-remain planned, so the correlated-telemetry MVP is not yet complete.
+navigation. Milestone 4 is complete. Milestone 5 locally verifies Logs and Trace → Logs
+correlation, pending the authoritative GitLab revalidation; therefore the correlated
+telemetry MVP is not complete yet.
 
 ## Goal
 

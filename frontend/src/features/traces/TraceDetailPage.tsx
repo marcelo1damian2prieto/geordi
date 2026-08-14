@@ -28,6 +28,10 @@ export function TraceDetailPage() {
   const investigationParams = parsedContext.status === 'valid'
     ? contextSearchParams(parsedContext.context.service, parsedContext.context.range)
     : undefined
+  const relatedLogsParams = parsedContext.status === 'valid'
+    ? contextSearchParams(parsedContext.context.service, parsedContext.context.range)
+    : undefined
+  relatedLogsParams?.set('traceId', traceId ?? '')
   const traceSearchParams = new URLSearchParams(searchParams)
   traceSearchParams.delete('origin')
   const backTarget = fromInvestigation
@@ -62,6 +66,7 @@ export function TraceDetailPage() {
           <div><dt>Outcome</dt><dd className={trace.error ? 'trace-error' : 'trace-ok'}>{trace.error ? 'ERROR' : 'OK'}</dd></div>
         </dl>
       </header>
+      {relatedLogsParams && <p><Link className="view-traces-link" to={`/logs?${relatedLogsParams.toString()}`}>View related logs</Link></p>}
       <section aria-labelledby="waterfall-heading">
         <div className="section-heading"><h2 id="waterfall-heading">Span waterfall</h2><span>Timing relative to trace start</span></div>
         <TraceWaterfall trace={trace} />

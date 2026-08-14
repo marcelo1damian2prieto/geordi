@@ -1,6 +1,6 @@
 # Architecture
 
-Status: IMPLEMENTED THROUGH LOCAL MILESTONE 4 / PENDING GITLAB REVALIDATION
+Status: IMPLEMENTED THROUGH MILESTONE 5 LOCAL VERIFICATION / GITLAB REVALIDATION PENDING
 
 ## Initial style
 
@@ -63,7 +63,21 @@ one absolute range. It adds no backend aggregation boundary or domain dependency
 Signal queries remain independently observable and degradable. See
 `SERVICE_INVESTIGATION.md`.
 
-## Target logical view (PLANNED beyond Milestone 4)
+## Milestone 5 logs flow
+
+```text
+Demo service -- OTLP Logs --> Collector -- OTLP/HTTP --> Loki
+                                                    ^
+                                                    |
+React Logs <- REST <- Logs application <- query port <- Loki adapter
+```
+
+Loki/LogQL and provider JSON stay inside the outbound adapter. The public contract uses
+an exact monitored identity, bounded half-open time range, canonical severity, literal
+text, and optional trace/span correlation fields. Loki label cardinality is limited by
+ADR-012; see `LOGS.md`, ADR-012, and ADR-013.
+
+## Target logical view
 
 ```text
 Applications
@@ -78,7 +92,7 @@ Geordi Platform
     +-- Core
     +-- Self Observability
     +-- Metrics (implemented)
-    +-- Logs (planned)
+    +-- Logs (locally verified; GitLab revalidation pending)
     +-- Traces (implemented)
     +-- APM (planned)
     +-- Compatibility (planned)
@@ -108,7 +122,8 @@ module listing side-effect free and leaves future provider checks behind module 
 
 VictoriaMetrics is the single Milestone 2 metrics provider behind a replaceable adapter.
 Prometheus or Mimir may be implemented as future adapters, but are not supported now.
-Logs providers may include Loki, OpenSearch or ClickHouse.
+Loki is the single Milestone 5 logs provider behind a replaceable adapter. OpenSearch or
+ClickHouse require a separate future adapter and deployment decision.
 Tempo is the single Milestone 3 trace provider behind a replaceable adapter. Jaeger or
 other stores require a separate future adapter and deployment decision.
 

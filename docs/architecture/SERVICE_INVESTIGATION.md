@@ -1,28 +1,30 @@
 # Service Investigation Architecture
 
-Status: IMPLEMENTED / MILESTONE 4 COMPLETE
+Status: IMPLEMENTED THROUGH MILESTONE 5 / GITLAB REVALIDATION PENDING
 
 ## Scope
 
-Service Investigation is a thin frontend workflow over the implemented Metrics and
-Traces bounded contexts. It is not a backend module, an APM domain, a dashboard engine,
-or a cross-signal query service.
+Service Investigation is a thin frontend workflow over the implemented Metrics, Traces,
+and Logs bounded contexts. It is not a backend module, an APM domain, a dashboard
+engine, or a cross-signal query service.
 
 ```text
                          canonical TelemetryContext
                                     |
-React /investigate -----------------+------------------+
-       |                                               |
-       v                                               v
-Metrics public REST                            Traces public REST
-       |                                               |
-Metrics application -> query port              Traces application -> query port
-       |                                               |
-VictoriaMetrics adapter                         Tempo adapter
+React /investigate -----------------+------------------+------------------+
+       |                            |                  |
+       v                            v                  v
+Metrics public REST          Traces public REST   Logs public REST
+       |                            |                  |
+       v                            v                  v
+Metrics application          Traces application   Logs application
+       |                            |                  |
+       v                            v                  v
+VictoriaMetrics adapter      Tempo adapter        Loki adapter
 ```
 
-Metrics and Traces remain independent. The backend ArchUnit rule prohibiting both
-dependency directions remains the architectural guardrail.
+Metrics, Traces, and Logs remain independent. Backend ArchUnit rules prohibiting
+cross-signal dependency directions remain the architectural guardrail.
 
 ## Canonical context
 
@@ -38,16 +40,17 @@ the composition layer does not invent a stronger Metrics storage-boundary guaran
 
 ## Request composition
 
-When no valid URL identity exists, the frontend independently discovers Metrics and
-Trace services and unions complete identity tuples. It never intersects dimensions or
+When no valid URL identity exists, the frontend independently discovers Metrics, Trace,
+and Logs services and unions complete identity tuples. It never intersects dimensions or
 creates a cross-product of service, namespace, and environment.
 
-For an active context it performs four bounded evidence queries:
+For an active context it performs bounded evidence queries:
 
 1. one batched Metrics series request for the five RED metrics;
 2. one batched Metrics series request for the four JVM/resource metrics;
 3. one normal bounded Trace search for Recent and the derived duration ordering;
 4. one error-only bounded Trace search.
+5. one bounded Logs search for recent records.
 
 The two Metrics groups are non-overlapping, so this adds failure isolation without
 duplicating provider metric queries or using the overlapping overview endpoint.
@@ -60,7 +63,8 @@ global threshold or a whole-window ordering guarantee.
 ## Failure isolation
 
 The page never gates all content on a combined promise. Discovery, Metrics, recent
-traces, and error traces have independent loading, empty, failure, and retry behavior.
+traces, error traces, and Logs have independent loading, empty, failure, and retry
+behavior.
 A provider failure removes neither valid evidence nor controls belonging to another
 signal. Missing JVM telemetry and no error traces are normal empty states, not platform
 or provider failures.
@@ -88,9 +92,9 @@ classified with `geordi.telemetry.origin=platform`. Raw query text, service iden
 trace IDs, response bodies, exception messages, and other high-cardinality attributes
 remain excluded. No aggregator telemetry or frontend page-view endpoint is added.
 
-## Replaceability and future Logs seam
+## Replaceability and Logs composition
 
-Composition consumes public vendor-neutral contracts, so VictoriaMetrics and Tempo
-remain replaceable behind their adapters. A future Logs section may consume the same
-signal-neutral context and fail independently, but Milestone 4 adds no Logs types,
-placeholder UI, provider registry, shared Java identity, or generic query abstraction.
+Composition consumes public vendor-neutral contracts, so VictoriaMetrics, Tempo, and
+Loki remain replaceable behind their adapters. Logs consumes the same signal-neutral
+context and fails independently; it adds no shared Java identity, generic query
+abstraction, or cross-signal domain dependency.

@@ -18,7 +18,7 @@ class ArchitectureTest {
         noClasses().that().resideInAPackage("io.geordi.core..")
                 .should().dependOnClassesThat().resideInAnyPackage(
                         "io.geordi.bootstrap..", "io.geordi.selfobservability..",
-                        "io.geordi.metrics..", "io.geordi.traces..")
+                        "io.geordi.metrics..", "io.geordi.traces..", "io.geordi.logs..")
                 .check(productionClasses);
     }
 
@@ -40,7 +40,8 @@ class ArchitectureTest {
                         "com.datadog..",
                         "com.dynatrace..",
                         "io.signoz..",
-                        "io.geordi.traces..")
+                        "io.geordi.traces..",
+                        "io.geordi.logs..")
                 .check(productionClasses);
     }
 
@@ -48,7 +49,8 @@ class ArchitectureTest {
     void bootstrapDoesNotKnowOptionalConcreteModules() {
         noClasses().that().resideInAPackage("io.geordi.bootstrap..")
                 .should().dependOnClassesThat().resideInAnyPackage(
-                        "io.geordi.selfobservability..", "io.geordi.metrics..", "io.geordi.traces..")
+                        "io.geordi.selfobservability..", "io.geordi.metrics..", "io.geordi.traces..",
+                        "io.geordi.logs..")
                 .check(productionClasses);
     }
 
@@ -119,6 +121,51 @@ class ArchitectureTest {
                 .check(productionClasses);
         noClasses().that().resideInAPackage("io.geordi.traces..")
                 .should().dependOnClassesThat().resideInAPackage("io.geordi.metrics..")
+                .check(productionClasses);
+    }
+
+    @Test
+    void logsDomainAndApplicationAreIndependentFromFrameworkAndProviderAdapters() {
+        noClasses().that().resideInAnyPackage(
+                        "io.geordi.logs.domain..", "io.geordi.logs.application..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "org.springframework..",
+                        "com.fasterxml.jackson..",
+                        "com.grafana..",
+                        "com.github.loki4j..",
+                        "io.loki..",
+                        "io.opentelemetry..",
+                        "java.net.http..",
+                        "jakarta.persistence..",
+                        "org.grafana..",
+                        "io.geordi.logs.adapter..",
+                        "io.geordi.metrics..",
+                        "io.geordi.traces..")
+                .check(productionClasses);
+    }
+
+    @Test
+    void logsDomainDependsOnlyOnItselfAndTheJavaRuntime() {
+        noClasses().that().resideInAPackage("io.geordi.logs.domain..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "io.geordi.logs.application..",
+                        "io.geordi.logs.adapter..",
+                        "io.geordi.core..",
+                        "io.geordi.bootstrap..",
+                        "io.geordi.metrics..",
+                        "io.geordi.traces..",
+                        "io.geordi.selfobservability..")
+                .check(productionClasses);
+    }
+
+    @Test
+    void logsMetricsAndTracesDoNotDependOnEachOther() {
+        noClasses().that().resideInAPackage("io.geordi.logs..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "io.geordi.metrics..", "io.geordi.traces..")
+                .check(productionClasses);
+        noClasses().that().resideInAnyPackage("io.geordi.metrics..", "io.geordi.traces..")
+                .should().dependOnClassesThat().resideInAPackage("io.geordi.logs..")
                 .check(productionClasses);
     }
 }
