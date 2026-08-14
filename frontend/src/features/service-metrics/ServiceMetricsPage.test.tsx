@@ -82,6 +82,10 @@ describe('Service metrics', () => {
       'href',
       '/traces?serviceName=checkout&serviceNamespace=store&environment=local&from=2026-08-13T14%3A45%3A00.000Z&to=2026-08-13T15%3A00%3A00.000Z',
     )
+    expect(screen.getByRole('link', { name: 'Investigate service' })).toHaveAttribute(
+      'href',
+      '/investigate?serviceName=checkout&serviceNamespace=store&environment=local&from=2026-08-13T14%3A45%3A00.000Z&to=2026-08-13T15%3A00%3A00.000Z',
+    )
     expect(await screen.findByText('0.00 req/s')).toBeInTheDocument()
     expect(screen.getByText('20 requests in selected range')).toBeInTheDocument()
     expect(screen.getByText('1.0 MiB')).toBeInTheDocument()

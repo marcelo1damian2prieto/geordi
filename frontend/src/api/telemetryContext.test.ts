@@ -3,6 +3,7 @@ import {
   contextFromSearchParams,
   contextSearchParams,
   identityParams,
+  parseTelemetryContext,
   serviceKey,
   type ServiceIdentity,
 } from './telemetryContext'
@@ -30,5 +31,31 @@ describe('telemetry investigation context', () => {
     expect(contextFromSearchParams(new URLSearchParams(
       'serviceName=checkout&environment=local&from=not-a-date&to=2026-08-13T15:00:00.000Z',
     ))).toEqual({})
+  })
+
+  it('distinguishes absent, valid, and malformed investigation context', () => {
+    expect(parseTelemetryContext(new URLSearchParams())).toEqual({ status: 'absent' })
+    expect(parseTelemetryContext(contextSearchParams(service, range))).toEqual({
+      status: 'valid', context: { service, range },
+    })
+    expect(parseTelemetryContext(new URLSearchParams('serviceName=checkout'))).toEqual({ status: 'invalid' })
+    expect(parseTelemetryContext(new URLSearchParams(
+      'serviceName=%20&environment=local&from=2026-08-13T14%3A45%3A00.000Z&to=2026-08-13T15%3A00%3A00.000Z',
+    ))).toEqual({ status: 'invalid' })
+    expect(parseTelemetryContext(new URLSearchParams(
+      'serviceName=checkout&serviceNamespace=%20&environment=local&from=2026-08-13T14%3A45%3A00.000Z&to=2026-08-13T15%3A00%3A00.000Z',
+    ))).toEqual({ status: 'invalid' })
+  })
+
+  it('rejects non-absolute, unordered, and over-six-hour ranges', () => {
+    const query = (from: string, to: string) => new URLSearchParams({
+      serviceName: 'checkout', environment: 'local', from, to,
+    })
+
+    expect(parseTelemetryContext(query('2026-08-13T14:45:00', range.to))).toEqual({ status: 'invalid' })
+    expect(parseTelemetryContext(query(range.to, range.from))).toEqual({ status: 'invalid' })
+    expect(parseTelemetryContext(query(range.from, range.from))).toEqual({ status: 'invalid' })
+    expect(parseTelemetryContext(query('2026-08-13T08:59:59.999Z', range.to))).toEqual({ status: 'invalid' })
+    expect(parseTelemetryContext(query('2026-08-13T09:00:00.000Z', range.to)).status).toBe('valid')
   })
 })

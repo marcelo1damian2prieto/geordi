@@ -96,6 +96,7 @@ export function ServiceMetricsPage() {
             ))}
           </fieldset>
           <Link className="view-traces-link" to={`/traces?${contextSearchParams(selected, range).toString()}`}>View traces</Link>
+          <Link className="view-traces-link" to={`/investigate?${contextSearchParams(selected, range).toString()}`}>Investigate service</Link>
           <button className="refresh-button" type="button" onClick={refresh}>{refreshing ? 'Refreshing…' : 'Refresh'}</button>
         </div>
       </header>

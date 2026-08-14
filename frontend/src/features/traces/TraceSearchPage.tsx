@@ -123,6 +123,7 @@ export function TraceSearchPage() {
             ))}
           </fieldset>
           <label className="error-filter"><input type="checkbox" checked={errorOnly} onChange={(event) => setErrorOnly(event.target.checked)} /> Errors only</label>
+          <Link className="view-traces-link" to={`/investigate?${contextSearchParams(selected, range).toString()}`}>Investigate service</Link>
           <button className="refresh-button" type="button" onClick={refresh}>{tracesQuery.isFetching ? 'Refreshing…' : 'Refresh'}</button>
         </div>
       </header>

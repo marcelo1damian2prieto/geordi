@@ -8,6 +8,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <NavLink to="/" end>Platform</NavLink>
         <NavLink to="/metrics">Service metrics</NavLink>
         <NavLink to="/traces">Traces</NavLink>
+        <NavLink to="/investigate">Investigate</NavLink>
       </nav>
       {children}
     </>

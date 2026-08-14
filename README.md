@@ -86,6 +86,18 @@ exposes complete trace detail, and renders a simple span waterfall at `/traces`.
 Metrics view links to Traces while preserving service, environment, namespace and the
 absolute investigation range.
 
+## Milestone 4 — Lightweight Service Investigation
+
+**LOCAL IMPLEMENTATION — PENDING GITLAB REVALIDATION.** The `/investigate` workflow
+composes the existing Metrics and Traces APIs around one exact service namespace, name,
+environment, and absolute time range. It presents RED and JVM/resource signals, recent
+traces, error traces, and the slowest traces among the bounded recent results, with
+independent partial-data states and context-preserving Trace Detail navigation.
+
+Milestone 4 adds no backend aggregation API, Logs capability, full APM, or new telemetry
+infrastructure. Only an owner-confirmed green authoritative GitLab pipeline can complete
+it.
+
 ## Current capabilities
 
 - **Metrics:** OTLP Metrics → Collector → VictoriaMetrics → vendor-neutral Metrics
@@ -93,6 +105,8 @@ absolute investigation range.
 - **Traces:** OTLP Traces → Collector → Tempo → vendor-neutral Traces query layer →
   REST API → React Traces UI.
 - **Correlation:** Metrics → service/environment/time context → Traces.
+- **Service investigation:** `/investigate` → fixed RED/JVM evidence plus relevant
+  traces for one canonical, bookmarkable context.
 
 This is a bounded service-investigation foundation, not full APM.
 

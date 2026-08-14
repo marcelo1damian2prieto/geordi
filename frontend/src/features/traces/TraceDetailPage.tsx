@@ -3,6 +3,7 @@ import { ApiError } from '../../api/client'
 import { formatDuration } from './tracePresentation'
 import { TraceWaterfall } from './TraceWaterfall'
 import { useTraceDetail } from './useTraces'
+import { contextSearchParams, parseTelemetryContext } from '../../api/telemetryContext'
 
 function detailFailure(error: Error | null) {
   if (error instanceof ApiError && error.status === 400) return 'The trace identifier is invalid.'
@@ -22,7 +23,18 @@ export function TraceDetailPage() {
   const { traceId } = useParams()
   const [searchParams] = useSearchParams()
   const detail = useTraceDetail(traceId)
-  const backTarget = `/traces${searchParams.size > 0 ? `?${searchParams.toString()}` : ''}`
+  const parsedContext = parseTelemetryContext(searchParams)
+  const fromInvestigation = searchParams.get('origin') === 'investigate' && parsedContext.status === 'valid'
+  const investigationParams = parsedContext.status === 'valid'
+    ? contextSearchParams(parsedContext.context.service, parsedContext.context.range)
+    : undefined
+  const traceSearchParams = new URLSearchParams(searchParams)
+  traceSearchParams.delete('origin')
+  const backTarget = fromInvestigation
+    ? `/investigate?${investigationParams!.toString()}`
+    : `/traces${traceSearchParams.size > 0 ? `?${traceSearchParams.toString()}` : ''}`
+  const backDestination = fromInvestigation ? 'service investigation' : 'trace search'
+  const backLabel = fromInvestigation ? '← Back to service investigation' : '← Back to trace search'
 
   if (detail.isPending) return <main className="state-panel" aria-busy="true">Loading trace detail…</main>
 
@@ -30,9 +42,9 @@ export function TraceDetailPage() {
     return (
       <main className="state-panel" role="alert">
         <h1>{detailFailure(detail.error)}</h1>
-        <p className="state-detail">Return to trace search or retry this request.</p>
+        <p className="state-detail">Return to {backDestination} or retry this request.</p>
         <button type="button" onClick={() => void detail.refetch()}>Retry</button>
-        <p><Link to={backTarget}>Back to trace search</Link></p>
+        <p><Link to={backTarget}>Back to {backDestination}</Link></p>
       </main>
     )
   }
@@ -40,7 +52,7 @@ export function TraceDetailPage() {
   const trace = detail.data
   return (
     <main>
-      <Link className="back-link" to={backTarget}>← Back to trace search</Link>
+      <Link className="back-link" to={backTarget}>{backLabel}</Link>
       <header className="trace-detail-hero">
         <div><p className="eyebrow">Distributed trace</p><h1>{trace.error ? 'Error trace' : 'Trace detail'}</h1><code>{trace.traceId}</code></div>
         <dl className="trace-summary">

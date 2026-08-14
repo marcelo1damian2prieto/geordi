@@ -112,3 +112,21 @@ Metrics to Traces with the same canonical context.
 
 Milestone 3 does not add logs, full APM, service maps, alerting, arbitrary TraceQL,
 saved searches, multiple trace stores, tenancy, Kubernetes, AI or Milestone 4 work.
+
+## Milestone 4 scope
+
+Status: LOCAL IMPLEMENTATION / PENDING GITLAB REVALIDATION
+
+Milestone 4 composes the existing Metrics and Traces capabilities into one fixed,
+service-centric `/investigate` workflow. Operators carry an exact namespace/name/
+environment identity and one absolute range across RED metrics, JVM/resource signals,
+recent traces, error traces, duration-ordered recent traces, and existing Trace Detail.
+Missing telemetry, valid zero, empty results, provider failures, and stale context
+transitions remain distinct.
+
+Composition is frontend-only. Milestone 4 does not add Logs, backend aggregation, full
+APM, dashboards/widgets, service maps, alerts/SLOs, anomaly detection, new providers,
+infrastructure product features, arbitrary query languages, or Milestone 5 work.
+
+Local success does not complete the milestone. Its maximum local status is `READY FOR
+GITLAB REVALIDATION`; the project owner must confirm the authoritative GitLab pipeline.

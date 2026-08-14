@@ -507,7 +507,7 @@ components:
       description: Lowercase 16-character hexadecimal OpenTelemetry span ID.
       pattern: '^[0-9a-f]{16}$'
       example: 00f067aa0ba902b7
-    TraceServiceIdentity:
+    TraceSpanServiceIdentity:
       type: object
       additionalProperties: false
       required: [name, namespace, environment]
@@ -527,7 +527,7 @@ components:
         services:
           type: array
           items:
-            $ref: '#/components/schemas/TraceServiceIdentity'
+            $ref: '#/components/schemas/ServiceIdentity'
     TraceSummary:
       type: object
       additionalProperties: false
@@ -555,7 +555,7 @@ components:
       required: [service, range, traces]
       properties:
         service:
-          $ref: '#/components/schemas/TraceServiceIdentity'
+          $ref: '#/components/schemas/ServiceIdentity'
         range:
           $ref: '#/components/schemas/TimeRange'
         traces:
@@ -606,7 +606,7 @@ components:
         name:
           type: string
         service:
-          $ref: '#/components/schemas/TraceServiceIdentity'
+          $ref: '#/components/schemas/TraceSpanServiceIdentity'
         telemetryOrigin:
           type: [string, 'null']
         kind:

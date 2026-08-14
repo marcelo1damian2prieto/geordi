@@ -81,6 +81,7 @@ services:
       OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE: cumulative
       OTEL_RESOURCE_ATTRIBUTES: service.namespace=geordi,service.name=geordi-backend,deployment.environment.name=development,geordi.telemetry.origin=platform,geordi.platform.component=backend
       OTEL_SEMCONV_STABILITY_OPT_IN: http
+      OTEL_INSTRUMENTATION_HTTP_URL_CONNECTION_ENABLED: "false"
       OTEL_TRACES_EXPORTER: otlp
       OTEL_TRACES_SAMPLER: always_on
     ports:

@@ -14,6 +14,15 @@ export interface TelemetryContext {
   range: TimeRange
 }
 
+export type TelemetryContextParseResult =
+  | { status: 'absent' }
+  | { status: 'invalid' }
+  | { status: 'valid'; context: TelemetryContext }
+
+const contextParameterNames = ['serviceName', 'serviceNamespace', 'environment', 'from', 'to'] as const
+const maximumRangeMillis = 6 * 60 * 60 * 1000
+const absoluteTimestampPattern = /(?:Z|[+-]\d{2}:\d{2})$/i
+
 export function serviceKey(service: ServiceIdentity) {
   return JSON.stringify([service.namespace, service.name, service.environment])
 }
@@ -42,18 +51,32 @@ export function contextSearchParams(service: ServiceIdentity, range: TimeRange) 
 }
 
 export function contextFromSearchParams(params: URLSearchParams): Partial<TelemetryContext> {
+  const parsed = parseTelemetryContext(params)
+  return parsed.status === 'valid' ? parsed.context : {}
+}
+
+export function parseTelemetryContext(params: URLSearchParams): TelemetryContextParseResult {
+  if (!contextParameterNames.some((name) => params.has(name))) return { status: 'absent' }
+
   const name = params.get('serviceName')
   const environment = params.get('environment')
   const from = params.get('from')
   const to = params.get('to')
-  if (!name || !environment || !from || !to) return {}
+  const namespace = params.get('serviceNamespace')
+  if (!name?.trim() || !environment?.trim() || !from || !to) return { status: 'invalid' }
+  if (params.has('serviceNamespace') && !namespace?.trim()) return { status: 'invalid' }
+  if (!absoluteTimestampPattern.test(from) || !absoluteTimestampPattern.test(to)) return { status: 'invalid' }
 
   const fromMillis = Date.parse(from)
   const toMillis = Date.parse(to)
-  if (!Number.isFinite(fromMillis) || !Number.isFinite(toMillis) || fromMillis >= toMillis) return {}
+  if (!Number.isFinite(fromMillis) || !Number.isFinite(toMillis) || fromMillis >= toMillis) return { status: 'invalid' }
+  if (toMillis - fromMillis > maximumRangeMillis) return { status: 'invalid' }
 
   return {
-    service: { name, namespace: params.get('serviceNamespace'), environment },
-    range: { from, to },
+    status: 'valid',
+    context: {
+      service: { name: name.trim(), namespace: namespace?.trim() ?? null, environment: environment.trim() },
+      range: { from, to },
+    },
   }
 }

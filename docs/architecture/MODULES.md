@@ -1,6 +1,6 @@
 # Module Architecture
 
-Status: IMPLEMENTED / MILESTONE 3 COMPLETE
+Status: IMPLEMENTED THROUGH LOCAL MILESTONE 4 / PENDING GITLAB REVALIDATION
 
 ## Initial modules
 
@@ -35,6 +35,13 @@ vendor-neutral query boundary. Its module definition is always registered. Capab
 beans and routes exist only when enabled; health performs one timeout-bounded Tempo
 query-path probe, while inventory remains I/O-free. Traces and Metrics do not depend on
 each other; cross-signal navigation is composed in the frontend with canonical context.
+
+### service investigation (frontend capability)
+
+Milestone 4 Service Investigation is not a backend platform module. The frontend
+composes the public Metrics and Traces contracts at `/investigate`; it adds no module
+registration, health check, backend aggregation service, or bounded-context dependency.
+Metrics and Traces activation and health remain independent.
 
 ## Planned modules
 

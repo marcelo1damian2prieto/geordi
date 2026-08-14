@@ -51,6 +51,29 @@ describe('Trace detail', () => {
     expect(screen.getByRole('link', { name: /Back to trace search/ })).toHaveAttribute('href', expect.stringContaining('serviceName=checkout'))
   })
 
+  it('returns an investigation-origin trace to the exact canonical investigation context', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(detail), { status: 200 }))
+    renderDetail(`/traces/${traceId}?serviceName=checkout&serviceNamespace=store&environment=local&from=2026-08-13T14%3A45%3A00.000Z&to=2026-08-13T15%3A00%3A00.000Z&origin=investigate`)
+
+    const back = await screen.findByRole('link', { name: /Back to service investigation/ })
+    expect(back).toHaveAttribute(
+      'href',
+      '/investigate?serviceName=checkout&serviceNamespace=store&environment=local&from=2026-08-13T14%3A45%3A00.000Z&to=2026-08-13T15%3A00%3A00.000Z',
+    )
+  })
+
+  it('keeps investigation return copy and context when trace detail fails', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 503 }))
+    renderDetail(`/traces/${traceId}?serviceName=checkout&serviceNamespace=store&environment=local&from=2026-08-13T14%3A45%3A00.000Z&to=2026-08-13T15%3A00%3A00.000Z&origin=investigate`)
+
+    expect(await screen.findByRole('heading', { name: 'Trace storage is unavailable.' })).toBeInTheDocument()
+    expect(screen.getByText('Return to service investigation or retry this request.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Back to service investigation' })).toHaveAttribute(
+      'href',
+      '/investigate?serviceName=checkout&serviceNamespace=store&environment=local&from=2026-08-13T14%3A45%3A00.000Z&to=2026-08-13T15%3A00%3A00.000Z',
+    )
+  })
+
   it('distinguishes trace not found and supports retry', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
       title: 'Trace not found', status: 404,

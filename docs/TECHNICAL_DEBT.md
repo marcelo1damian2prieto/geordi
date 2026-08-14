@@ -49,3 +49,16 @@ This debt is not a defect in Milestone 1.1. The milestone remains successfully c
 - **Follow-up:** Introduce a canonical service catalog only when scale evidence justifies
   it; do not couple Traces discovery to Metrics or cross-product independent tag values.
 - **Priority:** Medium
+
+## Metrics upper-bound semantics
+
+- **Status:** Pending / Non-blocking
+- **Detected in:** Milestone 4 architecture reconciliation
+- **Description:** Traces explicitly applies half-open `[from,to)` containment, while
+  the Metrics domain validates an ordered maximum-six-hour range and forwards both
+  bounds without documenting equivalent half-open containment.
+- **Current impact:** Service Investigation sends identical absolute bounds to both
+  signals, but documentation must not claim identical storage-boundary inclusion.
+- **Follow-up:** Clarify and contract-test Metrics boundary semantics when a real
+  boundary-sensitive use case or provider replacement requires it.
+- **Priority:** Low

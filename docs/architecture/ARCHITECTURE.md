@@ -1,6 +1,6 @@
 # Architecture
 
-Status: IMPLEMENTED / MILESTONE 3 COMPLETE
+Status: IMPLEMENTED THROUGH LOCAL MILESTONE 4 / PENDING GITLAB REVALIDATION
 
 ## Initial style
 
@@ -51,7 +51,19 @@ The public boundary uses exact monitored service identity, a bounded half-open t
 range, canonical trace/span IDs and OpenTelemetry-aligned span semantics. See
 `TRACES.md`, ADR-010 and ADR-011.
 
-## Target logical view (PLANNED beyond Milestone 3)
+## Milestone 4 service investigation flow
+
+```text
+React /investigate -- canonical context --> Metrics public REST
+                  `-----------------------> Traces public REST
+```
+
+The frontend composes the two existing bounded contexts with an exact service tuple and
+one absolute range. It adds no backend aggregation boundary or domain dependency.
+Signal queries remain independently observable and degradable. See
+`SERVICE_INVESTIGATION.md`.
+
+## Target logical view (PLANNED beyond Milestone 4)
 
 ```text
 Applications

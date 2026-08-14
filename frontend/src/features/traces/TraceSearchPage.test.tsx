@@ -51,6 +51,10 @@ describe('Trace search', () => {
     expect(screen.getByRole('link', { name: 'GET /checkout' })).toHaveAttribute('href', expect.stringContaining('/traces/aaaaaaaa'))
     expect(screen.getByText('125.0 ms')).toBeInTheDocument()
     expect(screen.getByText('ERROR')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Investigate service' })).toHaveAttribute(
+      'href',
+      '/investigate?serviceName=checkout&serviceNamespace=store&environment=local&from=2026-08-13T14%3A45%3A00.000Z&to=2026-08-13T15%3A00%3A00.000Z',
+    )
 
     const urls = fetchMock.mock.calls.map(([input]) => requestUrl(input))
     const search = urls.find((url) => url.pathname === '/api/traces')!

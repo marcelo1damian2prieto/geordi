@@ -9,17 +9,24 @@ export interface MetricConcept {
   secondaryLabel?: string
 }
 
-export const metricConcepts: readonly MetricConcept[] = [
+export const redMetricConcepts: readonly MetricConcept[] = [
   { id: 'requests', title: 'HTTP requests', primary: 'HTTP_REQUEST_RATE', secondary: 'HTTP_REQUEST_COUNT', secondaryLabel: 'requests in selected range' },
   { id: 'latency', title: 'HTTP p95 latency', primary: 'HTTP_REQUEST_LATENCY_P95' },
   { id: 'errors', title: 'HTTP errors', primary: 'HTTP_ERROR_RATE', secondary: 'HTTP_ERROR_COUNT', secondaryLabel: 'errors in selected range' },
+] as const
+
+export const jvmMetricConcepts: readonly MetricConcept[] = [
   { id: 'memory', title: 'JVM memory used', primary: 'JVM_MEMORY_USED' },
   { id: 'cpu', title: 'JVM CPU utilization', primary: 'JVM_CPU_UTILIZATION' },
   { id: 'threads', title: 'JVM threads', primary: 'JVM_THREAD_COUNT' },
   { id: 'gc', title: 'JVM GC duration', primary: 'JVM_GC_DURATION' },
 ] as const
 
+export const metricConcepts: readonly MetricConcept[] = [...redMetricConcepts, ...jvmMetricConcepts]
+
 export const seriesMetricIds = metricConcepts.map(({ primary }) => primary)
+export const redMetricIds = redMetricConcepts.flatMap(({ primary, secondary }) => secondary ? [primary, secondary] : [primary])
+export const jvmMetricIds = jvmMetricConcepts.map(({ primary }) => primary)
 
 export function formatMetricValue(value: number, unit: MetricUnit): string {
   if (!Number.isFinite(value)) return 'Unavailable'

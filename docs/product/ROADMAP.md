@@ -44,6 +44,20 @@ COMPLETE
 
 Trace-related logs remain planned for v0.4; no Logs capability is implemented here.
 
+## Milestone 4 — Lightweight Service Investigation
+
+LOCAL IMPLEMENTATION / PENDING GITLAB REVALIDATION
+
+- bookmarkable service/environment/absolute-time investigation context;
+- fixed RED and JVM/resource evidence from existing Metrics contracts;
+- recent, error, and slowest-among-recent trace evidence;
+- partial-provider failure isolation;
+- context-preserving navigation to existing Trace Detail;
+- frontend composition with no backend aggregation or full APM abstraction.
+
+The milestone is not `COMPLETE` until the project owner confirms the authoritative
+GitLab pipeline is green.
+
 ## v0.4 — Logs + Service Map + Alerts
 
 PLANNED

@@ -1,9 +1,9 @@
 # Geordi frontend
 
-React application for the Geordi platform overview and its Metrics and Traces vertical
-slices. The fixed service-operations view shows HTTP and JVM metrics; trace search and
-detail provide service-scoped investigation and an accessible span waterfall. Metrics
-links to Traces using the same canonical service identity and absolute time range.
+React application for the Geordi platform overview, Metrics and Traces vertical slices,
+and the lightweight `/investigate` workflow. Service Investigation composes both signal
+APIs with one canonical service identity and absolute range, isolates partial failures,
+and returns from Trace Detail without losing context.
 The UI intentionally does not expose backend query languages, arbitrary dashboards,
 or a generic visualization engine.
 

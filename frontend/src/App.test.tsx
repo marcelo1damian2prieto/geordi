@@ -19,6 +19,10 @@ vi.mock('./features/traces/TraceDetailPage', () => ({
   TraceDetailPage: () => <main>Trace detail route</main>,
 }))
 
+vi.mock('./features/service-investigation/ServiceInvestigationPage', () => ({
+  ServiceInvestigationPage: () => <main>Service investigation route</main>,
+}))
+
 describe('application routes', () => {
   it('renders service metrics at its public route', () => {
     render(<MemoryRouter initialEntries={['/metrics']}><App /></MemoryRouter>)
@@ -40,5 +44,12 @@ describe('application routes', () => {
     unmount()
     render(<MemoryRouter initialEntries={['/traces/aabb']}><App /></MemoryRouter>)
     expect(screen.getByText('Trace detail route')).toBeInTheDocument()
+  })
+
+  it('renders service investigation at its public route', () => {
+    render(<MemoryRouter initialEntries={['/investigate']}><App /></MemoryRouter>)
+
+    expect(screen.getByText('Service investigation route')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Investigate' })).toBeInTheDocument()
   })
 })

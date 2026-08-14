@@ -4,6 +4,7 @@ import { AppShell } from './components/AppShell'
 import { ServiceMetricsPage } from './features/service-metrics/ServiceMetricsPage'
 import { TraceDetailPage } from './features/traces/TraceDetailPage'
 import { TraceSearchPage } from './features/traces/TraceSearchPage'
+import { ServiceInvestigationPage } from './features/service-investigation/ServiceInvestigationPage'
 
 export function App() {
   return (
@@ -13,6 +14,7 @@ export function App() {
         <Route path="/metrics" element={<ServiceMetricsPage />} />
         <Route path="/traces" element={<TraceSearchPage />} />
         <Route path="/traces/:traceId" element={<TraceDetailPage />} />
+        <Route path="/investigate" element={<ServiceInvestigationPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AppShell>

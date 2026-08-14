@@ -92,5 +92,18 @@ dd { margin: 0; font-weight: 650; }
 .waterfall-track { position: relative; height: 16px; overflow: hidden; border-radius: 4px; background: #09111f; }
 .waterfall-bar { position: absolute; top: 2px; min-width: 2px; height: 12px; border-radius: 3px; background: #76a9e8; }
 .waterfall-bar-error { background: #fb7185; }
+.context-range { max-width: 620px; margin: 12px 0 0; color: #91a0b5; font-size: .82rem; overflow-wrap: anywhere; }
+.investigation-hero { align-items: center; }
+.discovery-note { margin-top: 16px; padding: 12px 16px; border: 1px solid #31445f; border-radius: 10px; color: #c9d6e8; background: rgba(16, 28, 46, .72); }
+.investigation-chart-grid { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.investigation-traces-heading { margin-top: 64px; padding-top: 36px; border-top: 1px solid #26364e; }
+.investigation-trace-list { display: grid; gap: 12px; margin-top: 18px; }
+.investigation-trace-row { display: grid; grid-template-columns: minmax(220px, 1.25fr) minmax(440px, 2fr) auto; align-items: center; gap: 18px; padding: 18px; border: 1px solid #26364e; border-radius: 12px; background: rgba(16, 28, 46, .82); }
+.investigation-trace-row > div:first-child { min-width: 0; }
+.investigation-trace-row code { display: block; margin-top: 6px; overflow-wrap: anywhere; font-size: .7rem; }
+.investigation-trace-row dl { display: grid; grid-template-columns: repeat(4, minmax(80px, 1fr)); gap: 14px; margin: 0; }
+.investigation-trace-row dd { font-size: .9rem; }
+.investigation-trace-row > a { white-space: nowrap; }
 @media (max-width: 760px) { main { padding-top: 42px; } .hero, .section-heading, .metrics-hero { align-items: stretch; flex-direction: column; } .platform-status { width: 100%; } .metrics-controls { align-items: stretch; flex-direction: column; } .metrics-controls select { width: 100%; min-width: 0; } .chart-grid { grid-template-columns: 1fr; } }
 @media (max-width: 760px) { .trace-detail-hero { flex-direction: column; } .trace-summary { min-width: 0; } }
+@media (max-width: 900px) { .investigation-trace-row { grid-template-columns: 1fr; } .investigation-trace-row dl { grid-template-columns: repeat(2, minmax(100px, 1fr)); } }

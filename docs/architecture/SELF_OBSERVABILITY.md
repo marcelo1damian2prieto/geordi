@@ -100,6 +100,24 @@ Traces query-path probe, Collector delivery counters and successful Geordi searc
 are separate verification facts. Collector internal telemetry remains pull-only and is
 never routed back through its OTLP receiver.
 
+## Milestone 4 additions
+
+Service Investigation is frontend composition, so it introduces no aggregation API or
+new telemetry pipeline. Its constituent Metrics and Traces calls retain existing
+low-cardinality HTTP/query latency, request, failure, result-size and provider-probe
+telemetry and continue to carry `geordi.telemetry.origin=platform`.
+
+Selected service identity, absolute timestamps, trace IDs, raw MetricsQL/TraceQL, URL
+query strings, response bodies and exception text are not added to custom telemetry.
+Frontend page-view and UI-only section telemetry remain unavailable; adding a frontend
+telemetry pipeline solely for this milestone is disproportionate.
+
+Runtime verification found that the Java agent's backend `HttpURLConnection` client
+instrumentation otherwise records provider query strings in `url.full`. The local
+deployment therefore disables that one outbound auto-instrumentation. Inbound backend
+HTTP traces remain enabled, while the Metrics and Traces adapters continue to expose
+safe operation-only request, duration, failure, result-size and probe metrics.
+
 ## Future health indicators
 
 - received telemetry;
