@@ -1,6 +1,6 @@
 # Geordi Product Requirements Document
 
-Status: MILESTONE 5 LOCALLY VERIFIED / GITLAB REVALIDATION PENDING; MILESTONE 6 READY FOR GITLAB REVALIDATION
+Status: MILESTONES 5 AND 6 COMPLETE
 
 ## Vision
 
@@ -48,7 +48,7 @@ Geordi owns the complete telemetry path and user experience.
 
 - core platform;
 - metrics;
-- logs (locally verified; GitLab revalidation pending);
+- logs;
 - traces;
 - APM;
 - infrastructure monitoring;
@@ -132,7 +132,7 @@ The project owner confirmed the authoritative GitLab pipeline for Milestone 4 is
 
 ## Milestone 5 scope
 
-Status: READY FOR GITLAB REVALIDATION
+Status: COMPLETE
 
 Milestone 5 adds the bounded Logs vertical slice: a demo workload emits OTLP Logs to
 the Collector and Loki; Geordi queries Loki through a vendor-neutral port/adapter and
@@ -148,12 +148,14 @@ structured metadata.
 
 Milestone 5 does not add service maps, alerts, dashboards, saved searches, arbitrary
 query languages, multiple providers, advanced retention, multi-tenancy, Kubernetes,
-APM, or AI/RCA. Local verification is not completion: only project-owner confirmation
-of the authoritative GitLab pipeline may change the milestone to `COMPLETE`.
+APM, or AI/RCA. Local acceptance criteria and independent review passed without a
+remaining BLOCKER or HIGH finding. The project owner subsequently confirmed the
+authoritative GitLab pipeline green; its integration gate includes Logs semantic
+verification.
 
 ## Milestone 6 scope
 
-Status: READY FOR GITLAB REVALIDATION
+Status: COMPLETE
 
 Milestone 6 adds a bounded Service Map derived only from available monitored traces.
 For one exact environment and explicit absolute `[from,to)` range of at most six hours,
@@ -173,7 +175,7 @@ Investigation; edge evidence reuses existing Trace Detail.
 Milestone 6 does not add a telemetry store, graph database, cache, Logs/Metrics-derived
 relationships, async inference, external dependency nodes, edge performance analytics,
 alerts/SLOs, generic graph/query engines, or Milestone 7 work. Local backend/frontend
-quality gates, Compose build, all five semantic smokes, and independent review have
-passed with no BLOCKER or HIGH findings. The maximum status is `READY FOR GITLAB REVALIDATION`; it must
-not be marked `COMPLETE` without project-owner confirmation of the authoritative GitLab
-CI result.
+quality gates, Compose build, all five semantic smokes, and independent review passed
+with 0 remaining BLOCKER findings and 0 remaining HIGH findings. The Service Map smoke
+is part of the authoritative integration gate, and the project owner confirmed the
+updated authoritative GitLab pipeline green.

@@ -1,6 +1,6 @@
 # Service Map Architecture
 
-Status: READY FOR GITLAB REVALIDATION
+Status: IMPLEMENTED; MILESTONE 6 COMPLETE
 
 ## Scope
 

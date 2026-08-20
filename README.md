@@ -105,7 +105,7 @@ GitLab CI gate are green.
 
 ## Milestone 5 — Logs vertical slice
 
-**READY FOR GITLAB REVALIDATION.** The demo emits OTLP Logs through the Collector into
+**COMPLETE.** The demo emits OTLP Logs through the Collector into
 Grafana Loki 3.7.2. Geordi exposes a bounded, vendor-neutral Logs API and `/logs` UI
 for one exact monitored service identity and absolute range, with severity, literal
 text, and trace/span correlation filters. Trace Detail can open related Logs with valid
@@ -115,13 +115,13 @@ section alongside Metrics and Traces.
 Loki is isolated behind the Logs query port. Only `service.name`,
 `service.namespace`, `deployment.environment.name`, and `geordi.telemetry.origin` are
 Loki labels; correlation IDs and other high-cardinality data remain structured metadata.
-Local verification is not completion: GitLab CI remains the authoritative acceptance
-gate, and only project-owner confirmation of a green pipeline may mark this milestone
-`COMPLETE`.
+Local acceptance criteria passed, independent review completed without a remaining
+BLOCKER or HIGH finding, and the project owner subsequently confirmed the authoritative
+GitLab pipeline green. Its integration gate includes the Logs semantic smoke.
 
 ## Milestone 6 — Service Map / Dependency Discovery
 
-**READY FOR GITLAB REVALIDATION.** `/service-map` and `GET /api/service-map` derive a bounded,
+**COMPLETE.** `/service-map` and `GET /api/service-map` derive a bounded,
 directed service-to-service graph from available monitored trace evidence. An edge means
 an exact monitored `CLIENT` parent directly called a distinct monitored `SERVER` child
 whose server start is inside the selected environment and absolute `[from,to)` range.
@@ -133,7 +133,8 @@ semantic path. The graph uses no additional telemetry store, preserves exact
 namespace/name/environment identity, bounds candidate/detail work and returned graph
 size, and exposes bounded representative trace evidence. Local backend/frontend gates,
 Compose build, all five semantic smokes, and independent review have passed with no
-BLOCKER or HIGH findings. The authoritative GitLab gate remains pending; this milestone is not complete.
+BLOCKER or HIGH findings. The project owner confirmed the updated authoritative GitLab
+pipeline green, including the Service Map semantic smoke in its integration gate.
 
 ## Current capabilities
 
@@ -147,7 +148,7 @@ BLOCKER or HIGH findings. The authoritative GitLab gate remains pending; this mi
   related Logs when valid context and trace correlation are available.
 - **Service investigation:** `/investigate` → fixed RED/JVM evidence plus relevant
   traces and recent Logs for one canonical, bookmarkable context.
-- **Service Map (ready for GitLab revalidation):** `/service-map` → trace-derived observed dependencies
+- **Service Map:** `/service-map` → trace-derived observed dependencies
   for one exact environment and bounded absolute range; node navigation reuses
   Investigation and edge evidence reuses Trace Detail.
 
@@ -200,8 +201,8 @@ absence of high-cardinality Loki labels:
 Run the Service Map semantic smoke after the Compose stack is ready. It generates
 propagated demo-to-downstream traffic and checks the exact directed trace-derived edge,
 bounded evidence, and frontend/API proxy path. It passed during Milestone 6 local
-verification and is included in the authoritative GitLab stack-smoke job; confirmation
-of that updated pipeline remains pending.
+verification and is included in the authoritative GitLab stack-smoke job. The project
+owner confirmed that updated pipeline green.
 
 ```powershell
 .\scripts\verify-service-map.ps1
@@ -228,9 +229,9 @@ PowerShell 7, outbound image access, and the fixed local ports available. The in
 job is serialized by a resource group and runs the self-observability, Metrics, Traces,
 Logs, and Service Map semantic smokes in that order.
 
-Milestones 5 and 6 are locally ready for GitLab revalidation; Milestone 6 independent
-review passed with no BLOCKER or HIGH findings. Neither status authorizes marking Milestone 6 complete without project-owner
-confirmation of a green authoritative GitLab pipeline.
+Milestones 5 and 6 are complete. Their required local verification and independent
+review passed without remaining BLOCKER or HIGH findings, and the project owner
+confirmed the authoritative GitLab pipeline green with all five semantic smokes.
 
 ## Documentation
 

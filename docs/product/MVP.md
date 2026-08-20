@@ -8,9 +8,10 @@ introduce the P0 telemetry capabilities incrementally.
 
 Milestone 2 delivered a constrained operational Metrics view. Milestone 3 completed the
 second P0 increment: persistent trace search/detail plus Metrics → Traces context
-navigation. Milestone 4 is complete. Milestone 5 locally verifies Logs and Trace → Logs
-correlation, pending the authoritative GitLab revalidation; therefore the correlated
-telemetry MVP is not complete yet.
+navigation. Milestone 4 is complete. Milestone 5 completed Logs and Trace → Logs
+correlation, completing the correlated-telemetry P0 baseline. Milestone 6 completed the
+bounded, trace-derived observed dependency view. The broader MVP target remains planned
+because later P1 capabilities are still deferred.
 
 ## Goal
 
@@ -29,7 +30,7 @@ P0:
 
 P1:
 - dashboard;
-- service map (READY FOR GITLAB REVALIDATION: bounded trace-derived observed dependencies, not complete architecture);
+- service map (COMPLETE: bounded trace-derived observed dependencies, not complete architecture);
 - basic infrastructure monitoring;
 - threshold alerts;
 - email/webhook notifications.

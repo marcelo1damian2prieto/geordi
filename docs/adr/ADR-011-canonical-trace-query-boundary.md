@@ -52,8 +52,10 @@ tokens or provider-specific filter/query terms.
 
 - Storage replacement does not require changes to the domain/application, REST or UI
   contract.
-- This boundary is intentionally insufficient for arbitrary trace querying, saved
-  searches, service maps and APM-style analysis; those are deferred.
+- This Milestone 3 search/detail boundary remains intentionally insufficient for
+  arbitrary trace querying, saved searches, and APM-style analysis. Milestone 6 added a
+  separate bounded, vendor-neutral trace-dependency evidence operation for Service Map;
+  it did not broaden this public search/detail boundary.
 - Missing telemetry yields an empty list, while invalid requests, missing trace IDs and
   unavailable storage are distinct vendor-neutral outcomes.
 - Architecture tests must prohibit Spring, HTTP clients, JSON, OpenTelemetry SDKs,

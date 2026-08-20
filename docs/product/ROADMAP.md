@@ -42,8 +42,7 @@ COMPLETE
 - span hierarchy;
 - Metrics → Traces context navigation.
 
-Trace-related logs are delivered by Milestone 5 and remain subject to its GitLab
-revalidation status.
+Trace-related logs were delivered by Milestone 5.
 
 ## Milestone 4 — Lightweight Service Investigation
 
@@ -60,29 +59,30 @@ The project owner confirmed the authoritative GitLab pipeline is green.
 
 ## Milestone 5 — Logs Vertical Slice
 
-READY FOR GITLAB REVALIDATION
+COMPLETE
 - logs explorer;
 - trace/log correlation;
 - Logs evidence in Service Investigation;
 - bounded Loki-backed vendor-neutral Logs APIs;
 - cardinality-safe structured correlation metadata.
 
-Local verification does not complete the milestone. The authoritative GitLab pipeline
-must be green and confirmed by the project owner before the status may become
-`COMPLETE`.
+Local verification and independent review passed without a remaining BLOCKER or HIGH
+finding. The project owner confirmed the authoritative GitLab pipeline green, including
+the Logs semantic smoke in its integration gate.
 
 ## Milestone 6 — Service Map / Dependency Discovery
 
-READY FOR GITLAB REVALIDATION
+COMPLETE
 - bounded, trace-derived observed service-to-service dependencies;
 - exact environment and absolute time-range context;
 - node navigation to Service Investigation and bounded edge trace evidence;
 - deterministic monitored downstream workload and focused semantic smoke.
 
 The map is neither configured nor complete architecture and adds no telemetry storage.
-Local backend/frontend quality gates, Compose build, and all five semantic smokes have
-passed. Independent review reported no BLOCKER or HIGH findings; GitLab revalidation
-remains pending, so the milestone is not complete.
+Local backend/frontend quality gates, Compose build, and all five semantic smokes passed.
+Independent review reported no BLOCKER or HIGH findings. The project owner confirmed
+the updated authoritative GitLab pipeline green with the Service Map semantic smoke in
+its integration gate.
 
 ## Later — Alerts
 

@@ -1,6 +1,6 @@
 # Architecture
 
-Status: IMPLEMENTED THROUGH MILESTONE 5 LOCAL VERIFICATION / GITLAB REVALIDATION PENDING; MILESTONE 6 READY FOR GITLAB REVALIDATION
+Status: IMPLEMENTED THROUGH MILESTONE 6; MILESTONES 5 AND 6 COMPLETE
 
 ## Initial style
 
@@ -91,9 +91,9 @@ React /service-map <- REST <- Service Map application <- trace-evidence port
 Service Map derives a bounded observed graph from existing trace data; it adds no
 storage, cache, or provider health probe. Its vendor-neutral boundary receives only
 canonical candidate trace evidence. Tempo transport, query syntax, and JSON remain in
-the trace adapter. The active implementation is documented in `SERVICE_MAP.md` and
-is locally verified and ready for GitLab revalidation; independent review reported no
-BLOCKER or HIGH findings.
+the trace adapter. The active implementation is documented in `SERVICE_MAP.md`. Local
+verification and independent review passed without a remaining BLOCKER or HIGH finding,
+and the project owner confirmed the updated authoritative GitLab pipeline green.
 
 ## Target logical view
 
@@ -110,9 +110,9 @@ Geordi Platform
     +-- Core
     +-- Self Observability
     +-- Metrics (implemented)
-    +-- Logs (locally verified; GitLab revalidation pending)
+    +-- Logs (implemented; Milestone 5 complete)
     +-- Traces (implemented)
-    +-- Service Map (ready for GitLab revalidation; trace-derived, no storage)
+    +-- Service Map (implemented; Milestone 6 complete; trace-derived, no storage)
     +-- APM (planned)
     +-- Compatibility (planned)
 ```

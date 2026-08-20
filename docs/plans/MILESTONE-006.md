@@ -1,6 +1,6 @@
 # Milestone 006 — Service Map / Dependency Discovery
 
-Status: READY FOR GITLAB REVALIDATION
+Status: COMPLETE
 
 ## Objective
 
@@ -84,16 +84,18 @@ an absent edge does not prove an absent dependency.
   frontend tests with zero unhandled errors, typecheck, lint, build, Compose validation,
   existing smokes, and Service Map semantic smoke pass.
 
-## Definition of Done and status rule
+## Definition of Done and completion evidence
 
-Local CI-equivalent verification, independent review, and documentation synchronization
-passed. The review reported no BLOCKER or HIGH findings. The current and maximum
-pre-GitLab status is `READY FOR GITLAB
-REVALIDATION`. It must never be marked `COMPLETE` without explicit project-owner
-confirmation that the authoritative GitLab CI pipeline is green. The configured
-authoritative job now requires the Service Map semantic smoke, but its resulting pipeline
-has not yet received that confirmation. Any mandatory local verification failure leaves
-it `NOT READY`.
+Local CI-equivalent verification and documentation synchronization passed. Independent
+review completed with 0 remaining BLOCKER findings and 0 remaining HIGH findings. The
+authoritative GitLab integration gate includes the Service Map semantic smoke after the
+existing self-observability, Metrics, Traces, and Logs verification, and the project
+owner confirmed that updated authoritative pipeline green.
+
+Milestone 6 therefore satisfies its Definition of Done and is `COMPLETE`. This status
+does not make the observed graph authoritative or complete and does not remove any
+sampling, instrumentation, retention, bounded-query, truncation, or scope limitation
+documented below or in `docs/architecture/SERVICE_MAP.md`.
 
 ## Non-goals
 

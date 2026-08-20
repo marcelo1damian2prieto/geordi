@@ -1,6 +1,6 @@
 # Milestone 005 — Logs Vertical Slice
 
-Status: READY FOR GITLAB REVALIDATION
+Status: COMPLETE
 
 ## Objective
 
@@ -53,8 +53,9 @@ See ADR-012, ADR-013, and `docs/architecture/LOGS.md`.
    empty, provider-failure, and stale-context tests.
 6. [x] Add semantic Logs smoke proving ingestion, exact identity/range/severity/body,
    correlation, proxy/route behavior, and absence of high-cardinality Loki labels.
-7. [x] Run local backend/frontend/static-analysis/Compose/smoke regressions. GitLab
-   revalidation remains required before completion.
+7. [x] Run local backend/frontend/static-analysis/Compose/smoke regressions.
+8. [x] Complete independent review with no remaining BLOCKER or HIGH finding, then
+   obtain project-owner confirmation that the authoritative GitLab pipeline is green.
 
 ## Acceptance criteria
 
@@ -83,8 +84,14 @@ pipeline processing, Grok, LogQL UI, generic query language, saved searches, das
 log-based metrics, alerts, retention/archive/replay features, multi-tenancy, multiple
 providers, full APM, service map, AI/RCA, or Milestone 6 work.
 
-## Status rule
+## Definition of Done and completion evidence
 
-Local verification is complete, so the milestone is `READY FOR GITLAB REVALIDATION`.
-GitLab CI remains the authoritative acceptance gate; only explicit project-owner
-confirmation of a green authoritative pipeline may change the milestone to `COMPLETE`.
+Local acceptance criteria and mandatory verification passed. Independent review was
+completed, with no remaining BLOCKER or HIGH finding preventing validation. The
+authoritative GitLab integration gate includes the Logs semantic smoke alongside the
+existing self-observability, Metrics, and Traces verification, and the project owner
+subsequently confirmed that authoritative pipeline green.
+
+Milestone 5 therefore satisfies its Definition of Done and is `COMPLETE`. This status
+does not remove the bounded product scope, known limitations, or non-blocking technical
+debt documented here and in `docs/TECHNICAL_DEBT.md`.
