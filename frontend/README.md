@@ -1,12 +1,16 @@
 # Geordi frontend
 
 React application for the Geordi platform overview and bounded Metrics, Traces, and
-Logs vertical slices, plus the lightweight `/investigate` workflow. Service
+Logs vertical slices, the lightweight `/investigate` workflow, and the in-progress
+trace-derived `/service-map` workflow. Service
 Investigation composes all three signal APIs with one canonical service identity and
 absolute range, isolates partial failures, and returns from Trace Detail without losing
 context. Trace Detail opens related Logs only when valid carried context is available.
-The UI intentionally does not expose backend query languages, arbitrary dashboards,
-or a generic visualization engine.
+Service Map is a bounded observed-dependency view for one exact environment and range;
+it reuses Investigation and Trace Detail navigation rather than duplicating them. The
+UI intentionally does not expose backend query languages, arbitrary dashboards, or a
+generic visualization engine. Its ECharts graph code is route-lazy-loaded with
+`/service-map` so it does not enlarge the initial application route bundle.
 
 ## Local development
 

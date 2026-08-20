@@ -132,6 +132,19 @@ service identity, trace/span/request IDs, URLs, structured metadata, and excepti
 Loki indexes only service name, service namespace, deployment environment, and telemetry
 origin; high-cardinality correlation values remain structured metadata.
 
+## Milestone 6 additions
+
+Service Map records low-cardinality platform telemetry for bounded query count, latency,
+failure outcome, result-size buckets, and truncation. It excludes service identity,
+trace/span IDs, time values, provider query text, provider payloads, and exception text.
+The module reuses trace-provider health rather than adding a duplicate Tempo probe.
+
+The local runtime adds a second monitored demo workload solely to generate propagated
+service-to-service trace evidence. It remains monitored workload telemetry and is not a
+Geordi platform component. Local Compose verification passed the Service Map semantic
+smoke together with the existing self-observability, Metrics, Traces, and Logs smokes;
+independent review and GitLab revalidation remain pending.
+
 ## Future health indicators
 
 - received telemetry;

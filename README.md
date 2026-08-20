@@ -119,6 +119,22 @@ Local verification is not completion: GitLab CI remains the authoritative accept
 gate, and only project-owner confirmation of a green pipeline may mark this milestone
 `COMPLETE`.
 
+## Milestone 6 — Service Map / Dependency Discovery
+
+**READY FOR GITLAB REVALIDATION.** `/service-map` and `GET /api/service-map` derive a bounded,
+directed service-to-service graph from available monitored trace evidence. An edge means
+an exact monitored `CLIENT` parent directly called a distinct monitored `SERVER` child
+whose server start is inside the selected environment and absolute `[from,to)` range.
+It is observed evidence, not configured or complete architecture; an absent edge does
+not prove an absent dependency.
+
+The local runtime includes a deterministic monitored downstream workload for this
+semantic path. The graph uses no additional telemetry store, preserves exact
+namespace/name/environment identity, bounds candidate/detail work and returned graph
+size, and exposes bounded representative trace evidence. Local backend/frontend gates,
+Compose build, all five semantic smokes, and independent review have passed with no
+BLOCKER or HIGH findings. The authoritative GitLab gate remains pending; this milestone is not complete.
+
 ## Current capabilities
 
 - **Metrics:** OTLP Metrics → Collector → VictoriaMetrics → vendor-neutral Metrics
@@ -131,6 +147,9 @@ gate, and only project-owner confirmation of a green pipeline may mark this mile
   related Logs when valid context and trace correlation are available.
 - **Service investigation:** `/investigate` → fixed RED/JVM evidence plus relevant
   traces and recent Logs for one canonical, bookmarkable context.
+- **Service Map (ready for GitLab revalidation):** `/service-map` → trace-derived observed dependencies
+  for one exact environment and bounded absolute range; node navigation reuses
+  Investigation and edge evidence reuses Trace Detail.
 
 This is a bounded service-investigation foundation, not full APM.
 
@@ -178,6 +197,15 @@ absence of high-cardinality Loki labels:
 .\scripts\verify-logs.ps1
 ```
 
+Run the Service Map semantic smoke after the Compose stack is ready. It generates
+propagated demo-to-downstream traffic and checks the exact directed trace-derived edge,
+bounded evidence, and frontend/API proxy path. It is a verification command; this
+document does not claim it has been run successfully for Milestone 6.
+
+```powershell
+.\scripts\verify-service-map.ps1
+```
+
 ## Quality gates
 
 ```powershell
@@ -197,8 +225,9 @@ stack-smoke jobs use a trusted Windows runner tagged `geordi-docker-pwsh` with D
 daemon access, Docker Compose v2, PowerShell 7, outbound image access, and the fixed
 local ports available. The integration job is serialized by a resource group.
 
-Milestone 5 is locally ready for GitLab revalidation; it is not complete until the
-project owner confirms the authoritative GitLab pipeline is green.
+Milestones 5 and 6 are locally ready for GitLab revalidation; Milestone 6 independent
+review passed with no BLOCKER or HIGH findings. Neither status authorizes marking Milestone 6 complete without project-owner
+confirmation of a green authoritative GitLab pipeline.
 
 ## Documentation
 

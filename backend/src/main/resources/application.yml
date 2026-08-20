@@ -12,6 +12,8 @@ geordi:
       enabled: true
     logs:
       enabled: true
+    service-map:
+      enabled: true
     self-observability:
       enabled: true
   metrics:

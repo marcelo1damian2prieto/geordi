@@ -1,6 +1,6 @@
 # Geordi Product Requirements Document
 
-Status: MILESTONE 5 LOCALLY VERIFIED / GITLAB REVALIDATION PENDING
+Status: MILESTONE 5 LOCALLY VERIFIED / GITLAB REVALIDATION PENDING; MILESTONE 6 READY FOR GITLAB REVALIDATION
 
 ## Vision
 
@@ -150,3 +150,30 @@ Milestone 5 does not add service maps, alerts, dashboards, saved searches, arbit
 query languages, multiple providers, advanced retention, multi-tenancy, Kubernetes,
 APM, or AI/RCA. Local verification is not completion: only project-owner confirmation
 of the authoritative GitLab pipeline may change the milestone to `COMPLETE`.
+
+## Milestone 6 scope
+
+Status: READY FOR GITLAB REVALIDATION
+
+Milestone 6 adds a bounded Service Map derived only from available monitored traces.
+For one exact environment and explicit absolute `[from,to)` range of at most six hours,
+an edge means a monitored `CLIENT` span is the direct parent of a monitored `SERVER`
+span in a distinct exact namespace/name/environment identity, and the SERVER start is
+inside the selected range. The map exposes endpoint nodes, directed deduplicated edges,
+distinct-trace evidence counts, up to three representative trace references, and an
+explicit truncation flag through `/api/service-map` and `/service-map`.
+
+It is observed evidence, not configured, static, complete, infrastructure, network, or
+CMDB topology. Missing edges do not prove that a dependency does not exist. Candidate
+and detail retrieval, graph size, and representative evidence are explicitly bounded;
+the local Compose runtime adds one deterministic monitored downstream workload and a
+focused Service Map smoke for semantic verification. Node navigation reuses Service
+Investigation; edge evidence reuses existing Trace Detail.
+
+Milestone 6 does not add a telemetry store, graph database, cache, Logs/Metrics-derived
+relationships, async inference, external dependency nodes, edge performance analytics,
+alerts/SLOs, generic graph/query engines, or Milestone 7 work. Local backend/frontend
+quality gates, Compose build, all five semantic smokes, and independent review have
+passed with no BLOCKER or HIGH findings. The maximum status is `READY FOR GITLAB REVALIDATION`; it must
+not be marked `COMPLETE` without project-owner confirmation of the authoritative GitLab
+CI result.

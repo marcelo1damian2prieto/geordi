@@ -32,6 +32,13 @@ final class TempoQueryTranslator {
         return query.append(" }").append(SELECT_IDENTITY).toString();
     }
 
+    String dependencyCandidatesQuery(String environment) {
+        String exactEnvironment = escape(environment);
+        return "{ resource.geordi.telemetry.origin = \"monitored\""
+                + " && resource.deployment.environment.name = \"" + exactEnvironment + "\""
+                + " && kind = client }";
+    }
+
     private static String escape(String value) {
         return value.replace("\\", "\\\\")
                 .replace("\"", "\\\"")

@@ -10,6 +10,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <NavLink to="/traces">Traces</NavLink>
         <NavLink to="/logs">Logs</NavLink>
         <NavLink to="/investigate">Investigate</NavLink>
+        <NavLink to="/service-map">Service map</NavLink>
       </nav>
       {children}
     </>

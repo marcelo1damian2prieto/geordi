@@ -29,7 +29,7 @@ P0:
 
 P1:
 - dashboard;
-- service map;
+- service map (READY FOR GITLAB REVALIDATION: bounded trace-derived observed dependencies, not complete architecture);
 - basic infrastructure monitoring;
 - threshold alerts;
 - email/webhook notifications.

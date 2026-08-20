@@ -62,6 +62,17 @@ describe('Trace detail', () => {
     )
   })
 
+  it('returns a service-map-origin trace to the exact validated map context', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(detail), { status: 200 }))
+    renderDetail(`/traces/${traceId}?serviceName=checkout&serviceNamespace=store&environment=local&from=2026-08-13T14%3A45%3A00.000Z&to=2026-08-13T15%3A00%3A00.000Z&origin=service-map`)
+
+    const back = await screen.findByRole('link', { name: /Back to service map/ })
+    expect(back).toHaveAttribute(
+      'href',
+      '/service-map?environment=local&from=2026-08-13T14%3A45%3A00.000Z&to=2026-08-13T15%3A00%3A00.000Z',
+    )
+  })
+
   it('opens related logs with the carried exact context and trace ID', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(detail), { status: 200 }))
     renderDetail(`/traces/${traceId}?serviceName=checkout&serviceNamespace=store&environment=local&from=2026-08-13T14%3A45%3A00.000Z&to=2026-08-13T15%3A00%3A00.000Z`)

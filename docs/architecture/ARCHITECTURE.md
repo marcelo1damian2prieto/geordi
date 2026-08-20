@@ -1,6 +1,6 @@
 # Architecture
 
-Status: IMPLEMENTED THROUGH MILESTONE 5 LOCAL VERIFICATION / GITLAB REVALIDATION PENDING
+Status: IMPLEMENTED THROUGH MILESTONE 5 LOCAL VERIFICATION / GITLAB REVALIDATION PENDING; MILESTONE 6 READY FOR GITLAB REVALIDATION
 
 ## Initial style
 
@@ -77,6 +77,23 @@ an exact monitored identity, bounded half-open time range, canonical severity, l
 text, and optional trace/span correlation fields. Loki label cardinality is limited by
 ADR-012; see `LOGS.md`, ADR-012, and ADR-013.
 
+## Milestone 6 Service Map flow
+
+```text
+Monitored caller -- trace context --> monitored downstream
+       |                                     |
+       `------------- OTLP traces -----------> Collector --> Tempo
+                                                               ^
+                                                               |
+React /service-map <- REST <- Service Map application <- trace-evidence port
+```
+
+Service Map derives a bounded observed graph from existing trace data; it adds no
+storage, cache, or provider health probe. Its vendor-neutral boundary receives only
+canonical candidate trace evidence. Tempo transport, query syntax, and JSON remain in
+the trace adapter. The active implementation is documented in `SERVICE_MAP.md` and
+is locally verified and ready for GitLab revalidation; independent review remains pending.
+
 ## Target logical view
 
 ```text
@@ -94,6 +111,7 @@ Geordi Platform
     +-- Metrics (implemented)
     +-- Logs (locally verified; GitLab revalidation pending)
     +-- Traces (implemented)
+    +-- Service Map (ready for GitLab revalidation; trace-derived, no storage)
     +-- APM (planned)
     +-- Compatibility (planned)
 ```

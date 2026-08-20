@@ -48,6 +48,36 @@ class TempoMappingTest {
     }
 
     @Test
+    void translatesClientBearingCandidatesForOneExactEnvironment() {
+        String query = new TempoQueryTranslator().dependencyCandidatesQuery("dev\"blue");
+
+        assertThat(query)
+                .contains("kind = client")
+                .contains("resource.geordi.telemetry.origin = \"monitored\"")
+                .contains("resource.deployment.environment.name = \"dev\\\"blue\"")
+                .doesNotContain(">")
+                .doesNotContain("kind = server")
+                .doesNotContain("service.name");
+    }
+
+    @Test
+    void mapsDistinctCandidateTraceIdentifiersWithoutRequiringProviderSummaryFields() throws Exception {
+        String json = """
+                {"traces":[
+                  {"traceID":"1"},
+                  {"traceID":"00000000000000000000000000000002"},
+                  {"traceID":"1"}
+                ]}
+                """;
+
+        assertThat(new TempoResponseParser().candidateTraceIds(MAPPER.readTree(json)))
+                .extracting(TraceId::value)
+                .containsExactly(
+                        "00000000000000000000000000000001",
+                        "00000000000000000000000000000002");
+    }
+
+    @Test
     void discoversOnlyCompleteMonitoredTuplesInsideTheHalfOpenRange() throws Exception {
         String json = """
                 {"traces":[

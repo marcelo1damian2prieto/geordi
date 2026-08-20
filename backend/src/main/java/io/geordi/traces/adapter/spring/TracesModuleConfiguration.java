@@ -8,6 +8,7 @@ import io.geordi.traces.adapter.out.telemetry.ObservedTraceQueryAdapter;
 import io.geordi.traces.adapter.out.tempo.TempoProperties;
 import io.geordi.traces.adapter.out.tempo.TempoTraceAdapter;
 import io.geordi.traces.application.TraceQueryService;
+import io.geordi.traces.application.TraceDependencyQueryService;
 import io.geordi.traces.application.port.out.TraceBackendProbe;
 import java.util.function.Supplier;
 import org.springframework.beans.factory.ObjectProvider;
@@ -53,12 +54,17 @@ public class TracesModuleConfiguration {
         @Bean
         @Primary
         ObservedTraceQueryAdapter observedTraceQueryAdapter(TempoTraceAdapter adapter) {
-            return new ObservedTraceQueryAdapter(adapter, adapter);
+            return new ObservedTraceQueryAdapter(adapter, adapter, adapter);
         }
 
         @Bean
         TraceQueryService traceQueryService(ObservedTraceQueryAdapter adapter) {
             return new TraceQueryService(adapter);
+        }
+
+        @Bean
+        TraceDependencyQueryService traceDependencyQueryService(ObservedTraceQueryAdapter adapter) {
+            return new TraceDependencyQueryService(adapter);
         }
     }
 }

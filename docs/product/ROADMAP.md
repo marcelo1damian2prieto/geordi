@@ -71,10 +71,22 @@ Local verification does not complete the milestone. The authoritative GitLab pip
 must be green and confirmed by the project owner before the status may become
 `COMPLETE`.
 
-## Later — Service Map + Alerts
+## Milestone 6 — Service Map / Dependency Discovery
+
+READY FOR GITLAB REVALIDATION
+- bounded, trace-derived observed service-to-service dependencies;
+- exact environment and absolute time-range context;
+- node navigation to Service Investigation and bounded edge trace evidence;
+- deterministic monitored downstream workload and focused semantic smoke.
+
+The map is neither configured nor complete architecture and adds no telemetry storage.
+Local backend/frontend quality gates, Compose build, and all five semantic smokes have
+passed. Independent review reported no BLOCKER or HIGH findings; GitLab revalidation
+remains pending, so the milestone is not complete.
+
+## Later — Alerts
 
 DEFERRED
-- service dependency topology;
 - threshold alerts;
 - webhook/email notifications.
 

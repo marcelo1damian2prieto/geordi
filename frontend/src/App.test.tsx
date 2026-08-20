@@ -27,6 +27,10 @@ vi.mock('./features/logs/LogsPage', () => ({
   LogsPage: () => <main>Logs route</main>,
 }))
 
+vi.mock('./features/service-map/ServiceMapPage', () => ({
+  ServiceMapPage: () => <main>Service map route</main>,
+}))
+
 describe('application routes', () => {
   it('renders service metrics at its public route', () => {
     render(<MemoryRouter initialEntries={['/metrics']}><App /></MemoryRouter>)
@@ -62,5 +66,12 @@ describe('application routes', () => {
 
     expect(screen.getByText('Logs route')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Logs' })).toBeInTheDocument()
+  })
+
+  it('lazy-loads Service Map at its public route', async () => {
+    render(<MemoryRouter initialEntries={['/service-map?environment=development']}><App /></MemoryRouter>)
+
+    expect(await screen.findByText('Service map route')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Service map' })).toBeInTheDocument()
   })
 })

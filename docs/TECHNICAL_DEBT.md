@@ -3,17 +3,18 @@
 This document tracks non-blocking technical debt identified during milestone validation.
 Entries do not change the completion status of the milestone in which they were detected.
 
-## Metrics view JavaScript bundle
+## ECharts bundle and Service Map lazy chunk
 
 - **Status:** Pending / Non-blocking
 - **Detected in:** Milestone 2
 - **Description:** The modular ECharts integration produces a main production chunk of
   approximately 774 kB (258 kB gzip), above Vite's default 500 kB advisory threshold.
-- **Current impact:** Frontend build, tests, type checking and linting pass. Initial page
-  download includes chart code even when the user opens only Platform Overview.
-- **Follow-up:** Evaluate route-level lazy loading/code splitting for `/metrics` during
-  frontend performance hardening. Do not add another chart wrapper dependency solely to
-  suppress the advisory.
+- **Current impact:** The Metrics route still imports chart code in the main application
+  bundle. The new Service Map graph uses ECharts but is isolated in a route-level lazy
+  `/service-map` chunk, so it does not enlarge the initial application route bundle.
+- **Follow-up:** Measure the lazy Service Map chunk and evaluate route-level lazy
+  loading/code splitting for `/metrics` during frontend performance hardening. Do not
+  add another chart wrapper dependency solely to suppress the advisory.
 
 ## Mockito / ByteBuddy dynamic agent loading
 
@@ -77,4 +78,22 @@ This debt is not a defect in Milestone 1.1. The milestone remains successfully c
 - **Follow-up:** Introduce a bounded canonical service catalog or a provider with
   server-side pagination only when scale evidence justifies it; do not reconstruct
   identity tuples by cross-producting independent label-value queries.
+- **Priority:** Medium
+
+## Service Map bounded trace-detail fan-out
+
+- **Status:** Pending / Non-blocking
+- **Detected in:** Milestone 6 implementation
+- **Description:** Service Map selects bounded monitored CLIENT-bearing candidate traces,
+  then derives edges only after up to 50 complete trace-detail reads and canonical direct
+  CLIENT-parent-to-SERVER-child post-filtering. Retrieval is capped at eight concurrent
+  requests and one 10-second budget, but this remains a provider fan-out rather than a
+  single dependency-evidence query.
+- **Current impact:** The fan-out cannot grow with an unbounded result set and returns
+  explicit truncation when the candidate cap is exceeded. At larger trace volumes, its
+  fixed request cost may still be material.
+- **Follow-up:** Measure production-like trace volume and consider a provider capability
+  that returns the same canonical direct CLIENT-to-SERVER evidence in one bounded query;
+  do not add a topology cache, graph database, or generic relationship engine without
+  scale evidence.
 - **Priority:** Medium

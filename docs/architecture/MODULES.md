@@ -1,6 +1,6 @@
 # Module Architecture
 
-Status: IMPLEMENTED THROUGH MILESTONE 5 LOCAL VERIFICATION / GITLAB REVALIDATION PENDING
+Status: IMPLEMENTED THROUGH MILESTONE 5 LOCAL VERIFICATION / GITLAB REVALIDATION PENDING; MILESTONE 6 READY FOR GITLAB REVALIDATION
 
 ## Initial modules
 
@@ -51,11 +51,19 @@ Metrics, Traces, and Logs contracts at `/investigate`; it adds no module registr
 health check, backend aggregation service, or bounded-context dependency. Signal
 activation and health remain independent.
 
+### service-map
+
+Provides a read-only, bounded observed-dependency capability at `/api/service-map` and
+the frontend `/service-map` route. It is a compile-time module registered through its
+own Spring configuration and is enabled only when both `service-map` and `traces` are
+enabled. It uses canonical trace evidence through a vendor-neutral port, adds no new
+provider probe, and does not depend on Metrics or Logs. Its graph is evidence-derived,
+not a persistent topology catalog; see `SERVICE_MAP.md`.
+
 ## Planned modules
 
 - apm
 - infrastructure
-- service-map
 - alerts
 - compatibility
 - ai-rca

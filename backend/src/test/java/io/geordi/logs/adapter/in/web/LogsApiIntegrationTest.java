@@ -22,7 +22,8 @@ import org.springframework.http.HttpStatus;
 
 @SpringBootTest(
         classes = {GeordiApplication.class, LogsApiIntegrationTest.StubConfiguration.class},
-        properties = {"geordi.modules.metrics.enabled=false", "geordi.modules.traces.enabled=false"},
+        properties = {"geordi.modules.metrics.enabled=false", "geordi.modules.traces.enabled=false",
+            "geordi.modules.service-map.enabled=false"},
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class LogsApiIntegrationTest {
 

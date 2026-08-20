@@ -17,7 +17,8 @@ import org.springframework.http.ResponseEntity;
 
 @SpringBootTest(
         classes = GeordiApplication.class,
-        properties = {"geordi.modules.traces.enabled=false", "geordi.modules.metrics.enabled=false"},
+        properties = {"geordi.modules.traces.enabled=false", "geordi.modules.metrics.enabled=false",
+            "geordi.modules.service-map.enabled=false"},
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class TracesModuleIntegrationTest {
 

@@ -1,7 +1,8 @@
 # Geordi backend
 
 Single-project Java 21 / Spring Boot modular monolith. Logical module boundaries for
-core, self-observability, Metrics, Traces, and Logs are enforced by ArchUnit.
+core, self-observability, Metrics, Traces, Logs, and Service Map are enforced by
+ArchUnit.
 
 ## Verify
 
@@ -33,6 +34,7 @@ The product API is exposed on port 8080:
 - `GET /api/platform/health`
 - `GET /api/logs/services`
 - `GET /api/logs`
+- `GET /api/service-map?environment=<exact>&from=<offset-date-time>&to=<offset-date-time>`
 - `GET /actuator/health/liveness`
 - `GET /actuator/health/readiness`
 
@@ -43,6 +45,15 @@ the documented `GEORDI_MODULES_SELF_OBSERVABILITY_ENABLED=false` `.env` toggle i
 generic property. Core cannot be disabled and unknown or malformed module configuration
 fails startup. Module inventory never executes health checks; platform health and
 Actuator readiness use the separate health service.
+
+Service Map defaults to enabled through `geordi.modules.service-map.enabled=true` and
+requires the Traces module to be enabled. It derives a bounded observed graph from
+trace evidence and does not add another provider health probe. `GET /api/service-map`
+requires one exact environment and an explicit absolute range no wider than six hours.
+It returns only direct monitored `CLIENT` parent -> distinct monitored `SERVER` child
+relationships, with exact namespace/name/environment identities, bounded representative
+trace evidence, and explicit truncation. It creates no new telemetry storage or
+provider-specific public contract.
 
 The API version comes from Maven-generated Spring Boot build metadata. Supported local
 startup through Maven and packaged/container startup provide that metadata; startup

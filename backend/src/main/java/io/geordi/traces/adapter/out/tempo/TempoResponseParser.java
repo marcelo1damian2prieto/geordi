@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -84,6 +85,15 @@ final class TempoResponseParser {
             }
         }
         return List.copyOf(summaries);
+    }
+
+    List<TraceId> candidateTraceIds(JsonNode root) {
+        requireObject(root);
+        LinkedHashSet<TraceId> identifiers = new LinkedHashSet<>();
+        for (JsonNode trace : requiredArray(root, "traces")) {
+            identifiers.add(searchTraceId(trace));
+        }
+        return List.copyOf(identifiers);
     }
 
     TraceDetail detail(JsonNode root, TraceId requestedTraceId) {

@@ -1,5 +1,19 @@
 # TDD evidence — backend
 
+## Milestone 6 — Service Map
+
+Behavior-first tests were added for exact environment and half-open range semantics,
+direct monitored CLIENT-parent to SERVER-child qualification, same-service and
+co-occurrence rejection, distinct-trace evidence counting, deterministic representative
+evidence, candidate and graph truncation, explicit-offset HTTP input, canonical provider
+errors, module activation, the bounded client-bearing Tempo candidate query, and architecture direction.
+
+The initial focused run failed during test compilation because the Service Map domain,
+application service, and trace-evidence port did not exist. After the implementation,
+the focused domain/application/web/Tempo/ArchUnit tests passed. Full verification runs
+JUnit, ArchUnit, PMD, SpotBugs, and Find Security Bugs; the final result is recorded in
+the Milestone 6 handoff.
+
 ## Milestone 2 — Metrics vertical slice
 
 Behavior-first coverage was added for time/service/series invariants, closed metric

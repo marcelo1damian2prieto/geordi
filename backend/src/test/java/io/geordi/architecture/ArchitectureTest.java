@@ -18,7 +18,8 @@ class ArchitectureTest {
         noClasses().that().resideInAPackage("io.geordi.core..")
                 .should().dependOnClassesThat().resideInAnyPackage(
                         "io.geordi.bootstrap..", "io.geordi.selfobservability..",
-                        "io.geordi.metrics..", "io.geordi.traces..", "io.geordi.logs..")
+                        "io.geordi.metrics..", "io.geordi.traces..", "io.geordi.logs..",
+                        "io.geordi.servicemap..")
                 .check(productionClasses);
     }
 
@@ -41,7 +42,8 @@ class ArchitectureTest {
                         "com.dynatrace..",
                         "io.signoz..",
                         "io.geordi.traces..",
-                        "io.geordi.logs..")
+                        "io.geordi.logs..",
+                        "io.geordi.servicemap..")
                 .check(productionClasses);
     }
 
@@ -50,7 +52,7 @@ class ArchitectureTest {
         noClasses().that().resideInAPackage("io.geordi.bootstrap..")
                 .should().dependOnClassesThat().resideInAnyPackage(
                         "io.geordi.selfobservability..", "io.geordi.metrics..", "io.geordi.traces..",
-                        "io.geordi.logs..")
+                        "io.geordi.logs..", "io.geordi.servicemap..")
                 .check(productionClasses);
     }
 
@@ -166,6 +168,38 @@ class ArchitectureTest {
                 .check(productionClasses);
         noClasses().that().resideInAnyPackage("io.geordi.metrics..", "io.geordi.traces..")
                 .should().dependOnClassesThat().resideInAPackage("io.geordi.logs..")
+                .check(productionClasses);
+    }
+
+    @Test
+    void serviceMapDomainAndApplicationAreFrameworkAndSignalIndependent() {
+        noClasses().that().resideInAnyPackage(
+                        "io.geordi.servicemap.domain..", "io.geordi.servicemap.application..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "org.springframework..",
+                        "com.fasterxml.jackson..",
+                        "io.opentelemetry..",
+                        "java.net.http..",
+                        "jakarta.persistence..",
+                        "io.geordi.servicemap.adapter..",
+                        "io.geordi.traces..",
+                        "io.geordi.logs..",
+                        "io.geordi.metrics..",
+                        "io.tempo..",
+                        "org.grafana..",
+                        "io.loki..")
+                .check(productionClasses);
+    }
+
+    @Test
+    void tracesDoNotDependOnServiceMapAndProviderSyntaxStaysOutsideServiceMapCore() {
+        noClasses().that().resideInAPackage("io.geordi.traces..")
+                .should().dependOnClassesThat().resideInAPackage("io.geordi.servicemap..")
+                .check(productionClasses);
+        noClasses().that().resideInAnyPackage(
+                        "io.geordi.servicemap.domain..", "io.geordi.servicemap.application..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "io.geordi.traces.adapter.out.tempo..", "io.tempo..")
                 .check(productionClasses);
     }
 }

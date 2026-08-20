@@ -1,6 +1,6 @@
 # Local deployment
 
-Milestone 5 runs the frontend, backend, monitored demo application, OpenTelemetry
+Milestone 6 runs the frontend, backend, two monitored demo applications, OpenTelemetry
 Collector, VictoriaMetrics, Grafana Tempo, and Grafana Loki single-node storage with
 Docker Compose. It has no Kubernetes or production multi-node storage cluster.
 
@@ -32,14 +32,15 @@ All published ports are loopback-only:
 - Loki readiness/query API: `http://127.0.0.1:3100/ready` and
   `http://127.0.0.1:3100/loki/api/v1/query_range`.
 - monitored demo service: `http://127.0.0.1:8081`.
+- monitored downstream demo service: `http://127.0.0.1:8082`.
 
 VictoriaMetrics stores seven days of local development metric data in the named
 `victoriametrics-data` volume. Tempo stores local trace WAL and blocks in the named
 `tempo-data` volume. Loki stores local TSDB v13 data in the named `loki-data` volume.
 All are intentionally single-node local-development topologies. The Collector waits for
 the stores, sending metrics to VictoriaMetrics and traces/logs to Tempo/Loki over OTLP.
-The backend waits for the Collector and stores; the frontend waits for the backend. Both
-Java 21 runtimes run as UID `10001`, attach the OpenTelemetry Java Agent, export traces,
+The backend waits for the Collector and stores; the frontend waits for the backend. All
+three Java 21 runtimes run as UID `10001`, attach the OpenTelemetry Java Agent, export traces,
 metrics, and logs over OTLP/HTTP, sample locally with `always_on`, and give each process
 a generated `service.instance.id`.
 
@@ -61,6 +62,7 @@ Invoke-WebRequest http://127.0.0.1:8428/health
 Invoke-WebRequest http://127.0.0.1:3200/ready
 Invoke-WebRequest http://127.0.0.1:3100/ready
 Invoke-WebRequest http://127.0.0.1:8081/actuator/health/readiness
+Invoke-WebRequest http://127.0.0.1:8082/actuator/health/readiness
 ```
 
 Generate requests to the backend and inspect the Collector debug output:
@@ -76,6 +78,7 @@ Or run the automated end-to-end check:
 .\scripts\verify-metrics.ps1
 .\scripts\verify-traces.ps1
 .\scripts\verify-logs.ps1
+.\scripts\verify-service-map.ps1
 ```
 
 The OpenTelemetry smoke check requires the Collector's backend `service.version` to
@@ -92,6 +95,11 @@ The Logs smoke generates deterministic INFO, WARN, ERROR, and nested-span record
 verifies Loki persistence, Geordi's exact identity/range/severity/body/correlation semantics,
 Trace Search → Detail → trace/span-filtered Logs, frontend proxy behavior, and that trace/span,
 request ID, and full URL metadata remain queryable without becoming Loki labels.
+
+The Service Map smoke sends deterministic traffic from `geordi-demo-service` to
+`geordi-demo-downstream-service`. It verifies the resulting direct monitored
+caller-to-callee trace evidence, exact identities, bounded evidence, and the absence of
+self, platform, and unrelated edges.
 
 ## GitLab runner
 

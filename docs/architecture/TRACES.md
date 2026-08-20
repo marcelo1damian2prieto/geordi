@@ -1,6 +1,6 @@
 # Traces Architecture
 
-Status: IMPLEMENTED / MILESTONE 3 COMPLETE
+Status: IMPLEMENTED / MILESTONE 3 COMPLETE; SERVICE MAP TRACE-EVIDENCE EXTENSION READY FOR GITLAB REVALIDATION
 
 ## Scope
 
@@ -76,3 +76,21 @@ Tempo is the single Milestone 3 provider (ADR-010). Its types, HTTP API, JSON an
 TraceQL remain inside its adapter. Replacing it requires a new adapter, configuration,
 deployment wiring and integration tests; canonical application, REST and frontend
 contracts remain unchanged (ADR-011).
+
+## Service Map evidence extension
+
+Milestone 6 adds a separate, vendor-neutral trace-dependency query operation for the
+Service Map module. The trace adapter performs one bounded candidate search for
+monitored CLIENT-bearing traces in the exact requested environment (50 plus one
+truncation detector), then at most 50 complete trace-detail reads, with concurrency
+limited to eight and one 10-second end-to-end budget. The candidate query does not
+itself establish a CLIENT-to-SERVER dependency: canonical detail post-filtering enforces
+the direct relationship. This is bounded rather than a general trace explorer;
+malformed, disappeared, unavailable, and timed-out candidate data fails the map request
+rather than silently fabricating partial evidence.
+
+The Service Map application accepts only direct monitored `CLIENT` parent -> `SERVER`
+child evidence with exact full identity and selected environment. It decides inclusion
+from the SERVER start in `[from,to)` and counts distinct qualifying trace IDs per edge.
+Tempo query syntax, transport, and response parsing remain inside the existing Tempo
+adapter. See `SERVICE_MAP.md` for the map product contract and limitations.

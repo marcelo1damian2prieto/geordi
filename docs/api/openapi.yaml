@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Geordi Platform API
-  version: milestone-5
-  description: Platform APIs and bounded Metrics, Traces, and Logs capabilities.
+  version: milestone-6
+  description: Platform APIs and bounded Metrics, Traces, Logs, and observed Service Map capabilities.
 servers:
   - url: http://localhost:8080
 paths:
@@ -301,6 +301,39 @@ paths:
           $ref: '#/components/responses/LogsTimeout'
         '404':
           $ref: '#/components/responses/LogsDisabled'
+  /api/service-map:
+    get:
+      operationId: getServiceMap
+      summary: Return observed service-to-service dependencies for one environment and bounded time range.
+      description: >-
+        The map is derived from available monitored trace evidence, not configured or
+        complete architecture. An edge is returned only for a direct monitored CLIENT
+        parent and SERVER child with distinct exact service identities in the requested
+        environment, where the SERVER span starts in [from, to). Absence of an edge does
+        not prove absence of a dependency. Results are bounded and truncated is explicit.
+      parameters:
+        - $ref: '#/components/parameters/Environment'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+      responses:
+        '200':
+          description: >-
+            A bounded observed graph. Empty nodes and edges are valid when no qualifying
+            dependency was observed. A true truncated value means the result is incomplete.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceMap'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/ServiceMapDisabled'
+        '502':
+          $ref: '#/components/responses/TracesMalformedResponse'
+        '503':
+          $ref: '#/components/responses/TracesUnavailable'
+        '504':
+          $ref: '#/components/responses/TracesTimeout'
 components:
   parameters:
     ServiceName:
@@ -447,6 +480,8 @@ components:
             $ref: '#/components/schemas/Problem'
     LogsDisabled:
       description: The Logs capability is disabled and its routes are absent.
+    ServiceMapDisabled:
+      description: The Service Map capability is disabled or its trace dependency is unavailable by configuration.
   schemas:
     Platform:
       type: object
@@ -539,6 +574,72 @@ components:
         to:
           type: string
           format: date-time
+    ServiceMapContext:
+      type: object
+      additionalProperties: false
+      required: [environment, range]
+      properties:
+        environment:
+          type: string
+          minLength: 1
+          description: Exact deployment.environment.name selected for the map.
+        range:
+          $ref: '#/components/schemas/TimeRange'
+    DependencyEvidence:
+      type: object
+      additionalProperties: false
+      required: [traceId, observedAt]
+      properties:
+        traceId:
+          $ref: '#/components/schemas/TraceId'
+        observedAt:
+          type: string
+          format: date-time
+          description: Start timestamp of the qualifying SERVER span.
+    ObservedDependency:
+      type: object
+      additionalProperties: false
+      required: [caller, callee, evidenceCount, evidence]
+      properties:
+        caller:
+          $ref: '#/components/schemas/ServiceIdentity'
+        callee:
+          $ref: '#/components/schemas/ServiceIdentity'
+        evidenceCount:
+          type: integer
+          minimum: 1
+          description: Count of distinct qualifying trace IDs for this ordered caller-to-callee edge.
+        evidence:
+          type: array
+          maxItems: 3
+          description: At most three deterministic representative traces; this is not the complete evidence set.
+          items:
+            $ref: '#/components/schemas/DependencyEvidence'
+    ServiceMap:
+      type: object
+      additionalProperties: false
+      required: [context, nodes, edges, truncated]
+      properties:
+        context:
+          $ref: '#/components/schemas/ServiceMapContext'
+        nodes:
+          type: array
+          maxItems: 50
+          description: Exact canonical service identities that are endpoints of returned observed edges.
+          items:
+            $ref: '#/components/schemas/ServiceIdentity'
+        edges:
+          type: array
+          maxItems: 100
+          description: Ordered caller-to-callee observed dependencies. Same-service edges are omitted.
+          items:
+            $ref: '#/components/schemas/ObservedDependency'
+        truncated:
+          type: boolean
+          description: >-
+            True when candidate, node, or edge bounds prevent a complete graph. The
+            representative evidence list is always bounded; evidenceCount greater than
+            evidence length makes that boundedness explicit without changing this flag.
     OperationalMetric:
       type: string
       enum:

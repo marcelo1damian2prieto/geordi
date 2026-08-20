@@ -22,7 +22,7 @@ import org.springframework.http.ResponseEntity;
 @SpringBootTest(
         classes = {GeordiApplication.class, DownPlatformApiIntegrationTest.DownModuleConfiguration.class},
         properties = {"geordi.modules.metrics.enabled=false", "geordi.modules.traces.enabled=false",
-            "geordi.modules.logs.enabled=false"},
+            "geordi.modules.logs.enabled=false", "geordi.modules.service-map.enabled=false"},
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class DownPlatformApiIntegrationTest {
 

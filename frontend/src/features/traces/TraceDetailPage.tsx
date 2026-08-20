@@ -25,6 +25,7 @@ export function TraceDetailPage() {
   const detail = useTraceDetail(traceId)
   const parsedContext = parseTelemetryContext(searchParams)
   const fromInvestigation = searchParams.get('origin') === 'investigate' && parsedContext.status === 'valid'
+  const fromServiceMap = searchParams.get('origin') === 'service-map' && parsedContext.status === 'valid'
   const investigationParams = parsedContext.status === 'valid'
     ? contextSearchParams(parsedContext.context.service, parsedContext.context.range)
     : undefined
@@ -34,11 +35,20 @@ export function TraceDetailPage() {
   relatedLogsParams?.set('traceId', traceId ?? '')
   const traceSearchParams = new URLSearchParams(searchParams)
   traceSearchParams.delete('origin')
-  const backTarget = fromInvestigation
+  const serviceMapParams = parsedContext.status === 'valid'
+    ? new URLSearchParams({
+        environment: parsedContext.context.service.environment,
+        from: parsedContext.context.range.from,
+        to: parsedContext.context.range.to,
+      })
+    : undefined
+  const backTarget = fromServiceMap
+    ? `/service-map?${serviceMapParams!.toString()}`
+    : fromInvestigation
     ? `/investigate?${investigationParams!.toString()}`
     : `/traces${traceSearchParams.size > 0 ? `?${traceSearchParams.toString()}` : ''}`
-  const backDestination = fromInvestigation ? 'service investigation' : 'trace search'
-  const backLabel = fromInvestigation ? '← Back to service investigation' : '← Back to trace search'
+  const backDestination = fromServiceMap ? 'service map' : fromInvestigation ? 'service investigation' : 'trace search'
+  const backLabel = fromServiceMap ? '← Back to service map' : fromInvestigation ? '← Back to service investigation' : '← Back to trace search'
 
   if (detail.isPending) return <main className="state-panel" aria-busy="true">Loading trace detail…</main>
 

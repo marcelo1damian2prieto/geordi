@@ -1,13 +1,16 @@
 package io.geordi.traces.adapter.out.telemetry;
 
 import io.geordi.traces.application.TraceSearchCriteria;
+import io.geordi.traces.application.TraceDependencyQuery;
 import io.geordi.traces.application.port.out.TraceBackendProbe;
+import io.geordi.traces.application.port.out.TraceDependencyQueryPort;
 import io.geordi.traces.application.port.out.TraceQueryPort;
 import io.geordi.traces.domain.ServiceIdentity;
 import io.geordi.traces.domain.TimeRange;
 import io.geordi.traces.domain.TraceDetail;
 import io.geordi.traces.domain.TraceId;
 import io.geordi.traces.domain.TraceSummary;
+import io.geordi.traces.domain.TraceCandidateBatch;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
@@ -19,12 +22,13 @@ import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
-public final class ObservedTraceQueryAdapter implements TraceQueryPort, TraceBackendProbe {
+public final class ObservedTraceQueryAdapter implements TraceQueryPort, TraceBackendProbe, TraceDependencyQueryPort {
 
     private static final AttributeKey<String> OPERATION = AttributeKey.stringKey("geordi.traces.operation");
 
     private final TraceQueryPort queryDelegate;
     private final TraceBackendProbe probeDelegate;
+    private final TraceDependencyQueryPort dependencyDelegate;
     private final LongCounter requests;
     private final LongCounter failures;
     private final LongCounter results;
@@ -32,8 +36,19 @@ public final class ObservedTraceQueryAdapter implements TraceQueryPort, TraceBac
     private final DoubleHistogram duration;
 
     public ObservedTraceQueryAdapter(TraceQueryPort queryDelegate, TraceBackendProbe probeDelegate) {
+        this(queryDelegate, probeDelegate, query -> {
+            throw new UnsupportedOperationException("trace dependency queries are not configured");
+        });
+    }
+
+    public ObservedTraceQueryAdapter(
+            TraceQueryPort queryDelegate,
+            TraceBackendProbe probeDelegate,
+            TraceDependencyQueryPort dependencyDelegate) {
         this.queryDelegate = Objects.requireNonNull(queryDelegate, "trace query delegate must not be null");
         this.probeDelegate = Objects.requireNonNull(probeDelegate, "trace probe delegate must not be null");
+        this.dependencyDelegate = Objects.requireNonNull(
+                dependencyDelegate, "trace dependency delegate must not be null");
         var meter = GlobalOpenTelemetry.getMeter("io.geordi.traces");
         requests = meter.counterBuilder("geordi.traces.backend.requests").build();
         failures = meter.counterBuilder("geordi.traces.backend.failures").build();
@@ -56,6 +71,14 @@ public final class ObservedTraceQueryAdapter implements TraceQueryPort, TraceBac
     public Optional<TraceDetail> findTrace(TraceId traceId) {
         return observe("detail", () -> queryDelegate.findTrace(traceId),
                 detail -> detail.map(TraceDetail::spanCount).orElse(0));
+    }
+
+    @Override
+    public TraceCandidateBatch findDependencyCandidates(TraceDependencyQuery query) {
+        return observe(
+                "dependency-candidates",
+                () -> dependencyDelegate.findDependencyCandidates(query),
+                result -> result.traces().size());
     }
 
     @Override

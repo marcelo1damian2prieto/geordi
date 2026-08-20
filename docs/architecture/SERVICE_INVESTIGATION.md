@@ -1,6 +1,6 @@
 # Service Investigation Architecture
 
-Status: IMPLEMENTED THROUGH MILESTONE 5 / GITLAB REVALIDATION PENDING
+Status: IMPLEMENTED THROUGH MILESTONE 5 / GITLAB REVALIDATION PENDING; SERVICE MAP NAVIGATION READY FOR GITLAB REVALIDATION
 
 ## Scope
 
@@ -83,6 +83,15 @@ Investigation links reuse `/traces/{traceId}` and add only canonical context plu
 small enumerated origin marker. Trace Detail reconstructs a safe `/investigate` return
 target from validated canonical parameters. It never accepts or echoes an arbitrary
 return URL. Ordinary Trace-search navigation remains unchanged.
+
+## Service Map navigation
+
+Service Map remains a separate trace-derived capability. Its node action opens this
+existing `/investigate` workflow with the exact selected node identity and unchanged
+absolute range; it does not embed or duplicate Investigation. Its bounded edge evidence
+opens existing Trace Detail with validated callee identity, the same range, and the
+enumerated `service-map` origin. Service Map failure neither changes this workflow nor
+creates a backend cross-signal dependency.
 
 ## Self-observability
 

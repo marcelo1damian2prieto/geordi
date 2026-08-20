@@ -9,10 +9,17 @@ import org.springframework.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 
 @RestController
 @RequestMapping("/demo")
@@ -20,11 +27,33 @@ class DemoController {
 
     private static final Tracer TRACER = GlobalOpenTelemetry.getTracer("io.geordi.demo");
     private static final Logger LOGGER = LoggerFactory.getLogger(DemoController.class);
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(2))
+            .build();
+
+    private final URI downstreamUri;
+
+    DemoController(@Value("${demo.downstream-url:http://demo-downstream:8082/downstream/respond}") String downstreamUrl) {
+        this.downstreamUri = URI.create(downstreamUrl);
+    }
 
     @GetMapping("/success")
     String success() {
         LOGGER.info("geordi.demo.log.info");
         return "ok";
+    }
+
+    @GetMapping("/downstream")
+    String downstream() throws java.io.IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder(downstreamUri)
+                .GET()
+                .timeout(Duration.ofSeconds(3))
+                .build();
+        HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() != HttpStatus.OK.value()) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "downstream demo response was not successful");
+        }
+        return response.body();
     }
 
     @GetMapping("/warn")
