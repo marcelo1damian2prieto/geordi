@@ -92,7 +92,8 @@ Service Map derives a bounded observed graph from existing trace data; it adds n
 storage, cache, or provider health probe. Its vendor-neutral boundary receives only
 canonical candidate trace evidence. Tempo transport, query syntax, and JSON remain in
 the trace adapter. The active implementation is documented in `SERVICE_MAP.md` and
-is locally verified and ready for GitLab revalidation; independent review remains pending.
+is locally verified and ready for GitLab revalidation; independent review reported no
+BLOCKER or HIGH findings.
 
 ## Target logical view
 

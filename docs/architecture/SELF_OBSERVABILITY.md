@@ -143,7 +143,8 @@ The local runtime adds a second monitored demo workload solely to generate propa
 service-to-service trace evidence. It remains monitored workload telemetry and is not a
 Geordi platform component. Local Compose verification passed the Service Map semantic
 smoke together with the existing self-observability, Metrics, Traces, and Logs smokes;
-independent review and GitLab revalidation remain pending.
+independent review reported no BLOCKER or HIGH findings, while GitLab revalidation
+remains pending.
 
 ## Future health indicators
 

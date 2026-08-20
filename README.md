@@ -199,8 +199,9 @@ absence of high-cardinality Loki labels:
 
 Run the Service Map semantic smoke after the Compose stack is ready. It generates
 propagated demo-to-downstream traffic and checks the exact directed trace-derived edge,
-bounded evidence, and frontend/API proxy path. It is a verification command; this
-document does not claim it has been run successfully for Milestone 6.
+bounded evidence, and frontend/API proxy path. It passed during Milestone 6 local
+verification and is included in the authoritative GitLab stack-smoke job; confirmation
+of that updated pipeline remains pending.
 
 ```powershell
 .\scripts\verify-service-map.ps1
@@ -220,10 +221,12 @@ npm run lint
 npm run build
 ```
 
-GitHub Actions and GitLab CI run the same commands. GitLab's required deployment and
-stack-smoke jobs use a trusted Windows runner tagged `geordi-docker-pwsh` with Docker
-daemon access, Docker Compose v2, PowerShell 7, outbound image access, and the fixed
-local ports available. The integration job is serialized by a resource group.
+GitHub Actions and GitLab CI share the backend and frontend quality gates. GitLab's
+authoritative deployment and complete stack-smoke jobs additionally use a trusted
+Windows runner tagged `geordi-docker-pwsh` with Docker daemon access, Docker Compose v2,
+PowerShell 7, outbound image access, and the fixed local ports available. The integration
+job is serialized by a resource group and runs the self-observability, Metrics, Traces,
+Logs, and Service Map semantic smokes in that order.
 
 Milestones 5 and 6 are locally ready for GitLab revalidation; Milestone 6 independent
 review passed with no BLOCKER or HIGH findings. Neither status authorizes marking Milestone 6 complete without project-owner

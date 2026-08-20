@@ -50,7 +50,11 @@ an absent edge does not prove an absent dependency.
    empty, invalid, unavailable, malformed, timeout, and truncated outcomes; preserve
    node-to-Investigation and edge-to-Traces context.
 6. [x] Add the smallest deterministic downstream monitored demo workload and a Service
-   Map semantic smoke; preserve all existing telemetry smokes.
+   Map semantic smoke; preserve all existing telemetry smokes. The authoritative GitLab
+   `local_stack_smoke` job invokes it after self-observability, Metrics, Traces, and Logs
+   with a bounded 180-second timeout and retains unconditional Compose log capture and
+   cleanup. Its 20-minute job timeout reserves 18 minutes for the main script and two
+   minutes for `after_script`, so a main-script timeout still reaches cleanup.
 7. [x] Run local CI-equivalent verification and synchronize implementation documentation:
    Java 21 backend Docker verification passed 128 tests plus PMD, SpotBugs, and Find
    Security Bugs; frontend verification passed 87 tests, typecheck, lint, and build;
@@ -86,8 +90,10 @@ Local CI-equivalent verification, independent review, and documentation synchron
 passed. The review reported no BLOCKER or HIGH findings. The current and maximum
 pre-GitLab status is `READY FOR GITLAB
 REVALIDATION`. It must never be marked `COMPLETE` without explicit project-owner
-confirmation that the authoritative GitLab CI pipeline is green. Any mandatory local
-verification failure leaves it `NOT READY`.
+confirmation that the authoritative GitLab CI pipeline is green. The configured
+authoritative job now requires the Service Map semantic smoke, but its resulting pipeline
+has not yet received that confirmation. Any mandatory local verification failure leaves
+it `NOT READY`.
 
 ## Non-goals
 
