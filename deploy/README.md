@@ -1,6 +1,6 @@
 # Local deployment
 
-Milestone 6 runs the frontend, backend, two monitored demo applications, OpenTelemetry
+The Milestone 7 local runtime runs the frontend, backend, two monitored demo applications, OpenTelemetry
 Collector, VictoriaMetrics, Grafana Tempo, and Grafana Loki single-node storage with
 Docker Compose. It has no Kubernetes or production multi-node storage cluster.
 
@@ -50,6 +50,13 @@ and the OpenTelemetry Java Agent derives `service.version` from the same artifac
 Compose translates the `.env` self-observability toggle into Spring's JSON property
 form so the generic configuration map retains the stable hyphenated module ID.
 
+Compose also enables the `slos` module and mounts `deploy/slos/slos.yaml` read-only at
+`/etc/geordi/slos.yaml` through Spring's additional configuration location. The file is
+the durable definition source for the local deployment and currently provides three
+deterministic smoke definitions. The backend validates at most 50 definitions at
+startup. Editing the catalog requires backend restart/redeployment; there is no runtime
+CRUD or dynamic reload.
+
 ## Verify
 
 ```powershell
@@ -79,6 +86,7 @@ Or run the automated end-to-end check:
 .\scripts\verify-traces.ps1
 .\scripts\verify-logs.ps1
 .\scripts\verify-service-map.ps1
+.\scripts\verify-slos.ps1 -ExerciseProviderFailure
 ```
 
 The OpenTelemetry smoke check requires the Collector's backend `service.version` to
@@ -100,6 +108,14 @@ The Service Map smoke sends deterministic traffic from `geordi-demo-service` to
 `geordi-demo-downstream-service`. It verifies the resulting direct monitored
 caller-to-callee trace evidence, exact identities, bounded evidence, and the absence of
 self, platform, and unrelated edges.
+
+The SLO smoke verifies the mounted catalog, exact service/environment identities,
+whole-window availability and error-rate formulas against real VictoriaMetrics evidence,
+deterministic `MET`, `BREACHED`, and no-traffic `UNAVAILABLE`, provider failure,
+provider-neutral REST/frontend responses, and exact Investigation navigation context.
+It stops/restarts VictoriaMetrics only when `-ExerciseProviderFailure` is selected.
+Milestone 7's complete local execution and independent review passed; authoritative
+GitLab revalidation remains required.
 
 ## GitLab runner
 

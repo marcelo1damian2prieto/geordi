@@ -1,6 +1,6 @@
 # Geordi Product Requirements Document
 
-Status: MILESTONES 5 AND 6 COMPLETE
+Status: MILESTONES 1 THROUGH 6 COMPLETE; MILESTONE 7 READY FOR GITLAB REVALIDATION
 
 ## Vision
 
@@ -53,6 +53,7 @@ Geordi owns the complete telemetry path and user experience.
 - APM;
 - infrastructure monitoring;
 - service map;
+- service-level objectives;
 - alerts;
 - compatibility/migration;
 - self-observability;
@@ -179,3 +180,34 @@ quality gates, Compose build, all five semantic smokes, and independent review p
 with 0 remaining BLOCKER findings and 0 remaining HIGH findings. The Service Map smoke
 is part of the authoritative integration gate, and the project owner confirmed the
 updated authoritative GitLab pipeline green.
+
+## Milestone 7 scope
+
+Status: READY FOR GITLAB REVALIDATION
+
+Milestone 7 adds a bounded SLO module over the existing canonical Metrics capability.
+The deployment supplies at most 50 definitions through a version-controlled YAML file
+mounted read-only into the backend. Operators can list and inspect definitions through
+`GET /api/slos` and `GET /api/slos/{id}`, request an on-demand evaluation through
+`GET /api/slos/{id}/evaluation`, and inspect results at `/slos`. Definition changes
+require restart/redeployment; runtime create, update, and delete are not supported.
+
+The supported SLIs are availability `(N-E)/N`, met when the observed ratio is greater
+than or equal to the target, and error rate `E/N`, met when it is less than or equal to
+the target. `N` is whole-window request count and `E` whole-window HTTP 5xx count for
+one exact monitored namespace/name/environment identity. Targets are ratios in `[0,1]`,
+equality is met, and windows are exactly `PT5M`, `PT15M`, `PT1H`, and `PT6H`.
+
+Results expose target, observed ratio when valid, request count, absolute range,
+evaluation time, and `MET`, `BREACHED`, or `UNAVAILABLE`. Bounded unavailable reasons
+distinguish disabled definitions, no traffic, missing request/error counts, invalid
+telemetry, and Metrics unavailability. The UI preserves the returned identity and range
+when navigating to Service Investigation. PromQL/MetricsQL and VictoriaMetrics response
+types remain confined to the Metrics adapter.
+
+Milestone 7 does not add latency SLOs, arbitrary expressions, runtime CRUD, scheduling,
+evaluation history, long-window compliance accounting, error budgets, notifications,
+alert lifecycle, incident management, new telemetry storage, or Milestone 8 work. Its
+backend/frontend implementation, Compose catalog mount, semantic smoke, and GitLab gate
+are present, but this status does not claim that pending full local verification or
+independent review has passed.

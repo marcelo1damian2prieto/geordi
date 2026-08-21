@@ -2,6 +2,8 @@ package io.geordi.metrics.adapter.out.victoriametrics;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.geordi.metrics.application.MetricsBackendException;
+import io.geordi.metrics.application.RequestOutcomeMeasurement;
+import io.geordi.metrics.application.RequestOutcomeQueryException;
 import io.geordi.metrics.domain.MetricPoint;
 import io.geordi.metrics.domain.MetricSeries;
 import io.geordi.metrics.domain.OperationalMetric;
@@ -11,6 +13,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 final class VictoriaMetricsResponseParser {
+
+    private static final String SLO_COMPONENT = "geordi.slo.component";
 
     List<ServiceIdentity> services(JsonNode root) {
         ensureSuccess(root);
@@ -43,6 +47,30 @@ final class VictoriaMetricsResponseParser {
         return new MetricSeries(metric, points);
     }
 
+    RequestOutcomeMeasurement requestOutcomes(JsonNode root) {
+        ensureSuccessForOutcomes(root);
+        Double requests = null;
+        Double errors = null;
+        for (JsonNode result : root.path("data").path("result")) {
+            String component = result.path("metric").path(SLO_COMPONENT).asText(null);
+            double value = result.path("value").path(1).asDouble(Double.NaN);
+            if (!Double.isFinite(value)) {
+                throw invalidOutcomes();
+            }
+            if ("requests".equals(component) && requests == null) {
+                requests = value;
+            } else if ("errors".equals(component) && errors == null) {
+                errors = value;
+            } else {
+                throw invalidOutcomes();
+            }
+        }
+        if (requests != null && errors == null) {
+            errors = 0d;
+        }
+        return new RequestOutcomeMeasurement(requests, errors);
+    }
+
     boolean scalarIsOne(JsonNode root) {
         ensureSuccess(root);
         JsonNode result = root.path("data").path("result");
@@ -54,6 +82,19 @@ final class VictoriaMetricsResponseParser {
         if (root == null || !"success".equals(root.path("status").asText())) {
             throw new MetricsBackendException("Metrics backend returned an invalid response");
         }
+    }
+
+    private static void ensureSuccessForOutcomes(JsonNode root) {
+        if (root == null || !"success".equals(root.path("status").asText())
+                || !root.path("data").path("result").isArray()) {
+            throw invalidOutcomes();
+        }
+    }
+
+    private static RequestOutcomeQueryException invalidOutcomes() {
+        return new RequestOutcomeQueryException(
+                RequestOutcomeQueryException.Reason.INVALID_TELEMETRY,
+                "Metrics backend returned invalid request outcome telemetry");
     }
 
     private static String text(JsonNode node, String field) {

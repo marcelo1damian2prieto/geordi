@@ -19,7 +19,7 @@ class ArchitectureTest {
                 .should().dependOnClassesThat().resideInAnyPackage(
                         "io.geordi.bootstrap..", "io.geordi.selfobservability..",
                         "io.geordi.metrics..", "io.geordi.traces..", "io.geordi.logs..",
-                        "io.geordi.servicemap..")
+                        "io.geordi.servicemap..", "io.geordi.slos..")
                 .check(productionClasses);
     }
 
@@ -52,7 +52,7 @@ class ArchitectureTest {
         noClasses().that().resideInAPackage("io.geordi.bootstrap..")
                 .should().dependOnClassesThat().resideInAnyPackage(
                         "io.geordi.selfobservability..", "io.geordi.metrics..", "io.geordi.traces..",
-                        "io.geordi.logs..", "io.geordi.servicemap..")
+                        "io.geordi.logs..", "io.geordi.servicemap..", "io.geordi.slos..")
                 .check(productionClasses);
     }
 
@@ -200,6 +200,42 @@ class ArchitectureTest {
                         "io.geordi.servicemap.domain..", "io.geordi.servicemap.application..")
                 .should().dependOnClassesThat().resideInAnyPackage(
                         "io.geordi.traces.adapter.out.tempo..", "io.tempo..")
+                .check(productionClasses);
+    }
+
+    @Test
+    void slosDomainAndApplicationAreFrameworkProviderAndSignalIndependent() {
+        noClasses().that().resideInAnyPackage("io.geordi.slos.domain..", "io.geordi.slos.application..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "org.springframework..",
+                        "com.fasterxml.jackson..",
+                        "io.opentelemetry..",
+                        "java.net.http..",
+                        "jakarta.persistence..",
+                        "io.geordi.slos.adapter..",
+                        "io.geordi.metrics..",
+                        "io.geordi.traces..",
+                        "io.geordi.logs..",
+                        "io.geordi.servicemap..",
+                        "io.victoriametrics..",
+                        "io.prometheus..",
+                        "org.grafana..")
+                .check(productionClasses);
+    }
+
+    @Test
+    void slosMetricsCompositionCannotReachProviderAdaptersAndMetricsDoesNotDependOnSlos() {
+        noClasses().that().resideInAPackage("io.geordi.slos.adapter.out.metrics..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "io.geordi.metrics.adapter..", "io.victoriametrics..", "io.prometheus..")
+                .check(productionClasses);
+        noClasses().that().resideInAPackage("io.geordi.metrics..")
+                .should().dependOnClassesThat().resideInAPackage("io.geordi.slos..")
+                .check(productionClasses);
+        noClasses().that().resideInAPackage("io.geordi.slos..")
+                .and().resideOutsideOfPackages(
+                        "io.geordi.slos.adapter.out.metrics..", "io.geordi.slos.adapter.spring..")
+                .should().dependOnClassesThat().resideInAPackage("io.geordi.metrics..")
                 .check(productionClasses);
     }
 }

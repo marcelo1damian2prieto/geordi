@@ -4,9 +4,11 @@ import io.geordi.core.module.ModuleStatus;
 import io.geordi.core.module.PlatformModule;
 import io.geordi.metrics.MetricsPlatformModule;
 import io.geordi.metrics.adapter.out.telemetry.ObservedMetricsQueryAdapter;
+import io.geordi.metrics.adapter.out.telemetry.ObservedRequestOutcomeQueryAdapter;
 import io.geordi.metrics.adapter.out.victoriametrics.VictoriaMetricsAdapter;
 import io.geordi.metrics.adapter.out.victoriametrics.VictoriaMetricsProperties;
 import io.geordi.metrics.application.MetricsQueryService;
+import io.geordi.metrics.application.RequestOutcomeQueryService;
 import io.geordi.metrics.application.port.out.MetricsBackendProbe;
 import java.util.function.Supplier;
 import org.springframework.beans.factory.ObjectProvider;
@@ -57,6 +59,16 @@ public class MetricsModuleConfiguration {
         @Bean
         MetricsQueryService metricsQueryService(ObservedMetricsQueryAdapter adapter) {
             return new MetricsQueryService(adapter);
+        }
+
+        @Bean
+        ObservedRequestOutcomeQueryAdapter observedRequestOutcomeQueryAdapter(VictoriaMetricsAdapter adapter) {
+            return new ObservedRequestOutcomeQueryAdapter(adapter);
+        }
+
+        @Bean
+        RequestOutcomeQueryService requestOutcomeQueryService(ObservedRequestOutcomeQueryAdapter adapter) {
+            return new RequestOutcomeQueryService(adapter);
         }
     }
 }

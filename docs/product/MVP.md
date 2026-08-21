@@ -10,8 +10,10 @@ Milestone 2 delivered a constrained operational Metrics view. Milestone 3 comple
 second P0 increment: persistent trace search/detail plus Metrics → Traces context
 navigation. Milestone 4 is complete. Milestone 5 completed Logs and Trace → Logs
 correlation, completing the correlated-telemetry P0 baseline. Milestone 6 completed the
-bounded, trace-derived observed dependency view. The broader MVP target remains planned
-because later P1 capabilities are still deferred.
+bounded, trace-derived observed dependency view. Milestone 7 delivered a bounded,
+deployment-managed SLO evaluation foundation and is ready for authoritative GitLab
+revalidation after complete local verification and independent review. The broader MVP target remains planned because alert
+delivery and other P1 capabilities are still deferred.
 
 ## Goal
 
@@ -31,6 +33,7 @@ P0:
 P1:
 - dashboard;
 - service map (COMPLETE: bounded trace-derived observed dependencies, not complete architecture);
+- SLO evaluation foundation (implemented; verification/review pending; no runtime CRUD or alerts);
 - basic infrastructure monitoring;
 - threshold alerts;
 - email/webhook notifications.

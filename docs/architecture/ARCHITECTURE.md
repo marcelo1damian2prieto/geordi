@@ -1,6 +1,6 @@
 # Architecture
 
-Status: IMPLEMENTED THROUGH MILESTONE 6; MILESTONES 5 AND 6 COMPLETE
+Status: MILESTONES 1 THROUGH 6 COMPLETE; MILESTONE 7 IMPLEMENTED WITH VERIFICATION PENDING
 
 ## Initial style
 
@@ -95,6 +95,25 @@ the trace adapter. The active implementation is documented in `SERVICE_MAP.md`. 
 verification and independent review passed without a remaining BLOCKER or HIGH finding,
 and the project owner confirmed the updated authoritative GitLab pipeline green.
 
+## Milestone 7 SLO flow
+
+```text
+Read-only mounted YAML -> SLO catalog -> SLO application <- request-outcome port
+                                            |                    |
+                                            v                    v
+React /slos <- read-only REST ------- on-demand result    Metrics application
+                                                                 |
+                                                                 v
+                                                       VictoriaMetrics adapter
+```
+
+SLOs are a real compile-time module and compose Metrics through a canonical
+whole-window request-outcome boundary. Definitions and results contain only exact
+service identity, closed SLI/window types, ratio targets, observations, and bounded
+status/reason values. Provider query syntax remains in the Metrics adapter. The catalog
+is version-controlled, mounted read-only, limited to 50 definitions, and requires
+restart/redeployment for changes. See `SLOS.md`, ADR-014, and ADR-015.
+
 ## Target logical view
 
 ```text
@@ -113,6 +132,7 @@ Geordi Platform
     +-- Logs (implemented; Milestone 5 complete)
     +-- Traces (implemented)
     +-- Service Map (implemented; Milestone 6 complete; trace-derived, no storage)
+    +-- SLOs (implemented; Milestone 7 ready for GitLab revalidation; Metrics-derived)
     +-- APM (planned)
     +-- Compatibility (planned)
 ```
@@ -145,5 +165,10 @@ Loki is the single Milestone 5 logs provider behind a replaceable adapter. OpenS
 ClickHouse require a separate future adapter and deployment decision.
 Tempo is the single Milestone 3 trace provider behind a replaceable adapter. Jaeger or
 other stores require a separate future adapter and deployment decision.
+
+The SLO catalog is deployment configuration rather than telemetry storage. Its YAML
+adapter is replaceable behind a read-only catalog port. SLO evaluation remains stable
+when the Metrics provider is replaced because the whole-window request-outcome contract
+is canonical.
 
 The final storage architecture is intentionally not locked in during milestone 1.

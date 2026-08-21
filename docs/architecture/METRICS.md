@@ -21,7 +21,9 @@ React UI <- Metrics REST <- application service <- query port <- adapter
 time ranges, supported operational metrics, units, points and series.
 
 `io.geordi.metrics.application` validates requests, selects bounded resolution,
-constructs the fixed overview and calls the outbound query port.
+constructs the fixed overview and calls the outbound query port. Milestone 7 adds a
+separate canonical request-outcome application boundary for one exact service and one
+whole window; it is not a chart-series shortcut or arbitrary metric query.
 
 Inbound web and outbound VictoriaMetrics code are adapters. Spring composition,
 provider properties, HTTP clients, JSON envelopes, MetricsQL expressions and explicit
@@ -66,6 +68,23 @@ representations. It owns rate/counter reset behavior, histogram quantiles and pr
 query expressions. Clients cannot control metric names, dimensions, aggregation,
 resolution or query language.
 
+## Milestone 7 request-outcome boundary
+
+The canonical boundary returns whole-window total HTTP request count and HTTP 5xx count
+for an exact monitored identity and bounded absolute range. The SLO adapter maps its own
+port to this Metrics application service; SLO domain/application code never reaches the
+VictoriaMetrics adapter.
+
+VictoriaMetrics performs one instant query at the exclusive range end and labels the
+two internal result components only for response mapping. When a valid request count is
+present and the same successful provider response contains no 5xx component, the
+adapter returns an explicit zero error count. Missing request count remains missing;
+duplicate, unknown, malformed, or non-finite components fail as invalid telemetry.
+Provider transport/query failure remains distinct unavailability.
+
+This boundary supports only request outcomes. It neither exposes MetricsQL/PromQL nor
+promotes the rolling chart error-rate or p95 latency series into SLO semantics.
+
 ## Activation and health
 
 The Metrics platform-module definition is always registered, so disabled capability
@@ -83,6 +102,9 @@ Metrics query request count, duration, errors, returned point count and backend 
 availability are platform telemetry. Attributes are bounded and never contain provider
 query text, error messages or selected service identity. Existing HTTP client/server
 agent instrumentation supplies traces where applicable.
+
+Request-outcome count, duration, and failure telemetry uses no selected identity,
+provider expression, or exception text as attributes.
 
 Collector accepted/sent/refused/failed/enqueue-failed metric-point counters provide
 pipeline evidence. Actual stored series and Geordi API results provide persistence and

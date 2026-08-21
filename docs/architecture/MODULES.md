@@ -1,6 +1,6 @@
 # Module Architecture
 
-Status: IMPLEMENTED THROUGH MILESTONE 6; MILESTONES 5 AND 6 COMPLETE
+Status: MILESTONES 1 THROUGH 6 COMPLETE; MILESTONE 7 IMPLEMENTED WITH VERIFICATION PENDING
 
 ## Initial modules
 
@@ -60,6 +60,19 @@ enabled. It uses canonical trace evidence through a vendor-neutral port, adds no
 provider probe, and does not depend on Metrics or Logs. Its graph is evidence-derived,
 not a persistent topology catalog; see `SERVICE_MAP.md`.
 
+### slos
+
+Provides the read-only definition catalog, on-demand availability/error-rate evaluation,
+`/api/slos` APIs, and `/slos` UI. Its compile-time module definition is always
+registered. Capability beans and routes require both `slos` and `metrics` to be enabled.
+The module composes only the canonical Metrics request-outcome boundary and has no
+Traces, Logs, or Service Map backend dependency.
+
+Health verifies catalog and measurement-port wiring without adding another
+VictoriaMetrics probe. Metrics provider reachability remains represented by the Metrics
+module, while evaluation failures become `UNAVAILABLE`. Definitions come from the
+read-only mounted YAML catalog and cannot be changed through runtime APIs.
+
 ## Planned modules
 
 - apm
@@ -103,6 +116,7 @@ Milestone 1 must not implement dynamic JAR loading. Compile-time modules activat
 
 - APM may require metrics + traces.
 - Service Map requires traces.
+- SLOs require metrics.
 - AI RCA may consume metrics + logs + traces.
 
 Dependency validation should be introduced only when those dependencies become real.

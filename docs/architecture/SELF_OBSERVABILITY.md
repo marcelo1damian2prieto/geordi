@@ -147,6 +147,23 @@ independent review reported no BLOCKER or HIGH findings, and the project owner c
 the updated authoritative GitLab pipeline green with the same five-smoke integration
 gate.
 
+## Milestone 7 additions
+
+SLO evaluation records low-cardinality counters for evaluation attempts, results, and
+unexpected failures plus duration. Result attributes are limited to the closed status,
+SLI type, and bounded unavailable reason. The canonical Metrics request-outcome path
+records request, failure, and duration without attributes.
+
+SLO identifiers, names, descriptions, service identity, target values, timestamps,
+provider expressions, provider responses, and exception text are excluded from custom
+metric attributes. The SLO module checks catalog/measurement wiring and reuses Metrics
+module provider health rather than issuing a duplicate VictoriaMetrics health probe.
+
+The configured semantic smoke verifies real Metrics evidence, `MET`, `BREACHED`,
+no-traffic `UNAVAILABLE`, provider failure, provider-neutral payloads, frontend proxy,
+and Investigation context. It is wired into the GitLab integration job after the five
+existing smokes; full local execution and independent review remain pending.
+
 ## Future health indicators
 
 - received telemetry;

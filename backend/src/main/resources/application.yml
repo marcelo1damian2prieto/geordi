@@ -14,8 +14,12 @@ geordi:
       enabled: true
     service-map:
       enabled: true
+    slos:
+      enabled: true
     self-observability:
       enabled: true
+  slo:
+    definitions: []
   metrics:
     victoria-metrics:
       base-url: http://localhost:8428

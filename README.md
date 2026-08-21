@@ -136,6 +136,27 @@ Compose build, all five semantic smokes, and independent review have passed with
 BLOCKER or HIGH findings. The project owner confirmed the updated authoritative GitLab
 pipeline green, including the Service Map semantic smoke in its integration gate.
 
+## Milestone 7 — SLO Foundations
+
+**READY FOR GITLAB REVALIDATION.** Geordi now
+loads at most 50 deployment-managed SLO definitions from the read-only YAML catalog at
+`deploy/slos/slos.yaml`, exposes read-only definition/evaluation APIs, and presents
+current results at `/slos`. Catalog changes require a backend restart or redeployment;
+there is no runtime CRUD API or form.
+
+The supported objectives use one canonical whole-window Metrics request-outcome
+boundary:
+
+- availability `(requests - 5xx errors) / requests`, met at `observed >= target`;
+- error rate `5xx errors / requests`, met at `observed <= target`.
+
+Targets are ratios from `0` to `1`, equality is met, and windows are limited to `PT5M`,
+`PT15M`, `PT1H`, and `PT6H`. Evaluations distinguish `MET`, `BREACHED`, and
+`UNAVAILABLE`; bounded reasons distinguish disabled definitions, no traffic, missing or
+invalid counts, and Metrics unavailability. Provider syntax remains in the
+VictoriaMetrics adapter. Latency SLOs, scheduling, history, error budgets, notifications,
+and incident management are not implemented.
+
 ## Current capabilities
 
 - **Metrics:** OTLP Metrics → Collector → VictoriaMetrics → vendor-neutral Metrics
@@ -151,6 +172,9 @@ pipeline green, including the Service Map semantic smoke in its integration gate
 - **Service Map:** `/service-map` → trace-derived observed dependencies
   for one exact environment and bounded absolute range; node navigation reuses
   Investigation and edge evidence reuses Trace Detail.
+- **SLO foundations:** deployment-managed definitions → canonical whole-window request
+  outcomes → explainable on-demand status at `/slos`; Investigation navigation preserves
+  the exact service identity and returned absolute evaluation range.
 
 This is a bounded service-investigation foundation, not full APM.
 
@@ -208,6 +232,19 @@ owner confirmed that updated pipeline green.
 .\scripts\verify-service-map.ps1
 ```
 
+Run the Milestone 7 semantic smoke after the Compose stack is ready. It checks the
+mounted catalog, exact identities, real whole-window Metrics evidence, deterministic
+`MET`, `BREACHED`, and no-traffic `UNAVAILABLE` outcomes, provider-failure behavior,
+provider-neutral API/frontend proxy responses, and SLO → Investigation context.
+
+```powershell
+.\scripts\verify-slos.ps1 -ExerciseProviderFailure
+```
+
+The SLO smoke and its full regression run are configured in GitLab CI. The complete
+local CI-equivalent run and independent review are green; authoritative GitLab pipeline
+revalidation remains the completion gate.
+
 ## Quality gates
 
 ```powershell
@@ -227,11 +264,14 @@ authoritative deployment and complete stack-smoke jobs additionally use a truste
 Windows runner tagged `geordi-docker-pwsh` with Docker daemon access, Docker Compose v2,
 PowerShell 7, outbound image access, and the fixed local ports available. The integration
 job is serialized by a resource group and runs the self-observability, Metrics, Traces,
-Logs, and Service Map semantic smokes in that order.
+Logs, Service Map, and SLO semantic smokes in that order.
 
 Milestones 5 and 6 are complete. Their required local verification and independent
 review passed without remaining BLOCKER or HIGH findings, and the project owner
 confirmed the authoritative GitLab pipeline green with all five semantic smokes.
+Milestone 7 passed complete local verification and independent review and is
+`READY FOR GITLAB REVALIDATION`; it is not `COMPLETE` until the project owner confirms
+the authoritative GitLab pipeline green.
 
 ## Documentation
 

@@ -97,3 +97,61 @@ This debt is not a defect in Milestone 1.1. The milestone remains successfully c
   do not add a topology cache, graph database, or generic relationship engine without
   scale evidence.
 - **Priority:** Medium
+
+## SLO catalog restart lifecycle
+
+- **Status:** Pending / Deliberate Milestone 7 limitation
+- **Detected in:** Milestone 7 implementation
+- **Description:** SLO definitions are a version-controlled YAML file mounted read-only
+  into the backend. The catalog is immutable after startup and has no runtime CRUD or
+  dynamic reload.
+- **Current impact:** Definition changes require restart/redeployment. The approach is
+  deterministic and avoids an unauthenticated mutation surface, but it is not a mutable
+  multi-operator management plane.
+- **Follow-up:** Introduce authenticated mutation, concurrency semantics, auditability,
+  and a replaceable durable store together only when runtime management is required.
+- **Priority:** Medium
+
+## SLO long-window accounting
+
+- **Status:** Pending / Deliberate Milestone 7 limitation
+- **Detected in:** Milestone 7 implementation
+- **Description:** Evaluation supports only `PT5M`, `PT15M`, `PT1H`, and `PT6H` current
+  windows and stores no evaluation history.
+- **Current impact:** Geordi cannot report 7/28/30-day compliance, calendar-period
+  objectives, error budgets, or burn rate. It must not present current-window status as
+  long-period SLO compliance.
+- **Follow-up:** Design long-period accounting and retention only with explicit product
+  semantics and storage evidence; do not extrapolate it from current evaluations.
+- **Priority:** Medium
+
+## SLO request-count provider semantics
+
+- **Status:** Pending / Bounded provider limitation
+- **Detected in:** Milestone 7 implementation
+- **Description:** The VictoriaMetrics adapter derives whole-window request and 5xx
+  counts with counter `increase` at the exclusive evaluation end. Counter sampling,
+  scrape/export cadence, reset handling, and provider extrapolation can yield fractional
+  estimates near window boundaries. A successful response with a request component and
+  no 5xx component is canonicalized to an explicit zero error count.
+- **Current impact:** Formulas remain directionally and dimensionally correct, but the
+  observed counts have VictoriaMetrics/OpenTelemetry counter-estimation precision rather
+  than event-ledger precision.
+- **Follow-up:** Preserve adapter contract tests and semantic smoke comparison against an
+  independent provider query. Reassess the provider mapping before claiming longer-term
+  accounting or when replacing VictoriaMetrics.
+- **Priority:** Medium
+
+## SLO frontend evaluation fan-out
+
+- **Status:** Pending / Bounded
+- **Detected in:** Milestone 7 implementation
+- **Description:** `/slos` issues one evaluation request for every enabled definition.
+  The catalog is capped at 50, so the fan-out is bounded but can still produce 50 backend
+  and VictoriaMetrics queries during initial load or refresh.
+- **Current impact:** The local three-definition catalog is small. A maximally populated
+  catalog can create a short burst of concurrent provider work.
+- **Follow-up:** Measure realistic catalog sizes and add bounded concurrency or a
+  canonical batch-evaluation boundary only when evidence justifies it; do not add a
+  scheduler or cache speculatively.
+- **Priority:** Medium

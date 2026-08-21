@@ -3,8 +3,12 @@ package io.geordi.metrics.adapter.out.victoriametrics;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.geordi.metrics.application.MetricsBackendException;
 import io.geordi.metrics.application.MetricsQuery;
+import io.geordi.metrics.application.RequestOutcomeMeasurement;
+import io.geordi.metrics.application.RequestOutcomeQuery;
+import io.geordi.metrics.application.RequestOutcomeQueryException;
 import io.geordi.metrics.application.port.out.MetricsBackendProbe;
 import io.geordi.metrics.application.port.out.MetricsQueryPort;
+import io.geordi.metrics.application.port.out.RequestOutcomeQueryPort;
 import io.geordi.metrics.domain.MetricSeries;
 import io.geordi.metrics.domain.ServiceIdentity;
 import io.geordi.metrics.domain.TimeRange;
@@ -15,7 +19,7 @@ import java.util.Map;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
-public final class VictoriaMetricsAdapter implements MetricsQueryPort, MetricsBackendProbe {
+public final class VictoriaMetricsAdapter implements MetricsQueryPort, MetricsBackendProbe, RequestOutcomeQueryPort {
 
     private final RestClient client;
     private final VictoriaMetricsQueryTranslator translator = new VictoriaMetricsQueryTranslator();
@@ -58,6 +62,26 @@ public final class VictoriaMetricsAdapter implements MetricsQueryPort, MetricsBa
             return List.copyOf(result);
         } catch (RestClientException | IllegalArgumentException exception) {
             throw failure(exception);
+        }
+    }
+
+    @Override
+    public RequestOutcomeMeasurement query(RequestOutcomeQuery query) {
+        try {
+            JsonNode body = client.get().uri(builder -> builder.path("/api/v1/query")
+                            .queryParam("query", "{expression}")
+                            .queryParam("time", DateTimeFormatter.ISO_INSTANT.format(
+                                    query.range().to().minusNanos(1)))
+                            .build(Map.of("expression", translator.translateRequestOutcomes(query))))
+                    .retrieve().body(JsonNode.class);
+            return parser.requestOutcomes(body);
+        } catch (RequestOutcomeQueryException exception) {
+            throw exception;
+        } catch (RestClientException | IllegalArgumentException exception) {
+            throw new RequestOutcomeQueryException(
+                    RequestOutcomeQueryException.Reason.UNAVAILABLE,
+                    "Metrics backend request outcome query failed",
+                    exception);
         }
     }
 

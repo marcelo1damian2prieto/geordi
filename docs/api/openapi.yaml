@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Geordi Platform API
-  version: milestone-6
-  description: Platform APIs and bounded Metrics, Traces, Logs, and observed Service Map capabilities.
+  version: milestone-7
+  description: Platform APIs and bounded Metrics, Traces, Logs, observed Service Map, and read-only SLO evaluation capabilities.
 servers:
   - url: http://localhost:8080
 paths:
@@ -334,8 +334,74 @@ paths:
           $ref: '#/components/responses/TracesUnavailable'
         '504':
           $ref: '#/components/responses/TracesTimeout'
+  /api/slos:
+    get:
+      operationId: listSlos
+      summary: List deployment-managed SLO definitions.
+      description: >-
+        Returns the read-only YAML catalog. Definitions contain only canonical Geordi
+        concepts and never provider query expressions or telemetry values.
+      responses:
+        '200':
+          description: SLO definitions ordered deterministically by name then identifier.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SloDefinitions'
+        '404':
+          $ref: '#/components/responses/SlosDisabled'
+  /api/slos/{sloId}:
+    get:
+      operationId: getSlo
+      summary: Return one deployment-managed SLO definition.
+      parameters:
+        - $ref: '#/components/parameters/SloId'
+      responses:
+        '200':
+          description: The requested canonical SLO definition.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SloDefinition'
+        '404':
+          description: The SLO capability is disabled or the identifier is not in the configured catalog.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/slos/{sloId}/evaluation:
+    get:
+      operationId: evaluateSlo
+      summary: Evaluate one SLO over its configured whole window.
+      description: >-
+        The returned range is the exact half-open [from,to) evaluation interval. A
+        telemetry problem is represented by status UNAVAILABLE and a reason, not a
+        breached result or provider-specific error. Equality with a configured target
+        is MET for both supported SLI target directions.
+      parameters:
+        - $ref: '#/components/parameters/SloId'
+      responses:
+        '200':
+          description: Explainable current evaluation, including unavailable outcomes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SloEvaluation'
+        '404':
+          description: The SLO capability is disabled or the identifier is not in the configured catalog.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
 components:
   parameters:
+    SloId:
+      name: sloId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
     ServiceName:
       name: serviceName
       in: query
@@ -482,6 +548,8 @@ components:
       description: The Logs capability is disabled and its routes are absent.
     ServiceMapDisabled:
       description: The Service Map capability is disabled or its trace dependency is unavailable by configuration.
+    SlosDisabled:
+      description: The SLO capability is disabled and its routes are absent.
   schemas:
     Platform:
       type: object
@@ -640,6 +708,108 @@ components:
             True when candidate, node, or edge bounds prevent a complete graph. The
             representative evidence list is always bounded; evidenceCount greater than
             evidence length makes that boundedness explicit without changing this flag.
+    SliType:
+      type: string
+      description: Closed canonical SLI catalog for Milestone 7.
+      enum: [AVAILABILITY, ERROR_RATE]
+    SloWindow:
+      type: string
+      description: Predefined ISO-8601 whole evaluation window.
+      enum: [PT5M, PT15M, PT1H, PT6H]
+    SloStatus:
+      type: string
+      enum: [MET, BREACHED, UNAVAILABLE]
+    SloUnavailableReason:
+      type: [string, 'null']
+      description: Present only when the evaluation status is UNAVAILABLE.
+      enum: [DISABLED, NO_TRAFFIC, MISSING_REQUEST_COUNT, MISSING_ERROR_COUNT, INVALID_TELEMETRY, METRICS_UNAVAILABLE, null]
+    SloDefinition:
+      type: object
+      additionalProperties: false
+      required: [id, name, description, service, sliType, target, window, enabled]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          example: checkout-availability
+        name:
+          type: string
+          minLength: 1
+          example: Checkout availability
+        description:
+          type: [string, 'null']
+          example: Successful checkout requests in production.
+        service:
+          $ref: '#/components/schemas/ServiceIdentity'
+        sliType:
+          $ref: '#/components/schemas/SliType'
+        target:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          description: >-
+            Unitless ratio in [0,1], never a percentage. Availability is met when the
+            observed value is greater than or equal to target; error rate is met when
+            it is less than or equal to target.
+          example: 0.999
+        window:
+          $ref: '#/components/schemas/SloWindow'
+        enabled:
+          type: boolean
+    SloDefinitions:
+      type: object
+      additionalProperties: false
+      required: [slos]
+      properties:
+        slos:
+          type: array
+          items:
+            $ref: '#/components/schemas/SloDefinition'
+    SloEvaluation:
+      type: object
+      additionalProperties: false
+      required: [sloId, service, sliType, target, window, range, evaluatedAt, observedValue, requestCount, status, reason]
+      properties:
+        sloId:
+          type: string
+          minLength: 1
+        service:
+          $ref: '#/components/schemas/ServiceIdentity'
+        sliType:
+          $ref: '#/components/schemas/SliType'
+        target:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        window:
+          $ref: '#/components/schemas/SloWindow'
+        range:
+          $ref: '#/components/schemas/TimeRange'
+        evaluatedAt:
+          type: string
+          format: date-time
+        observedValue:
+          type: [number, 'null']
+          format: double
+          minimum: 0
+          maximum: 1
+          description: >-
+            Null when evaluation is unavailable. For availability it is (N-E)/N; for
+            error rate it is E/N, using whole-window request counts.
+        requestCount:
+          type: [number, 'null']
+          format: double
+          minimum: 0
+          description: >-
+            Whole-window total request count, or null when unavailable. Providers may
+            extrapolate counter increases, so this canonical value is not restricted
+            to whole integers.
+        status:
+          $ref: '#/components/schemas/SloStatus'
+        reason:
+          $ref: '#/components/schemas/SloUnavailableReason'
     OperationalMetric:
       type: string
       enum:

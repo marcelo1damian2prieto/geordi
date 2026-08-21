@@ -1,0 +1,36 @@
+geordi:
+  slo:
+    definitions:
+      - id: demo-downstream-availability
+        name: Demo downstream availability
+        description: Deterministic success-only workload objective for semantic verification.
+        service:
+          name: geordi-demo-downstream-service
+          namespace: geordi-demo
+          environment: development
+        sli-type: AVAILABILITY
+        target: 0.99
+        window: PT5M
+        enabled: true
+      - id: demo-error-rate
+        name: Demo error rate
+        description: Deterministic controlled-error workload objective for semantic verification.
+        service:
+          name: geordi-demo-service
+          namespace: geordi-demo
+          environment: development
+        sli-type: ERROR_RATE
+        target: 0.0
+        window: PT5M
+        enabled: true
+      - id: no-traffic-availability
+        name: No-traffic availability
+        description: Exact monitored identity with no generated traffic for unavailable-state verification.
+        service:
+          name: geordi-slo-no-traffic
+          namespace: geordi-slo-smoke
+          environment: development
+        sli-type: AVAILABILITY
+        target: 0.99
+        window: PT5M
+        enabled: true

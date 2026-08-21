@@ -84,6 +84,22 @@ Independent review reported no BLOCKER or HIGH findings. The project owner confi
 the updated authoritative GitLab pipeline green with the Service Map semantic smoke in
 its integration gate.
 
+## Milestone 7 — SLO Foundations
+
+READY FOR GITLAB REVALIDATION
+
+- read-only, deployment-managed YAML catalog bounded to 50 definitions;
+- availability and error-rate objectives over canonical whole-window request outcomes;
+- fixed 5-minute, 15-minute, 1-hour, and 6-hour windows;
+- explainable `MET`, `BREACHED`, and `UNAVAILABLE` results;
+- `/slos`, read-only SLO APIs, and exact-context Service Investigation navigation;
+- low-cardinality self-observability and a deterministic semantic smoke in the GitLab
+  integration gate.
+
+This milestone does not deliver runtime definition CRUD, latency objectives, long-window
+compliance/error budgets, alert notifications, or incident lifecycle. It must not be
+marked ready or complete before the pending verification and review gates.
+
 ## Later — Alerts
 
 DEFERRED
@@ -96,7 +112,6 @@ DEFERRED
 - Kubernetes;
 - RUM;
 - synthetic monitoring;
-- SLOs;
 - profiling;
 - migration assistant;
 - Datadog/Dynatrace importers;

@@ -31,6 +31,10 @@ vi.mock('./features/service-map/ServiceMapPage', () => ({
   ServiceMapPage: () => <main>Service map route</main>,
 }))
 
+vi.mock('./features/slos/SloPage', () => ({
+  SloPage: () => <main>SLOs route</main>,
+}))
+
 describe('application routes', () => {
   it('renders service metrics at its public route', () => {
     render(<MemoryRouter initialEntries={['/metrics']}><App /></MemoryRouter>)
@@ -73,5 +77,12 @@ describe('application routes', () => {
 
     expect(await screen.findByText('Service map route')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Service map' })).toBeInTheDocument()
+  })
+
+  it('renders SLOs at its public route', () => {
+    render(<MemoryRouter initialEntries={['/slos']}><App /></MemoryRouter>)
+
+    expect(screen.getByText('SLOs route')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'SLOs' })).toBeInTheDocument()
   })
 })

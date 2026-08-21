@@ -210,8 +210,12 @@ function Assert-GeordiLogsApi {
                     throw "Geordi logs API did not return marker '$($marker.Key)' with severity '$($marker.Value)'."
                 }
             }
-            $nested = @($logs.logs | Where-Object { $_.body -eq "geordi.demo.log.nested-span" }) | Select-Object -First 1
-            if ($nested.traceId -ne $NestedTraceId -or $nested.spanId -ne $NestedSpanId) {
+            $nested = @($logs.logs | Where-Object {
+                    $_.body -eq "geordi.demo.log.nested-span" -and
+                        $_.traceId -eq $NestedTraceId -and
+                        $_.spanId -eq $NestedSpanId
+                }) | Select-Object -First 1
+            if ($null -eq $nested) {
                 throw "Geordi logs API did not retain nested-span trace and span correlation."
             }
             $traceSearch = Invoke-TextRequest -Uri "$BackendBaseUrl/api/traces?$identity" | ConvertFrom-Json

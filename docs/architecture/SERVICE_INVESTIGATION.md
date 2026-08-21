@@ -1,6 +1,6 @@
 # Service Investigation Architecture
 
-Status: IMPLEMENTED THROUGH MILESTONE 6; LOGS COMPOSITION AND SERVICE MAP NAVIGATION COMPLETE
+Status: IMPLEMENTED THROUGH MILESTONE 7; MILESTONE 7 VERIFICATION PENDING
 
 ## Scope
 
@@ -92,6 +92,18 @@ absolute range; it does not embed or duplicate Investigation. Its bounded edge e
 opens existing Trace Detail with validated callee identity, the same range, and the
 enumerated `service-map` origin. Service Map failure neither changes this workflow nor
 creates a backend cross-signal dependency.
+
+## SLO navigation
+
+Each on-demand SLO result carries its exact canonical service identity and returned
+absolute evaluation range. `/slos` builds the existing `/investigate` URL from those
+returned values; it does not recompute a relative range or embed investigation panels.
+Disabled definitions are not evaluated by the frontend and therefore expose no
+fabricated investigation interval there.
+
+SLO evaluation composes Metrics in the backend for the bounded reliability calculation,
+but Service Investigation itself remains frontend composition over public Metrics,
+Traces, and Logs contracts.
 
 ## Self-observability
 

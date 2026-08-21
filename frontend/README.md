@@ -1,8 +1,9 @@
 # Geordi frontend
 
 React application for the Geordi platform overview and bounded Metrics, Traces, and
-Logs vertical slices, the lightweight `/investigate` workflow, and the in-progress
-trace-derived `/service-map` workflow. Service
+Logs vertical slices, the lightweight `/investigate` workflow, the trace-derived
+`/service-map` workflow, and the implemented `/slos` foundation pending full
+verification. Service
 Investigation composes all three signal APIs with one canonical service identity and
 absolute range, isolates partial failures, and returns from Trace Detail without losing
 context. Trace Detail opens related Logs only when valid carried context is available.
@@ -11,6 +12,14 @@ it reuses Investigation and Trace Detail navigation rather than duplicating them
 UI intentionally does not expose backend query languages, arbitrary dashboards, or a
 generic visualization engine. Its ECharts graph code is route-lazy-loaded with
 `/service-map` so it does not enlarge the initial application route bundle.
+
+`/slos` lists the deployment-managed read-only catalog and issues one on-demand
+evaluation query per enabled definition. It presents textual `MET`, `BREACHED`, and
+`UNAVAILABLE` states, ratios as percentages, fixed windows, request evidence, and
+bounded unavailable reasons. Disabled definitions are shown without a query. Evaluation
+query keys include every definition identity/semantic field, and Investigation links use
+the evaluation response's exact service identity and absolute range. The catalog limit
+of 50 bounds the current per-row query fan-out.
 
 ## Local development
 

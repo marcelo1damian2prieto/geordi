@@ -1,10 +1,13 @@
 package io.geordi.metrics.adapter.out.victoriametrics;
 
 import io.geordi.metrics.application.MetricsQuery;
+import io.geordi.metrics.application.RequestOutcomeQuery;
 import io.geordi.metrics.domain.OperationalMetric;
 import java.time.Duration;
 
 final class VictoriaMetricsQueryTranslator {
+
+    private static final String SLO_COMPONENT = "geordi.slo.component";
 
     String translate(MetricsQuery query, OperationalMetric metric) {
         String selectors = selectors(query);
@@ -29,6 +32,17 @@ final class VictoriaMetricsQueryTranslator {
         };
     }
 
+    String translateRequestOutcomes(RequestOutcomeQuery query) {
+        String selectors = selectors(query.service());
+        long window = Duration.between(query.range().from(), query.range().to()).toSeconds();
+        String requests = "sum(increase(" + vector("http.server.request.duration_count", selectors)
+                + "[" + window + "s]))";
+        String errors = "sum(increase(" + vector("http.server.request.duration_count",
+                selectors + ",\"http.response.status_code\"=~\"5..\"") + "[" + window + "s]))";
+        return "label_set(" + requests + ",\"" + SLO_COMPONENT + "\",\"requests\") or label_set("
+                + errors + ",\"" + SLO_COMPONENT + "\",\"errors\")";
+    }
+
     private static String errorRate(String selectors, long window) {
         String all = "sum(increase_pure(" + vector("http.server.request.duration_count", selectors)
                 + "[" + window + "s]))";
@@ -42,12 +56,16 @@ final class VictoriaMetricsQueryTranslator {
     }
 
     private static String selectors(MetricsQuery query) {
+        return selectors(query.service());
+    }
+
+    private static String selectors(io.geordi.metrics.domain.ServiceIdentity service) {
         StringBuilder value = new StringBuilder("\"geordi.telemetry.origin\"=\"monitored\"")
-                .append(",\"service.name\"=\"").append(escape(query.service().name())).append('"')
+                .append(",\"service.name\"=\"").append(escape(service.name())).append('"')
                 .append(",\"deployment.environment.name\"=\"")
-                .append(escape(query.service().environment())).append('"');
+                .append(escape(service.environment())).append('"');
         value.append(",\"service.namespace\"=\"")
-                .append(escape(query.service().namespace() == null ? "" : query.service().namespace()))
+                .append(escape(service.namespace() == null ? "" : service.namespace()))
                 .append('"');
         return value.toString();
     }
