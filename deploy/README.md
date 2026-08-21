@@ -114,8 +114,8 @@ whole-window availability and error-rate formulas against real VictoriaMetrics e
 deterministic `MET`, `BREACHED`, and no-traffic `UNAVAILABLE`, provider failure,
 provider-neutral REST/frontend responses, and exact Investigation navigation context.
 It stops/restarts VictoriaMetrics only when `-ExerciseProviderFailure` is selected.
-Milestone 7's complete local execution and independent review passed; authoritative
-GitLab revalidation remains required.
+Milestone 7's complete local execution and independent review passed, and the project
+owner confirmed the authoritative GitLab pipeline green.
 
 ## GitLab runner
 

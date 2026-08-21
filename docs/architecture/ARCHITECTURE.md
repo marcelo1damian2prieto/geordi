@@ -1,6 +1,6 @@
 # Architecture
 
-Status: MILESTONES 1 THROUGH 6 COMPLETE; MILESTONE 7 IMPLEMENTED WITH VERIFICATION PENDING
+Status: MILESTONES 1 THROUGH 7 COMPLETE
 
 ## Initial style
 
@@ -132,7 +132,7 @@ Geordi Platform
     +-- Logs (implemented; Milestone 5 complete)
     +-- Traces (implemented)
     +-- Service Map (implemented; Milestone 6 complete; trace-derived, no storage)
-    +-- SLOs (implemented; Milestone 7 ready for GitLab revalidation; Metrics-derived)
+    +-- SLOs (implemented; Milestone 7 complete; Metrics-derived)
     +-- APM (planned)
     +-- Compatibility (planned)
 ```

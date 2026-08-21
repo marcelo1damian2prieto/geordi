@@ -4,7 +4,7 @@ Status: PLANNED
 
 ## v0.1 — Platform Core + Self-Observability
 
-IMPLEMENTED
+COMPLETE
 - Core module
 - Module registry
 - Configurable enable/disable
@@ -86,7 +86,7 @@ its integration gate.
 
 ## Milestone 7 — SLO Foundations
 
-READY FOR GITLAB REVALIDATION
+COMPLETE
 
 - read-only, deployment-managed YAML catalog bounded to 50 definitions;
 - availability and error-rate objectives over canonical whole-window request outcomes;
@@ -97,8 +97,10 @@ READY FOR GITLAB REVALIDATION
   integration gate.
 
 This milestone does not deliver runtime definition CRUD, latency objectives, long-window
-compliance/error budgets, alert notifications, or incident lifecycle. It must not be
-marked ready or complete before the pending verification and review gates.
+compliance/error budgets, alert notifications, or incident lifecycle. Local verification
+and independent review passed without an unresolved BLOCKER or HIGH finding. The SLO
+semantic smoke is part of the authoritative GitLab integration gate after the five
+existing regression smokes, and the project owner confirmed that pipeline green.
 
 ## Later — Alerts
 

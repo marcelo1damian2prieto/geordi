@@ -1,6 +1,6 @@
 # Geordi Product Requirements Document
 
-Status: MILESTONES 1 THROUGH 6 COMPLETE; MILESTONE 7 READY FOR GITLAB REVALIDATION
+Status: MILESTONES 1 THROUGH 7 COMPLETE
 
 ## Vision
 
@@ -61,7 +61,7 @@ Geordi owns the complete telemetry path and user experience.
 
 ## Milestone 1 scope
 
-Status: IMPLEMENTED
+Status: COMPLETE
 
 Milestone 1 provides:
 - platform core;
@@ -183,7 +183,7 @@ updated authoritative GitLab pipeline green.
 
 ## Milestone 7 scope
 
-Status: READY FOR GITLAB REVALIDATION
+Status: COMPLETE
 
 Milestone 7 adds a bounded SLO module over the existing canonical Metrics capability.
 The deployment supplies at most 50 definitions through a version-controlled YAML file
@@ -208,6 +208,8 @@ types remain confined to the Metrics adapter.
 Milestone 7 does not add latency SLOs, arbitrary expressions, runtime CRUD, scheduling,
 evaluation history, long-window compliance accounting, error budgets, notifications,
 alert lifecycle, incident management, new telemetry storage, or Milestone 8 work. Its
-backend/frontend implementation, Compose catalog mount, semantic smoke, and GitLab gate
-are present, but this status does not claim that pending full local verification or
-independent review has passed.
+backend/frontend quality gates, deployment/configuration verification, semantic SLO
+smoke, Milestones 1 through 6 regression smokes, and independent review passed without
+an unresolved BLOCKER or HIGH finding. The semantic SLO smoke is part of the
+authoritative GitLab integration gate, and the project owner subsequently confirmed
+that pipeline green.

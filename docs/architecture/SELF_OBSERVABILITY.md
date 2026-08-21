@@ -162,7 +162,9 @@ module provider health rather than issuing a duplicate VictoriaMetrics health pr
 The configured semantic smoke verifies real Metrics evidence, `MET`, `BREACHED`,
 no-traffic `UNAVAILABLE`, provider failure, provider-neutral payloads, frontend proxy,
 and Investigation context. It is wired into the GitLab integration job after the five
-existing smokes; full local execution and independent review remain pending.
+existing smokes. Full local execution and independent review passed without an
+unresolved BLOCKER or HIGH finding, and the project owner confirmed the authoritative
+GitLab pipeline green.
 
 ## Future health indicators
 

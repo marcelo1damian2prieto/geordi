@@ -2,8 +2,7 @@
 
 React application for the Geordi platform overview and bounded Metrics, Traces, and
 Logs vertical slices, the lightweight `/investigate` workflow, the trace-derived
-`/service-map` workflow, and the implemented `/slos` foundation pending full
-verification. Service
+`/service-map` workflow, and the completed Milestone 7 `/slos` foundation. Service
 Investigation composes all three signal APIs with one canonical service identity and
 absolute range, isolates partial failures, and returns from Trace Detail without losing
 context. Trace Detail opens related Logs only when valid carried context is available.

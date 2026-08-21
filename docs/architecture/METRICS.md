@@ -1,6 +1,6 @@
 # Metrics Architecture
 
-Status: IMPLEMENTED / Milestone 2
+Status: IMPLEMENTED / MILESTONE 2 COMPLETE
 
 ## Scope
 

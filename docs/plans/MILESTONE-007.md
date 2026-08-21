@@ -1,6 +1,6 @@
 # Milestone 007 — Alerting & SLO Foundations
 
-Status: READY FOR GITLAB REVALIDATION
+Status: COMPLETE
 
 ## Objective
 
@@ -85,7 +85,9 @@ must not enter SLO domain/application objects, the configured catalog, REST, or 
 The complete backend/frontend quality gates, Compose startup, all six semantic smokes,
 provider-failure exercise, and independent review passed locally. The review found no
 BLOCKER or HIGH findings; all MEDIUM findings and the LOW test-coverage finding were
-resolved and the affected gates rerun.
+resolved and the affected gates rerun. The SLO semantic smoke is part of the
+authoritative GitLab integration gate after the Milestones 1 through 6 regression
+smokes. The project owner subsequently confirmed that authoritative pipeline green.
 
 ## Acceptance criteria
 
@@ -110,14 +112,13 @@ resolved and the affected gates rerun.
 
 ## Definition of Done and status rule
 
-Local completion requires every acceptance criterion, synchronized documentation,
-complete CI-equivalent quality/Compose/smoke verification, and independent review with
-no unresolved BLOCKER/HIGH finding. After successful local verification the maximum
-status is `READY FOR GITLAB REVALIDATION`.
-
-Milestone 7 must not be marked `COMPLETE` unless the project owner explicitly confirms
-that the authoritative GitLab CI pipeline is green. If mandatory verification fails,
-status is `NOT READY`.
+Every acceptance criterion, synchronized implementation documentation, complete
+CI-equivalent backend/frontend quality gates, deployment/configuration verification,
+Compose startup, the SLO semantic smoke, the Milestones 1 through 6 regression smokes,
+and independent review completed without an unresolved BLOCKER or HIGH finding. The SLO
+semantic smoke is included in the authoritative GitLab integration gate, and the
+project owner subsequently confirmed that pipeline green. The Milestone 7 Definition
+of Done is therefore satisfied and its status is `COMPLETE`.
 
 ## Non-goals
 

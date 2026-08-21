@@ -138,7 +138,7 @@ pipeline green, including the Service Map semantic smoke in its integration gate
 
 ## Milestone 7 — SLO Foundations
 
-**READY FOR GITLAB REVALIDATION.** Geordi now
+**COMPLETE.** Geordi
 loads at most 50 deployment-managed SLO definitions from the read-only YAML catalog at
 `deploy/slos/slos.yaml`, exposes read-only definition/evaluation APIs, and presents
 current results at `/slos`. Catalog changes require a backend restart or redeployment;
@@ -242,8 +242,8 @@ provider-neutral API/frontend proxy responses, and SLO → Investigation context
 ```
 
 The SLO smoke and its full regression run are configured in GitLab CI. The complete
-local CI-equivalent run and independent review are green; authoritative GitLab pipeline
-revalidation remains the completion gate.
+local CI-equivalent run and independent review passed, and the project owner confirmed
+the authoritative GitLab pipeline green.
 
 ## Quality gates
 
@@ -266,12 +266,10 @@ PowerShell 7, outbound image access, and the fixed local ports available. The in
 job is serialized by a resource group and runs the self-observability, Metrics, Traces,
 Logs, Service Map, and SLO semantic smokes in that order.
 
-Milestones 5 and 6 are complete. Their required local verification and independent
-review passed without remaining BLOCKER or HIGH findings, and the project owner
-confirmed the authoritative GitLab pipeline green with all five semantic smokes.
-Milestone 7 passed complete local verification and independent review and is
-`READY FOR GITLAB REVALIDATION`; it is not `COMPLETE` until the project owner confirms
-the authoritative GitLab pipeline green.
+Milestones 1 / 1.1 and 2 through 7 are complete. Milestone 7 passed complete local
+verification and independent review without a remaining BLOCKER or HIGH finding. Its
+SLO semantic smoke runs after the five existing regression smokes in the authoritative
+GitLab integration gate, and the project owner confirmed that pipeline green.
 
 ## Documentation
 
