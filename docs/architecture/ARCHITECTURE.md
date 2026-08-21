@@ -1,6 +1,6 @@
 # Architecture
 
-Status: MILESTONES 1 THROUGH 7 COMPLETE
+Status: MILESTONES 1 THROUGH 7 COMPLETE; MILESTONE 8 READY FOR GITLAB REVALIDATION
 
 ## Initial style
 
@@ -95,13 +95,13 @@ the trace adapter. The active implementation is documented in `SERVICE_MAP.md`. 
 verification and independent review passed without a remaining BLOCKER or HIGH finding,
 and the project owner confirmed the updated authoritative GitLab pipeline green.
 
-## Milestone 7 SLO flow
+## Milestones 7–8 SLO flow
 
 ```text
 Read-only mounted YAML -> SLO catalog -> SLO application <- request-outcome port
                                             |                    |
                                             v                    v
-React /slos <- read-only REST ------- on-demand result    Metrics application
+React /slos <- read-only REST -- atomic SLO + burn result Metrics application
                                                                  |
                                                                  v
                                                        VictoriaMetrics adapter
@@ -110,9 +110,11 @@ React /slos <- read-only REST ------- on-demand result    Metrics application
 SLOs are a real compile-time module and compose Metrics through a canonical
 whole-window request-outcome boundary. Definitions and results contain only exact
 service identity, closed SLI/window types, ratio targets, observations, and bounded
-status/reason values. Provider query syntax remains in the Metrics adapter. The catalog
-is version-controlled, mounted read-only, limited to 50 definitions, and requires
-restart/redeployment for changes. See `SLOS.md`, ADR-014, and ADR-015.
+status/reason values. M8 enriches that same on-demand result with derived current-window
+allowed/observed bad ratios and a finite burn rate when available; it adds no burn store
+or separate provider query path. Provider query syntax remains in the Metrics adapter.
+The catalog is version-controlled, mounted read-only, limited to 50 definitions, and
+requires restart/redeployment for changes. See `SLOS.md`, ADR-014, ADR-015, and ADR-016.
 
 ## Target logical view
 
@@ -132,7 +134,7 @@ Geordi Platform
     +-- Logs (implemented; Milestone 5 complete)
     +-- Traces (implemented)
     +-- Service Map (implemented; Milestone 6 complete; trace-derived, no storage)
-    +-- SLOs (implemented; Milestone 7 complete; Metrics-derived)
+    +-- SLOs (Milestone 7 complete; M8 ready for GitLab revalidation; Metrics-derived)
     +-- APM (planned)
     +-- Compatibility (planned)
 ```
@@ -169,6 +171,7 @@ other stores require a separate future adapter and deployment decision.
 The SLO catalog is deployment configuration rather than telemetry storage. Its YAML
 adapter is replaceable behind a read-only catalog port. SLO evaluation remains stable
 when the Metrics provider is replaced because the whole-window request-outcome contract
-is canonical.
+is canonical. The current-window burn calculation is derived inside that same SLO
+boundary; it is not long-period error-budget accounting.
 
 The final storage architecture is intentionally not locked in during milestone 1.

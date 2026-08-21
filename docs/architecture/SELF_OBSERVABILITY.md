@@ -166,6 +166,21 @@ existing smokes. Full local execution and independent review passed without an
 unresolved BLOCKER or HIGH finding, and the project owner confirmed the authoritative
 GitLab pipeline green.
 
+## Milestone 8 additions
+
+The existing on-demand SLO instrumentation additionally records a low-cardinality burn
+result counter. Its attributes are limited to burn availability status, closed SLI type,
+and bounded burn-unavailable reason. It does not label by SLO identity/name, monitored
+service identity, target, allowed/observed ratio, burn rate, timestamp, range, provider
+query, response, or exception text.
+
+The isolated burn-rate smoke verifies that this platform telemetry is persisted with only
+those bounded labels. It also independently recomputes current-window burn evidence from
+canonical Metrics and exercises provider failure/recovery. The smoke is placed after the
+M7 SLO smoke in GitLab's integration job. M8 is **READY FOR GITLAB REVALIDATION** after
+the required local verification and independent review passed without a remaining
+BLOCKER or HIGH finding; this placement is not a completion claim.
+
 ## Future health indicators
 
 - received telemetry;

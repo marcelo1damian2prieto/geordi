@@ -114,13 +114,14 @@ This debt is not a defect in Milestone 1.1. The milestone remains successfully c
 
 ## SLO long-window accounting
 
-- **Status:** Pending / Deliberate Milestone 7 limitation
-- **Detected in:** Milestone 7 implementation
+- **Status:** Pending / Deliberate Milestone 8 limitation
+- **Detected in:** Milestone 7 implementation; updated in Milestone 8
 - **Description:** Evaluation supports only `PT5M`, `PT15M`, `PT1H`, and `PT6H` current
   windows and stores no evaluation history.
-- **Current impact:** Geordi cannot report 7/28/30-day compliance, calendar-period
-  objectives, error budgets, or burn rate. It must not present current-window status as
-  long-period SLO compliance.
+- **Current impact:** M8 now derives allowed/observed bad ratios and burn rate for one
+  configured current window, but Geordi still cannot report 7/28/30-day compliance,
+  calendar-period objectives, or remaining error budget. It must not present a
+  current-window burn result as long-period SLO compliance or budget accounting.
 - **Follow-up:** Design long-period accounting and retention only with explicit product
   semantics and storage evidence; do not extrapolate it from current evaluations.
 - **Priority:** Medium

@@ -11,6 +11,15 @@ export type SloUnavailableReason =
   | 'MISSING_ERROR_COUNT'
   | 'INVALID_TELEMETRY'
   | 'METRICS_UNAVAILABLE'
+export type BurnRateStatus = 'AVAILABLE' | 'UNAVAILABLE'
+export type BurnRateUnavailableReason =
+  | 'DISABLED'
+  | 'NO_TRAFFIC'
+  | 'MISSING_REQUEST_COUNT'
+  | 'MISSING_ERROR_COUNT'
+  | 'INVALID_TELEMETRY'
+  | 'METRICS_UNAVAILABLE'
+  | 'ZERO_ALLOWED_BAD_RATIO'
 
 export interface SloDefinition {
   id: string
@@ -27,6 +36,14 @@ export interface SloDefinitionsResponse {
   slos: SloDefinition[]
 }
 
+export interface BurnRateEvaluation {
+  allowedBadRatio: number
+  observedBadRatio: number | null
+  burnRate: number | null
+  status: BurnRateStatus
+  reason: BurnRateUnavailableReason | null
+}
+
 export interface SloEvaluation {
   sloId: string
   service: ServiceIdentity
@@ -39,6 +56,7 @@ export interface SloEvaluation {
   requestCount: number | null
   status: SloStatus
   reason: SloUnavailableReason | null
+  burnRateEvaluation: BurnRateEvaluation
 }
 
 export function getSlos() {

@@ -2,6 +2,9 @@ package io.geordi.slos.adapter.in.web;
 
 import io.geordi.slos.application.SloEvaluationUseCase;
 import io.geordi.slos.application.SloQueryService;
+import io.geordi.slos.domain.BurnRateEvaluation;
+import io.geordi.slos.domain.BurnRateStatus;
+import io.geordi.slos.domain.BurnRateUnavailableReason;
 import io.geordi.slos.domain.ServiceIdentity;
 import io.geordi.slos.domain.SliType;
 import io.geordi.slos.domain.SloDefinition;
@@ -75,7 +78,8 @@ public class SloController {
             BigDecimal observedValue,
             BigDecimal requestCount,
             SloStatus status,
-            UnavailableReason reason) {
+            UnavailableReason reason,
+            BurnRateEvaluationResponse burnRateEvaluation) {
 
         static SloEvaluationResponse from(SloEvaluation evaluation) {
             return new SloEvaluationResponse(
@@ -83,6 +87,21 @@ public class SloController {
                     evaluation.window().value(),
                     new RangeResponse(evaluation.range().from().toString(), evaluation.range().to().toString()),
                     evaluation.evaluatedAt().toString(), evaluation.observedValue(), evaluation.requestCount(),
+                    evaluation.status(), evaluation.reason(),
+                    BurnRateEvaluationResponse.from(evaluation.burnRateEvaluation()));
+        }
+    }
+
+    public record BurnRateEvaluationResponse(
+            BigDecimal allowedBadRatio,
+            BigDecimal observedBadRatio,
+            BigDecimal burnRate,
+            BurnRateStatus status,
+            BurnRateUnavailableReason reason) {
+
+        static BurnRateEvaluationResponse from(BurnRateEvaluation evaluation) {
+            return new BurnRateEvaluationResponse(
+                    evaluation.allowedBadRatio(), evaluation.observedBadRatio(), evaluation.burnRate(),
                     evaluation.status(), evaluation.reason());
         }
     }

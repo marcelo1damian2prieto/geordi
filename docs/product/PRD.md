@@ -1,6 +1,6 @@
 # Geordi Product Requirements Document
 
-Status: MILESTONES 1 THROUGH 7 COMPLETE
+Status: MILESTONES 1 THROUGH 7 COMPLETE; MILESTONE 8 READY FOR GITLAB REVALIDATION
 
 ## Vision
 
@@ -213,3 +213,30 @@ smoke, Milestones 1 through 6 regression smokes, and independent review passed w
 an unresolved BLOCKER or HIGH finding. The semantic SLO smoke is part of the
 authoritative GitLab integration gate, and the project owner subsequently confirmed
 that pipeline green.
+
+## Milestone 8 scope
+
+Status: READY FOR GITLAB REVALIDATION
+
+Milestone 8 enriches the existing on-demand SLO evaluation response and `/slos` view
+with one atomic configured-window error-budget burn snapshot. It derives allowed bad
+ratio from canonical SLI semantics: availability uses `1 - target`; error rate uses
+`target`. With valid whole-window evidence (`N > 0` and `0 <= E <= N`), observed bad
+ratio is `E/N` and burn rate is the dimensionless
+`observedBadRatio / allowedBadRatio`. The API retains ratio semantics; percentages are
+presentation formatting only.
+
+Burn evidence is `AVAILABLE` only for valid evidence with a positive allowed bad ratio.
+It is `UNAVAILABLE` with bounded reasons for disabled definitions, no traffic, missing
+counts, invalid telemetry, Metrics unavailability, or a zero allowed bad ratio. A zero
+allowed bad ratio retains a valid observed bad ratio but has no numeric burn rate; NaN
+and infinity never represent a perfect-target result. The snapshot uses the same exact
+canonical identity and returned absolute window for SLO evaluation and Investigation
+navigation.
+
+M8 adds neither remaining-budget claims nor long-period compliance accounting,
+persistence, history, scheduling, alert rules or lifecycle, notifications, on-call
+routing, incidents, arbitrary queries, or new providers. A deterministic isolated
+burn-rate smoke and GitLab placement are implemented. Required local verification and
+independent review passed without a remaining BLOCKER or HIGH finding; only project-owner
+confirmation of authoritative GitLab green can make M8 complete.

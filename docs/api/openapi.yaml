@@ -377,7 +377,9 @@ paths:
         The returned range is the exact half-open [from,to) evaluation interval. A
         telemetry problem is represented by status UNAVAILABLE and a reason, not a
         breached result or provider-specific error. Equality with a configured target
-        is MET for both supported SLI target directions.
+        is MET for both supported SLI target directions. Error-budget and burn-rate
+        evidence is derived from the same canonical request-outcome measurement and
+        exact range as the objective status.
       parameters:
         - $ref: '#/components/parameters/SloId'
       responses:
@@ -723,6 +725,13 @@ components:
       type: [string, 'null']
       description: Present only when the evaluation status is UNAVAILABLE.
       enum: [DISABLED, NO_TRAFFIC, MISSING_REQUEST_COUNT, MISSING_ERROR_COUNT, INVALID_TELEMETRY, METRICS_UNAVAILABLE, null]
+    BurnRateStatus:
+      type: string
+      enum: [AVAILABLE, UNAVAILABLE]
+    BurnRateUnavailableReason:
+      type: [string, 'null']
+      description: Present only when burn-rate status is UNAVAILABLE.
+      enum: [DISABLED, NO_TRAFFIC, MISSING_REQUEST_COUNT, MISSING_ERROR_COUNT, INVALID_TELEMETRY, METRICS_UNAVAILABLE, ZERO_ALLOWED_BAD_RATIO, null]
     SloDefinition:
       type: object
       additionalProperties: false
@@ -751,7 +760,9 @@ components:
           description: >-
             Unitless ratio in [0,1], never a percentage. Availability is met when the
             observed value is greater than or equal to target; error rate is met when
-            it is less than or equal to target.
+            it is less than or equal to target. Every nonzero value must remain finite
+            and nonzero as an IEEE-754 double, and a definition is rejected when its
+            positive allowed bad ratio could produce a burn rate outside that contract.
           example: 0.999
         window:
           $ref: '#/components/schemas/SloWindow'
@@ -769,7 +780,7 @@ components:
     SloEvaluation:
       type: object
       additionalProperties: false
-      required: [sloId, service, sliType, target, window, range, evaluatedAt, observedValue, requestCount, status, reason]
+      required: [sloId, service, sliType, target, window, range, evaluatedAt, observedValue, requestCount, status, reason, burnRateEvaluation]
       properties:
         sloId:
           type: string
@@ -783,6 +794,9 @@ components:
           format: double
           minimum: 0
           maximum: 1
+          description: >-
+            The validated definition target, represented by the same finite IEEE-754
+            double contract as the catalog response.
         window:
           $ref: '#/components/schemas/SloWindow'
         range:
@@ -797,7 +811,8 @@ components:
           maximum: 1
           description: >-
             Null when evaluation is unavailable. For availability it is (N-E)/N; for
-            error rate it is E/N, using whole-window request counts.
+            error rate it is E/N, using whole-window request counts. A positive result
+            is never rounded or underflowed to zero in the public numeric contract.
         requestCount:
           type: [number, 'null']
           format: double
@@ -810,6 +825,41 @@ components:
           $ref: '#/components/schemas/SloStatus'
         reason:
           $ref: '#/components/schemas/SloUnavailableReason'
+        burnRateEvaluation:
+          $ref: '#/components/schemas/BurnRateEvaluation'
+    BurnRateEvaluation:
+      type: object
+      additionalProperties: false
+      required: [allowedBadRatio, observedBadRatio, burnRate, status, reason]
+      properties:
+        allowedBadRatio:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          description: >-
+            Unitless allowed bad-event ratio. It is 1-target for AVAILABILITY and
+            target for ERROR_RATE, within the finite IEEE-754 double contract.
+        observedBadRatio:
+          type: [number, 'null']
+          format: double
+          minimum: 0
+          maximum: 1
+          description: >-
+            Whole-window E/N ratio, or null when telemetry is unavailable. A positive
+            result is never rounded or underflowed to zero.
+        burnRate:
+          type: [number, 'null']
+          format: double
+          minimum: 0
+          description: >-
+            Dimensionless observedBadRatio/allowedBadRatio multiple. Null when burn
+            evidence is unavailable, including a zero allowed bad ratio. A numeric
+            value is always finite in the IEEE-754 double contract.
+        status:
+          $ref: '#/components/schemas/BurnRateStatus'
+        reason:
+          $ref: '#/components/schemas/BurnRateUnavailableReason'
     OperationalMetric:
       type: string
       enum:

@@ -2,21 +2,20 @@ package io.geordi.slos.application;
 
 import io.geordi.slos.application.port.out.RequestOutcomeMeasurementPort;
 import io.geordi.slos.application.port.out.SloDefinitionCatalog;
-import io.geordi.slos.domain.SliType;
+import io.geordi.slos.domain.BurnRateEvaluation;
+import io.geordi.slos.domain.BurnRateUnavailableReason;
+import io.geordi.slos.domain.SliSemantics;
 import io.geordi.slos.domain.SloDefinition;
 import io.geordi.slos.domain.SloEvaluation;
 import io.geordi.slos.domain.SloStatus;
 import io.geordi.slos.domain.TimeRange;
 import io.geordi.slos.domain.UnavailableReason;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
 
 public final class SloEvaluationService implements SloEvaluationUseCase {
-
-    private static final int OBSERVED_SCALE = 12;
 
     private final SloDefinitionCatalog catalog;
     private final RequestOutcomeMeasurementPort measurementPort;
@@ -63,18 +62,19 @@ public final class SloEvaluationService implements SloEvaluationUseCase {
             return unavailable(definition, range, evaluatedAt, BigDecimal.ZERO, UnavailableReason.NO_TRAFFIC);
         }
 
-        BigDecimal total = requestCount;
-        BigDecimal numerator = definition.sliType() == SliType.AVAILABILITY
-                ? requestCount.subtract(errorCount)
-                : errorCount;
-        BigDecimal observed = numerator.divide(total, OBSERVED_SCALE, RoundingMode.HALF_UP).stripTrailingZeros();
-        int exactComparison = numerator.compareTo(definition.target().multiply(total));
-        boolean met = definition.sliType() == SliType.AVAILABILITY
-                ? exactComparison >= 0
-                : exactComparison <= 0;
+        BigDecimal observed = SliSemantics.observedValue(definition.sliType(), requestCount, errorCount);
+        BigDecimal observedBadRatio = SliSemantics.observedBadRatio(requestCount, errorCount);
+        if (!SliSemantics.isJsonSafeNumber(observed) || !SliSemantics.isJsonSafeNumber(observedBadRatio)) {
+            return unavailable(definition, range, evaluatedAt, requestCount, UnavailableReason.INVALID_TELEMETRY);
+        }
+        boolean met = SliSemantics.meetsTarget(
+                definition.sliType(), definition.target(), requestCount, errorCount);
+        BurnRateEvaluation burnRateEvaluation = burnRate(
+                definition, requestCount, errorCount, observedBadRatio);
         return new SloEvaluation(
                 definition.id(), definition.service(), definition.sliType(), definition.target(), definition.window(),
-                range, evaluatedAt, observed, requestCount, met ? SloStatus.MET : SloStatus.BREACHED, null);
+                range, evaluatedAt, observed, requestCount, met ? SloStatus.MET : SloStatus.BREACHED, null,
+                burnRateEvaluation);
     }
 
     private static boolean finiteNonNegative(Double value) {
@@ -87,8 +87,26 @@ public final class SloEvaluationService implements SloEvaluationUseCase {
             Instant evaluatedAt,
             BigDecimal requestCount,
             UnavailableReason reason) {
+        BigDecimal allowedBadRatio = SliSemantics.allowedBadRatio(definition.sliType(), definition.target());
+        BurnRateEvaluation burnRateEvaluation = BurnRateEvaluation.unavailable(
+                allowedBadRatio, BurnRateUnavailableReason.valueOf(reason.name()));
         return new SloEvaluation(
                 definition.id(), definition.service(), definition.sliType(), definition.target(), definition.window(),
-                range, evaluatedAt, null, requestCount, SloStatus.UNAVAILABLE, reason);
+                range, evaluatedAt, null, requestCount, SloStatus.UNAVAILABLE, reason, burnRateEvaluation);
+    }
+
+    private static BurnRateEvaluation burnRate(
+            SloDefinition definition,
+            BigDecimal requestCount,
+            BigDecimal errorCount,
+            BigDecimal observedBadRatio) {
+        BigDecimal allowedBadRatio = SliSemantics.allowedBadRatio(definition.sliType(), definition.target());
+        if (allowedBadRatio.signum() == 0) {
+            return BurnRateEvaluation.unavailableWithObservedBadRatio(
+                    allowedBadRatio, observedBadRatio, BurnRateUnavailableReason.ZERO_ALLOWED_BAD_RATIO);
+        }
+        return BurnRateEvaluation.available(
+                allowedBadRatio, observedBadRatio,
+                SliSemantics.burnRate(requestCount, errorCount, allowedBadRatio));
     }
 }

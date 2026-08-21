@@ -102,6 +102,26 @@ and independent review passed without an unresolved BLOCKER or HIGH finding. The
 semantic smoke is part of the authoritative GitLab integration gate after the five
 existing regression smokes, and the project owner confirmed that pipeline green.
 
+## Milestone 8 — Error Budget & Burn Rate Foundation
+
+READY FOR GITLAB REVALIDATION
+
+- one derived atomic current-window burn snapshot in the existing SLO evaluation;
+- SLI-aware allowed bad-event ratio, observed bad-event ratio, and dimensionless burn
+  rate over the same exact canonical identity and returned absolute range;
+- explicit `AVAILABLE`/`UNAVAILABLE` burn semantics, including safe zero-allowed-ratio
+  handling without NaN or infinity;
+- `/slos` explanation, accessible availability state, and existing exact-context Service
+  Investigation navigation;
+- low-cardinality self-observability and an isolated semantic smoke after the M7 smoke
+  in the authoritative GitLab integration job.
+
+It does not add remaining-budget claims, long-period compliance accounting, storage,
+history, scheduling, alerting, notifications, incidents, or Milestone 9 functionality.
+M8 is not complete: required local verification and independent review passed without a
+remaining BLOCKER or HIGH finding, while authoritative GitLab green plus project-owner
+confirmation remains the completion gate.
+
 ## Later — Alerts
 
 DEFERRED

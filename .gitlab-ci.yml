@@ -111,7 +111,8 @@ local_stack_smoke:
     - pwsh -File ./scripts/verify-traces.ps1 -TimeoutSeconds 180
     - pwsh -File ./scripts/verify-logs.ps1 -TimeoutSeconds 180
     - pwsh -File ./scripts/verify-service-map.ps1 -TimeoutSeconds 180
-    - pwsh -File ./scripts/verify-slos.ps1 -TimeoutSeconds 180 -ExerciseProviderFailure
+    - pwsh -File ./scripts/verify-slos.ps1 -TimeoutSeconds 180
+    - pwsh -File ./scripts/verify-burn-rate.ps1 -TimeoutSeconds 180 -ExerciseProviderFailure
   after_script:
     - pwsh -NoProfile -Command '& docker compose logs --no-color; if ($LASTEXITCODE -ne 0) { Write-Warning "Could not collect Compose logs."; exit 0 }'
     - pwsh -NoProfile -Command '& docker compose down --volumes --remove-orphans; if ($LASTEXITCODE -ne 0) { Write-Warning "Could not clean up the Compose stack."; exit 0 }'

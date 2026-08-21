@@ -21,9 +21,11 @@ $ProgressPreference = "SilentlyContinue"
 $AvailabilitySloId = "demo-downstream-availability"
 $ErrorRateSloId = "demo-error-rate"
 $NoTrafficSloId = "no-traffic-availability"
+$BurnSmokeSloId = "burn-smoke-error-rate"
 $DemoIdentity = [ordered]@{ name = "geordi-demo-service"; namespace = "geordi-demo"; environment = "development" }
 $DownstreamIdentity = [ordered]@{ name = "geordi-demo-downstream-service"; namespace = "geordi-demo"; environment = "development" }
 $NoTrafficIdentity = [ordered]@{ name = "geordi-slo-no-traffic"; namespace = "geordi-slo-smoke"; environment = "development" }
+$BurnSmokeIdentity = [ordered]@{ name = "geordi-burn-smoke-service"; namespace = "geordi-burn-smoke"; environment = "development" }
 $ProviderSyntaxPattern = 'promql|metricsql|victoriametrics|http\.server\.request|__name__|increase\s*\(|rate\s*\('
 
 function Invoke-TextRequest {
@@ -166,6 +168,19 @@ function ConvertTo-ProviderLabelValue {
     return $Value.Replace('\', '\\').Replace('"', '\"').Replace("`n", '\n')
 }
 
+function ConvertTo-ExclusiveProviderTime {
+    param([Parameter(Mandatory)][string] $Timestamp)
+
+    $parsed = [DateTimeOffset] $Timestamp
+    $fractionNanoseconds = 0
+    if ($Timestamp -match '\.(\d{1,9})(?:Z|[+-]\d{2}:\d{2})$') {
+        $fractionNanoseconds = [int] $Matches[1].PadRight(9, '0')
+    }
+    $epochSeconds = [decimal] $parsed.ToUnixTimeSeconds()
+    $exclusive = $epochSeconds + ([decimal] $fractionNanoseconds / [decimal] 1000000000) - [decimal] 0.000000001
+    return $exclusive.ToString('0.000000000', [Globalization.CultureInfo]::InvariantCulture)
+}
+
 function Get-VictoriaScalar {
     param(
         [Parameter(Mandatory)][string] $Expression,
@@ -210,8 +225,8 @@ function Get-IndependentProviderCounts {
     $requestExpression = "sum(increase($allVector`[$windowSeconds" + "s]))"
     $errorExpression = "sum(increase($errorVector`[$windowSeconds" + "s]))"
     return @{
-        requests = Get-VictoriaScalar -Expression $requestExpression -EvaluatedAt ([string] $Evaluation.evaluatedAt)
-        errors = Get-VictoriaScalar -Expression $errorExpression -EvaluatedAt ([string] $Evaluation.evaluatedAt)
+        requests = Get-VictoriaScalar -Expression $requestExpression -EvaluatedAt (ConvertTo-ExclusiveProviderTime ([string] $Evaluation.range.to))
+        errors = Get-VictoriaScalar -Expression $errorExpression -EvaluatedAt (ConvertTo-ExclusiveProviderTime ([string] $Evaluation.range.to))
     }
 }
 
@@ -240,6 +255,32 @@ function Assert-Formula {
         [Math]::Abs($observed - $expected) -gt $tolerance) {
         throw "Evaluation '$($Evaluation.sloId)' observed=$observed/requestCount=$reportedRequests but exact-time provider counts require observed=$expected/requestCount=$requests."
     }
+}
+
+function Wait-ForStableFormula {
+    param(
+        [Parameter(Mandatory)][string] $SloId,
+        [Parameter(Mandatory)][string] $ExpectedStatus,
+        [Parameter(Mandatory)][string] $SliType,
+        [Parameter(Mandatory)][datetime] $Deadline
+    )
+
+    $lastFailure = $null
+    while ((Get-Date) -lt $Deadline) {
+        try {
+            $evaluation = Get-Evaluation -SloId $SloId
+            if ($evaluation.status -ne $ExpectedStatus) {
+                throw "status was '$($evaluation.status)' with reason '$($evaluation.reason)'"
+            }
+            Assert-Formula -Evaluation $evaluation -SliType $SliType
+            return $evaluation
+        }
+        catch {
+            $lastFailure = $_.Exception.Message
+            Start-Sleep -Seconds 2
+        }
+    }
+    throw "Timed out waiting for SLO '$SloId' to expose stable exact-window evidence: $lastFailure"
 }
 
 function Assert-InvestigationContext {
@@ -301,7 +342,13 @@ function Assert-SloSelfTelemetrySeries {
         throw "SLO self-observability is missing stored metric families: $($missing -join ', ')."
     }
 
-    $allowedSloLabels = @("geordi.slo.status", "geordi.slo.sli_type", "geordi.slo.reason")
+    $allowedSloLabels = @(
+        "geordi.slo.status",
+        "geordi.slo.sli_type",
+        "geordi.slo.reason",
+        "geordi.slo.burn.status",
+        "geordi.slo.burn.reason"
+    )
     $forbiddenValues = @(
         $AvailabilitySloId,
         $ErrorRateSloId,
@@ -427,8 +474,8 @@ try {
 
     $catalog = Invoke-TextRequest -Uri "$BackendBaseUrl/api/slos" | ConvertFrom-Json
     $definitions = @($catalog.slos)
-    if ($definitions.Count -ne 3) {
-        throw "SLO catalog returned $($definitions.Count) definitions, expected exactly three deployment-managed definitions."
+    if ($definitions.Count -ne 4) {
+        throw "SLO catalog returned $($definitions.Count) definitions, expected exactly four deployment-managed definitions."
     }
     $byId = @{}
     foreach ($definition in $definitions) {
@@ -439,6 +486,7 @@ try {
     }
     Assert-Definition -Definition $byId[$AvailabilitySloId] -Id $AvailabilitySloId -Identity $DownstreamIdentity -SliType "AVAILABILITY" -Target 0.99
     Assert-Definition -Definition $byId[$ErrorRateSloId] -Id $ErrorRateSloId -Identity $DemoIdentity -SliType "ERROR_RATE" -Target 0.0
+    Assert-Definition -Definition $byId[$BurnSmokeSloId] -Id $BurnSmokeSloId -Identity $BurnSmokeIdentity -SliType "ERROR_RATE" -Target 0.10
     Assert-Definition -Definition $byId[$NoTrafficSloId] -Id $NoTrafficSloId -Identity $NoTrafficIdentity -SliType "AVAILABILITY" -Target 0.99
     Assert-NoProviderSyntax -Payload $catalog -Context "SLO catalog"
 
@@ -453,17 +501,17 @@ try {
         }
     }
     Write-Host "Generated $RequestCount isolated downstream successes and $RequestCount controlled demo errors."
+    # Let the SDK and Collector finish the current metric export before capturing the
+    # immutable evaluation timestamp used by the independent provider assertion.
+    Start-Sleep -Seconds 6
 
-    $availability = Wait-ForEvaluationStatus -SloId $AvailabilitySloId -ExpectedStatus "MET" -Deadline $deadline
-    $errorRate = Wait-ForEvaluationStatus -SloId $ErrorRateSloId -ExpectedStatus "BREACHED" -Deadline $deadline
+    $availability = Wait-ForStableFormula -SloId $AvailabilitySloId -ExpectedStatus "MET" -SliType "AVAILABILITY" -Deadline $deadline
+    $errorRate = Wait-ForStableFormula -SloId $ErrorRateSloId -ExpectedStatus "BREACHED" -SliType "ERROR_RATE" -Deadline $deadline
     $noTraffic = Wait-ForEvaluationStatus -SloId $NoTrafficSloId -ExpectedStatus "UNAVAILABLE" -Deadline $deadline
 
     Assert-EvaluationContext -Evaluation $availability -SloId $AvailabilitySloId -Identity $DownstreamIdentity -SliType "AVAILABILITY" -Target 0.99 -Status "MET"
     Assert-EvaluationContext -Evaluation $errorRate -SloId $ErrorRateSloId -Identity $DemoIdentity -SliType "ERROR_RATE" -Target 0.0 -Status "BREACHED"
     Assert-EvaluationContext -Evaluation $noTraffic -SloId $NoTrafficSloId -Identity $NoTrafficIdentity -SliType "AVAILABILITY" -Target 0.99 -Status "UNAVAILABLE"
-    Assert-Formula -Evaluation $availability -SliType "AVAILABILITY"
-    Assert-Formula -Evaluation $errorRate -SliType "ERROR_RATE"
-
     if ($null -ne $noTraffic.observedValue -or $null -ne $noTraffic.requestCount -or
         $noTraffic.reason -ne "MISSING_REQUEST_COUNT") {
         throw "No-traffic identity must remain UNAVAILABLE/MISSING_REQUEST_COUNT with null observed evidence; absence must not become zero or MET."
@@ -474,7 +522,7 @@ try {
         throw "Frontend /slos route did not return the Geordi application document."
     }
     $proxiedCatalog = Invoke-TextRequest -Uri "$FrontendBaseUrl/api/slos" | ConvertFrom-Json
-    if (@($proxiedCatalog.slos).Count -ne 3) {
+    if (@($proxiedCatalog.slos).Count -ne 4) {
         throw "Frontend proxy did not expose the complete SLO catalog."
     }
     $proxiedEvaluation = Invoke-TextRequest -Uri "$FrontendBaseUrl/api/slos/$ErrorRateSloId/evaluation" | ConvertFrom-Json

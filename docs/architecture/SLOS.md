@@ -1,6 +1,6 @@
 # SLO Architecture
 
-Status: IMPLEMENTED / MILESTONE 7 COMPLETE
+Status: MILESTONE 7 COMPLETE; MILESTONE 8 READY FOR GITLAB REVALIDATION
 
 ## Scope
 
@@ -60,7 +60,8 @@ A definition contains:
 - name and optional description;
 - exact canonical service identity;
 - `AVAILABILITY` or `ERROR_RATE` SLI type;
-- target ratio in `[0,1]`;
+- target ratio in `[0,1]`, validated against the public finite-double evidence
+  contract;
 - one supported evaluation window; and
 - enabled/disabled state.
 
@@ -103,6 +104,11 @@ Targets and observed values are ratios in `[0,1]`; percentages exist only in UI
 formatting. Equality is `MET`. Latency is excluded because the implemented chart p95
 does not prove whole-window threshold compliance.
 
+The JSON numeric surface is an IEEE-754 finite `double`. Nonzero targets and derived
+values must remain nonzero in that representation. Definitions whose positive allowed
+ratio could produce an unrepresentable burn rate are rejected. Objective status still
+uses exact cross-multiplication, independent of returned-value rounding.
+
 The SLO evaluator does not consume the latest point from the Metrics chart API. It uses
 a dedicated whole-window, vendor-neutral request-outcome boundary. The SLO-owned
 outbound port and Metrics composition adapter keep Metrics application types and
@@ -136,6 +142,36 @@ their evaluation. If the evaluation API is called directly, it performs no Metri
 and returns HTTP 200 with `UNAVAILABLE` and reason `DISABLED`. The reason preserves the
 definition lifecycle distinction without inventing an observed reliability value.
 
+## Current-window error-budget burn (Milestone 8)
+
+M8 derives one atomic burn snapshot within the existing on-demand SLO evaluation. It
+does not create a second endpoint, burn store, scheduler, or provider query path. The
+snapshot uses the definition's same exact monitored identity, captured `evaluatedAt`,
+and returned half-open `[from,to)` configured window as the parent SLO result.
+
+`allowedBadRatio` is SLI-aware: for `AVAILABILITY` it is `1 - target`; for `ERROR_RATE`
+it is `target`. Given valid finite `N > 0` and `0 <= E <= N`, `observedBadRatio` is
+always `E/N`, and dimensionless `burnRate` is
+`observedBadRatio / allowedBadRatio`. Ratios are canonical API/domain values in `[0,1]`;
+the UI may render them as percentages, while burn rate is rendered as a multiplier.
+Returned derived values use 12 significant decimal digits with half-up rounding, and
+burn is calculated directly from the unrounded counts. Positive evidence is never
+rounded to zero. If a positive measurement ratio is below the finite-double contract,
+the result is `UNAVAILABLE/INVALID_TELEMETRY` rather than fabricated zero.
+
+Burn status is a separate closed pair: `AVAILABLE` or `UNAVAILABLE`. Valid evidence and
+a positive allowed bad ratio produce `AVAILABLE`, including valid zero-error evidence
+with a burn rate of zero. Disabled/no-traffic/missing/invalid/provider-unavailable
+parent evidence produces `UNAVAILABLE` with the corresponding bounded M7 reason. A
+zero allowed bad ratio produces `UNAVAILABLE/ZERO_ALLOWED_BAD_RATIO`; it preserves the
+valid observed bad ratio but emits no burn number. NaN and infinity are never domain,
+API, or UI values.
+
+This is current-window consumption evidence, not error-budget accounting. It must never
+be described as budget remaining, exhausted monthly budget, or compliance-period SLO
+performance. M8 supports no fast/slow multi-window policy, alerts, notifications,
+incidents, history, persistence, or scheduler.
+
 ## REST and frontend
 
 The read-only API is:
@@ -149,10 +185,12 @@ HTTP 200 evaluation response with status `UNAVAILABLE`; it is not disguised as a
 successful SLI. Invalid requests and unknown identifiers remain distinct API errors.
 
 The `/slos` UI presents name, exact identity, SLI, target, observed value when available,
-window, status, and unavailable reason. Status uses text and accessible semantics rather
-than color alone. Query keys include the SLO identifier and all returned evaluation
-context; a previous objective's status is never presented as current while another is
-loading.
+window, status, and unavailable reason. M8 additionally presents allowed and observed
+bad-event ratios, burn rate, its textual accessible availability state, and bounded
+unavailability explanation. Status uses text and accessible semantics rather than color
+alone. Query keys include the SLO identifier and all returned evaluation context; a
+previous objective's status or burn evidence is never presented as current while another
+is loading.
 
 “Investigate service” opens the existing `/investigate` route with the exact namespace,
 service name, environment, and absolute evaluation range. The SLO view does not embed or
@@ -166,10 +204,10 @@ remains the Metrics module's responsibility, while an on-demand SLO evaluation m
 Metrics failure to `UNAVAILABLE`.
 
 Low-cardinality platform telemetry records evaluation count, duration, result status,
-bounded failure reason, and catalog-load failure. The closed SLI type and window may be
-used as bounded attributes. SLO identifiers, names, service identity, descriptions,
-targets, timestamps, provider expressions, response bodies, and exception messages are
-never metric labels.
+bounded failure reason, catalog-load failure, and M8 burn-result availability/reason.
+The closed SLI type and window may be used as bounded attributes. SLO identifiers,
+names, service identity, descriptions, targets, ratios, burn rate, timestamps, provider
+expressions, response bodies, and exception messages are never metric labels.
 
 ## Bounds and replaceability
 
@@ -185,7 +223,10 @@ semantics.
 
 ## Explicit non-goals
 
-Milestone 7 adds no latency SLOs, arbitrary queries, generic alert rules, notifications,
-incident lifecycle, acknowledgement, silencing, maintenance windows, escalation,
-on-call scheduling, evaluation history, error budgets, burn rates, long calendar
-periods, anomaly detection, AI/RCA, or Milestone 8 capability.
+M8 adds no latency SLOs, arbitrary queries, generic alert rules, notifications, incident
+lifecycle, acknowledgement, silencing, maintenance windows, escalation, on-call
+scheduling, evaluation history, error-budget remaining, long calendar periods, anomaly
+detection, AI/RCA, or Milestone 9 capability. M8 is **READY FOR GITLAB REVALIDATION**
+after mandatory local verification and independent review passed without a remaining
+BLOCKER or HIGH finding; only authoritative GitLab green and project-owner confirmation
+can make it complete.

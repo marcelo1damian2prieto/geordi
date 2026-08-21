@@ -1,6 +1,6 @@
 # Metrics Architecture
 
-Status: IMPLEMENTED / MILESTONE 2 COMPLETE
+Status: IMPLEMENTED THROUGH MILESTONE 7; MILESTONE 8 READY FOR GITLAB REVALIDATION
 
 ## Scope
 
@@ -23,7 +23,8 @@ time ranges, supported operational metrics, units, points and series.
 `io.geordi.metrics.application` validates requests, selects bounded resolution,
 constructs the fixed overview and calls the outbound query port. Milestone 7 adds a
 separate canonical request-outcome application boundary for one exact service and one
-whole window; it is not a chart-series shortcut or arbitrary metric query.
+whole window; M8 reuses it to derive current-window burn evidence in SLOs. It is not a
+chart-series shortcut or arbitrary metric query.
 
 Inbound web and outbound VictoriaMetrics code are adapters. Spring composition,
 provider properties, HTTP clients, JSON envelopes, MetricsQL expressions and explicit
@@ -68,7 +69,7 @@ representations. It owns rate/counter reset behavior, histogram quantiles and pr
 query expressions. Clients cannot control metric names, dimensions, aggregation,
 resolution or query language.
 
-## Milestone 7 request-outcome boundary
+## Milestones 7–8 request-outcome boundary
 
 The canonical boundary returns whole-window total HTTP request count and HTTP 5xx count
 for an exact monitored identity and bounded absolute range. The SLO adapter maps its own
@@ -83,7 +84,9 @@ duplicate, unknown, malformed, or non-finite components fail as invalid telemetr
 Provider transport/query failure remains distinct unavailability.
 
 This boundary supports only request outcomes. It neither exposes MetricsQL/PromQL nor
-promotes the rolling chart error-rate or p95 latency series into SLO semantics.
+promotes the rolling chart error-rate or p95 latency series into SLO semantics. M8 does
+not add a burn-specific Metrics port, query language, storage, or provider request: the
+SLO context derives allowed/observed bad ratios and burn rate from this one measurement.
 
 ## Activation and health
 

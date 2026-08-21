@@ -23,6 +23,17 @@ geordi:
         target: 0.0
         window: PT5M
         enabled: true
+      - id: burn-smoke-error-rate
+        name: Burn smoke error rate
+        description: Isolated finite-budget workload objective for deterministic burn-rate verification.
+        service:
+          name: geordi-burn-smoke-service
+          namespace: geordi-burn-smoke
+          environment: development
+        sli-type: ERROR_RATE
+        target: 0.10
+        window: PT5M
+        enabled: true
       - id: no-traffic-availability
         name: No-traffic availability
         description: Exact monitored identity with no generated traffic for unavailable-state verification.

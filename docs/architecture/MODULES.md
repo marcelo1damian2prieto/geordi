@@ -1,6 +1,6 @@
 # Module Architecture
 
-Status: MILESTONES 1 THROUGH 7 COMPLETE
+Status: MILESTONES 1 THROUGH 7 COMPLETE; MILESTONE 8 READY FOR GITLAB REVALIDATION
 
 ## Initial modules
 
@@ -63,7 +63,8 @@ not a persistent topology catalog; see `SERVICE_MAP.md`.
 ### slos
 
 Provides the read-only definition catalog, on-demand availability/error-rate evaluation,
-`/api/slos` APIs, and `/slos` UI. Its compile-time module definition is always
+and M8's derived current-window burn snapshot through `/api/slos` and `/slos`. Its
+compile-time module definition is always
 registered. Capability beans and routes require both `slos` and `metrics` to be enabled.
 The module composes only the canonical Metrics request-outcome boundary and has no
 Traces, Logs, or Service Map backend dependency.
@@ -71,7 +72,9 @@ Traces, Logs, or Service Map backend dependency.
 Health verifies catalog and measurement-port wiring without adding another
 VictoriaMetrics probe. Metrics provider reachability remains represented by the Metrics
 module, while evaluation failures become `UNAVAILABLE`. Definitions come from the
-read-only mounted YAML catalog and cannot be changed through runtime APIs.
+read-only mounted YAML catalog and cannot be changed through runtime APIs. Burn evidence
+is derived from the same canonical request outcomes and carries no persistence, scheduler,
+alerting, notification, incident, or long-period-accounting responsibility.
 
 ## Planned modules
 

@@ -86,7 +86,8 @@ Or run the automated end-to-end check:
 .\scripts\verify-traces.ps1
 .\scripts\verify-logs.ps1
 .\scripts\verify-service-map.ps1
-.\scripts\verify-slos.ps1 -ExerciseProviderFailure
+.\scripts\verify-slos.ps1
+.\scripts\verify-burn-rate.ps1 -ExerciseProviderFailure
 ```
 
 The OpenTelemetry smoke check requires the Collector's backend `service.version` to
@@ -114,6 +115,11 @@ whole-window availability and error-rate formulas against real VictoriaMetrics e
 deterministic `MET`, `BREACHED`, and no-traffic `UNAVAILABLE`, provider failure,
 provider-neutral REST/frontend responses, and exact Investigation navigation context.
 It stops/restarts VictoriaMetrics only when `-ExerciseProviderFailure` is selected.
+The Burn Rate smoke uses a separate monitored demo identity to establish valid zero burn
+and then controlled finite-budget burn above one. It independently recomputes the
+whole-window evidence from VictoriaMetrics, verifies zero-budget and no-traffic
+semantics, and performs the single provider-failure/recovery exercise for the complete
+SLO/Burn integration sequence.
 Milestone 7's complete local execution and independent review passed, and the project
 owner confirmed the authoritative GitLab pipeline green.
 

@@ -14,5 +14,6 @@ public record SloEvaluation(
         BigDecimal observedValue,
         BigDecimal requestCount,
         SloStatus status,
-        UnavailableReason reason) {
+        UnavailableReason reason,
+        BurnRateEvaluation burnRateEvaluation) {
 }

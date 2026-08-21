@@ -153,10 +153,19 @@ dd { margin: 0; font-weight: 650; }
 .slo-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin: 20px 0 0; }
 .slo-facts dd { overflow-wrap: anywhere; }
 .slo-evaluation-facts { padding-top: 18px; border-top: 1px solid #26364e; }
+.burn-rate-section, .evaluation-window { margin-top: 24px; padding-top: 20px; border-top: 1px solid #26364e; }
+.burn-rate-heading { display: flex; justify-content: space-between; gap: 16px; align-items: start; }
+.burn-rate-explanation { margin: 8px 0 0; color: #91a0b5; font-size: .86rem; }
+.burn-rate-facts, .evaluation-window-facts { margin-top: 16px; }
+.evaluation-window-facts { grid-template-columns: repeat(2, minmax(240px, 1fr)); }
+.evaluation-window time { overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .82rem; }
 .slo-status { display: inline-block; padding: 4px 9px; border-radius: 999px; background: #26364e; font-size: .78rem; font-weight: 750; letter-spacing: .04em; }
+.burn-status { display: inline-block; padding: 4px 9px; border-radius: 999px; background: #26364e; font-size: .72rem; font-weight: 750; letter-spacing: .04em; }
+.burn-status-available { color: #6ee7b7; }
+.burn-status-unavailable { color: #fbbf24; }
 .slo-status-met { color: #6ee7b7; }
 .slo-status-breached { color: #fb7185; }
 .slo-status-unavailable { color: #fbbf24; }
 .slo-not-evaluated, .slo-reason { margin: 20px 0 0; color: #aab7c9; }
 .slo-disabled { opacity: .7; }
-@media (max-width: 760px) { .slo-card-heading { flex-direction: column; } }
+@media (max-width: 760px) { .slo-card-heading, .burn-rate-heading { flex-direction: column; } .evaluation-window-facts { grid-template-columns: 1fr; } }

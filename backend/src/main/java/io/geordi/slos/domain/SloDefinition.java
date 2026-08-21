@@ -29,6 +29,7 @@ public record SloDefinition(
             throw new IllegalArgumentException("SLO target must be a ratio in [0,1]");
         }
         target = target.stripTrailingZeros();
+        SliSemantics.requireJsonSafeTargetAndBurnRange(sliType, target);
         Objects.requireNonNull(window, "SLO window must not be null");
     }
 

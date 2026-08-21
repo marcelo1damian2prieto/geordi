@@ -1,6 +1,6 @@
 # Service Investigation Architecture
 
-Status: IMPLEMENTED THROUGH MILESTONE 7 / MILESTONE 7 COMPLETE
+Status: IMPLEMENTED THROUGH MILESTONE 7 / MILESTONE 7 COMPLETE; MILESTONE 8 READY FOR GITLAB REVALIDATION
 
 ## Scope
 
@@ -93,7 +93,7 @@ opens existing Trace Detail with validated callee identity, the same range, and 
 enumerated `service-map` origin. Service Map failure neither changes this workflow nor
 creates a backend cross-signal dependency.
 
-## SLO navigation
+## SLO and burn-rate navigation
 
 Each on-demand SLO result carries its exact canonical service identity and returned
 absolute evaluation range. `/slos` builds the existing `/investigate` URL from those
@@ -104,6 +104,11 @@ fabricated investigation interval there.
 SLO evaluation composes Metrics in the backend for the bounded reliability calculation,
 but Service Investigation itself remains frontend composition over public Metrics,
 Traces, and Logs contracts.
+
+M8's burn evidence is nested in that same returned SLO snapshot. It uses no independent
+relative clock or range; the `/slos` action continues to preserve the snapshot's exact
+namespace/name/environment and `[from,to)` range. Investigation does not interpret burn
+rate, calculate budget remaining, or add a duplicate reliability panel.
 
 ## Self-observability
 
