@@ -1,6 +1,6 @@
 # Milestone 008 — Error Budget & Burn Rate Foundation
 
-Status: READY FOR GITLAB REVALIDATION
+Status: COMPLETE
 
 ## Objective
 
@@ -102,12 +102,18 @@ SpotBugs/Find Security Bugs, 104 frontend tests, type checking, lint, production
 deployment configuration validation, and every M1-M8 semantic smoke. A clean-volume
 post-review rerun passed the SLO and Burn Rate smokes, including exact independent
 provider recomputation, provider outage/recovery, and cleanup. Independent re-review
-reported no remaining BLOCKER or HIGH finding. The authoritative GitLab pipeline has
-not yet been revalidated by the project owner.
+reported no remaining BLOCKER or HIGH finding. The authoritative GitLab pipeline then
+passed the complete OpenTelemetry, Metrics, Traces, Logs, Service Map, SLO, and Burn Rate
+smoke chain. It explicitly ran
+`pwsh -File ./scripts/verify-burn-rate.ps1 -TimeoutSeconds 180 -ExerciseProviderFailure`
+and validated both `AVAILABILITY` and `ERROR_RATE` objectives; `allowedBadRatio`,
+`observedBadRatio`, and `burnRate`; isolated valid-zero and elevated burn evidence;
+no-data/unavailable semantics; provider failure and recovery; exact-window independent
+recomputation; Investigation context; and bounded burn telemetry.
 
 ## Status rule
 
-Local success can move this plan only to `READY FOR GITLAB REVALIDATION`. Milestone 8
-must not be marked `COMPLETE` until the project owner explicitly confirms the
-authoritative GitLab pipeline is green. Any mandatory local failure leaves it
-`NOT READY`.
+Local success could move this plan only to `READY FOR GITLAB REVALIDATION`. The
+completion gate was satisfied when the authoritative GitLab pipeline passed the required
+smoke chain, so Milestone 8 is `COMPLETE`. Any mandatory local failure would have left
+it `NOT READY`.

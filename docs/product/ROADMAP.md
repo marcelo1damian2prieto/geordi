@@ -104,7 +104,7 @@ existing regression smokes, and the project owner confirmed that pipeline green.
 
 ## Milestone 8 — Error Budget & Burn Rate Foundation
 
-READY FOR GITLAB REVALIDATION
+COMPLETE
 
 - one derived atomic current-window burn snapshot in the existing SLO evaluation;
 - SLI-aware allowed bad-event ratio, observed bad-event ratio, and dimensionless burn
@@ -118,9 +118,12 @@ READY FOR GITLAB REVALIDATION
 
 It does not add remaining-budget claims, long-period compliance accounting, storage,
 history, scheduling, alerting, notifications, incidents, or Milestone 9 functionality.
-M8 is not complete: required local verification and independent review passed without a
-remaining BLOCKER or HIGH finding, while authoritative GitLab green plus project-owner
-confirmation remains the completion gate.
+Required local verification and independent review passed without a remaining BLOCKER
+or HIGH finding. The authoritative GitLab pipeline passed the complete OpenTelemetry,
+Metrics, Traces, Logs, Service Map, SLO, and Burn Rate smoke chain, including isolated
+valid-zero and elevated burn evidence, exact-window independent recomputation,
+unavailable semantics, provider failure and recovery, Investigation context, and bounded
+burn telemetry.
 
 ## Later — Alerts
 

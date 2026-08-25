@@ -177,9 +177,12 @@ query, response, or exception text.
 The isolated burn-rate smoke verifies that this platform telemetry is persisted with only
 those bounded labels. It also independently recomputes current-window burn evidence from
 canonical Metrics and exercises provider failure/recovery. The smoke is placed after the
-M7 SLO smoke in GitLab's integration job. M8 is **READY FOR GITLAB REVALIDATION** after
-the required local verification and independent review passed without a remaining
-BLOCKER or HIGH finding; this placement is not a completion claim.
+M7 SLO smoke in GitLab's integration job. M8 is **COMPLETE** after the required local
+verification, independent review, and authoritative GitLab pipeline passed without a
+remaining BLOCKER or HIGH finding. The authoritative Burn Rate smoke verified the
+bounded telemetry together with isolated valid-zero and elevated burn evidence,
+unavailable semantics, provider failure and recovery, exact-window independent
+recomputation, and Investigation context.
 
 ## Future health indicators
 

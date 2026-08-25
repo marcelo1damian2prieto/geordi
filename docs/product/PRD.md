@@ -1,6 +1,6 @@
 # Geordi Product Requirements Document
 
-Status: MILESTONES 1 THROUGH 7 COMPLETE; MILESTONE 8 READY FOR GITLAB REVALIDATION
+Status: MILESTONES 1 THROUGH 8 COMPLETE
 
 ## Vision
 
@@ -216,7 +216,7 @@ that pipeline green.
 
 ## Milestone 8 scope
 
-Status: READY FOR GITLAB REVALIDATION
+Status: COMPLETE
 
 Milestone 8 enriches the existing on-demand SLO evaluation response and `/slos` view
 with one atomic configured-window error-budget burn snapshot. It derives allowed bad
@@ -238,5 +238,10 @@ M8 adds neither remaining-budget claims nor long-period compliance accounting,
 persistence, history, scheduling, alert rules or lifecycle, notifications, on-call
 routing, incidents, arbitrary queries, or new providers. A deterministic isolated
 burn-rate smoke and GitLab placement are implemented. Required local verification and
-independent review passed without a remaining BLOCKER or HIGH finding; only project-owner
-confirmation of authoritative GitLab green can make M8 complete.
+independent review passed without a remaining BLOCKER or HIGH finding. The authoritative
+GitLab pipeline passed the complete preceding milestone smoke chain and the Burn Rate
+smoke with provider-failure exercise enabled. It validated `AVAILABILITY` and
+`ERROR_RATE` objectives, `allowedBadRatio`, `observedBadRatio`, `burnRate`, valid-zero
+and elevated burn behavior, no-data/unavailable semantics, provider failure and recovery,
+exact-window independent recomputation, Investigation context, and bounded
+self-observability.

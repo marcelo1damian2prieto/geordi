@@ -13,7 +13,7 @@ correlation, completing the correlated-telemetry P0 baseline. Milestone 6 comple
 bounded, trace-derived observed dependency view. Milestone 7 completed a bounded,
 deployment-managed SLO evaluation foundation after complete local verification,
 independent review, and the project owner's confirmation that the authoritative GitLab
-pipeline is green. Milestone 8 is ready for GitLab revalidation and adds current-window
+pipeline is green. Milestone 8 is complete and adds current-window
 error-budget burn evidence to the same SLO snapshots; it does not add budget accounting.
 The broader MVP target remains planned because alert delivery and
 other P1 capabilities are still deferred.
@@ -37,7 +37,7 @@ P1:
 - dashboard;
 - service map (COMPLETE: bounded trace-derived observed dependencies, not complete architecture);
 - SLO evaluation foundation (COMPLETE; no runtime CRUD or alerts);
-- current-window SLO error-budget burn evidence (READY FOR GITLAB REVALIDATION; no
+- current-window SLO error-budget burn evidence (COMPLETE; no
   compliance-period accounting or alerts);
 - basic infrastructure monitoring;
 - threshold alerts;

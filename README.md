@@ -157,7 +157,7 @@ invalid counts, and Metrics unavailability. Provider syntax remains in the
 VictoriaMetrics adapter. Latency SLOs, scheduling, history, long-period error-budget
 accounting, notifications, and incident management are not implemented.
 
-Milestone 8 is **READY FOR GITLAB REVALIDATION**. It enriches the same on-demand SLO snapshot
+Milestone 8 is **COMPLETE**. It enriches the same on-demand SLO snapshot
 with SLI-aware current-window error-budget evidence: allowed and observed bad-event
 ratios plus a dimensionless burn rate. It does not provide error-budget remaining,
 long-period compliance accounting, alerts, notifications, incidents, storage, or a
@@ -181,7 +181,7 @@ scheduler.
 - **SLO foundations:** deployment-managed definitions → canonical whole-window request
   outcomes → explainable on-demand status at `/slos`; Investigation navigation preserves
   the exact service identity and returned absolute evaluation range.
-- **Current-window error-budget burn (M8 ready for GitLab revalidation):** the same SLO snapshot exposes
+- **Current-window error-budget burn (M8 complete):** the same SLO snapshot exposes
   allowed bad-event ratio, observed bad-event ratio, and finite burn evidence when
   valid; it is not compliance-period budget accounting.
 
@@ -262,10 +262,13 @@ behavior, and preserves the returned Service Investigation context.
 .\scripts\verify-burn-rate.ps1 -ExerciseProviderFailure
 ```
 
-M8 is **READY FOR GITLAB REVALIDATION**. Its complete local CI-equivalent verification
-and independent review passed without a remaining BLOCKER or HIGH finding. It must not
-be called complete before the project owner confirms the authoritative GitLab pipeline
-is green.
+M8 is **COMPLETE**. Its complete local CI-equivalent verification and independent review
+passed without a remaining BLOCKER or HIGH finding. The authoritative GitLab pipeline
+also passed the complete OpenTelemetry, Metrics, Traces, Logs, Service Map, SLO, and Burn
+Rate smoke chain. The Burn Rate smoke ran with provider-failure exercise enabled and
+verified isolated valid-zero and elevated burn evidence, exact-window independent
+recomputation, unavailable semantics, provider failure and recovery, Investigation
+context, and bounded burn telemetry.
 
 ## Quality gates
 
@@ -288,14 +291,13 @@ PowerShell 7, outbound image access, and the fixed local ports available. The in
 job is serialized by a resource group and runs the self-observability, Metrics, Traces,
 Logs, Service Map, SLO, and burn-rate semantic smokes in that order.
 
-Milestones 1 / 1.1 and 2 through 7 are complete. Milestone 7 passed complete local
+Milestones 1 / 1.1 and 2 through 8 are complete. Milestone 7 passed complete local
 verification and independent review without a remaining BLOCKER or HIGH finding. Its
 SLO semantic smoke runs after the five existing regression smokes in the authoritative
 GitLab integration gate, and the project owner confirmed that pipeline green.
 
-M8's burn-rate smoke follows the M7 smoke in the same job. M8 is **READY FOR GITLAB
-REVALIDATION** after all mandatory local gates and independent review passed;
-authoritative GitLab green and project-owner confirmation remain its completion gate.
+M8's burn-rate smoke follows the M7 smoke in the same job. M8 is **COMPLETE** after all
+mandatory local gates, independent review, and the authoritative GitLab pipeline passed.
 
 ## Documentation
 

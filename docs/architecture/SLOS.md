@@ -1,6 +1,6 @@
 # SLO Architecture
 
-Status: MILESTONE 7 COMPLETE; MILESTONE 8 READY FOR GITLAB REVALIDATION
+Status: MILESTONES 7–8 COMPLETE
 
 ## Scope
 
@@ -226,7 +226,6 @@ semantics.
 M8 adds no latency SLOs, arbitrary queries, generic alert rules, notifications, incident
 lifecycle, acknowledgement, silencing, maintenance windows, escalation, on-call
 scheduling, evaluation history, error-budget remaining, long calendar periods, anomaly
-detection, AI/RCA, or Milestone 9 capability. M8 is **READY FOR GITLAB REVALIDATION**
-after mandatory local verification and independent review passed without a remaining
-BLOCKER or HIGH finding; only authoritative GitLab green and project-owner confirmation
-can make it complete.
+detection, AI/RCA, or Milestone 9 capability. M8 is **COMPLETE** after mandatory local
+verification, independent review, and the authoritative GitLab pipeline passed without
+a remaining BLOCKER or HIGH finding.
