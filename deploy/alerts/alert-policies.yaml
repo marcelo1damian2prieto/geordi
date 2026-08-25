@@ -1,0 +1,43 @@
+geordi:
+  alert:
+    policies:
+      - id: demo-downstream-burn-alert
+        name: Demo downstream burn alert
+        description: Success-only valid-zero policy for deterministic condition-not-met verification.
+        enabled: true
+        slo-id: demo-downstream-availability
+        condition:
+          type: BURN_RATE_ABOVE
+          threshold: 1
+      - id: burn-smoke-alert
+        name: Burn smoke alert
+        description: Elevated isolated burn policy for deterministic condition-met verification.
+        enabled: true
+        slo-id: burn-smoke-error-rate
+        condition:
+          type: BURN_RATE_ABOVE
+          threshold: 1
+      - id: no-traffic-burn-alert
+        name: No-traffic burn alert
+        description: Policy for deterministic no-traffic unavailable verification.
+        enabled: true
+        slo-id: no-traffic-availability
+        condition:
+          type: BURN_RATE_ABOVE
+          threshold: 1
+      - id: zero-budget-burn-alert
+        name: Zero-budget burn alert
+        description: Policy for deterministic zero-allowed-bad-ratio unavailable verification.
+        enabled: true
+        slo-id: demo-error-rate
+        condition:
+          type: BURN_RATE_ABOVE
+          threshold: 1
+      - id: disabled-burn-alert
+        name: Disabled burn alert
+        description: Disabled policy for verification that no SLO evaluation occurs.
+        enabled: false
+        slo-id: burn-smoke-error-rate
+        condition:
+          type: BURN_RATE_ABOVE
+          threshold: 1

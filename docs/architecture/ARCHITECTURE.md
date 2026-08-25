@@ -1,6 +1,6 @@
 # Architecture
 
-Status: MILESTONES 1 THROUGH 8 COMPLETE
+Status: MILESTONES 1 THROUGH 8 COMPLETE; MILESTONE 9 READY FOR GITLAB REVALIDATION
 
 ## Initial style
 
@@ -116,6 +116,30 @@ or separate provider query path. Provider query syntax remains in the Metrics ad
 The catalog is version-controlled, mounted read-only, limited to 50 definitions, and
 requires restart/redeployment for changes. See `SLOS.md`, ADR-014, ADR-015, and ADR-016.
 
+## Milestone 9 Alert Evaluation flow
+
+```text
+Read-only alert-policy YAML -> alerts catalog -> Alert Evaluation <- canonical M8 burn evidence
+                                                  |                         ^
+                                                  v                         |
+React /alert-evaluations <- read-only REST <- exact SLO/Burn composition -- SLO boundary
+          |
+          `-- exact identity and [from,to) --> existing /investigate
+```
+
+M9 is in progress. The `alerts` logical bounded context owns policy validation and the
+stateless condition comparison; it consumes canonical burn evidence through an
+alerts-owned port. The SLO composition adapter is the only alert-side code that refers
+to the SLO boundary. Alert domain/application code has no Metrics, VictoriaMetrics,
+provider-query, persistence, notification, Service Map, Traces, or Logs dependency. It
+does not recompute request outcomes, allowed bad ratio, or burn rate.
+
+The initial condition is inclusive `BURN_RATE_ABOVE`: available canonical burn evidence
+is `CONDITION_MET` when `burnRate >= threshold`, otherwise `CONDITION_NOT_MET`.
+Unavailable evidence remains `UNAVAILABLE`; disabled policies are
+`UNAVAILABLE/DISABLED` without SLO evaluation. These are current stateless conclusions,
+not firing/resolved alert instances, delivery events, pages, or incidents.
+
 ## Target logical view
 
 ```text
@@ -135,6 +159,7 @@ Geordi Platform
     +-- Traces (implemented)
     +-- Service Map (implemented; Milestone 6 complete; trace-derived, no storage)
     +-- SLOs (Milestones 7–8 complete; Metrics-derived)
+    +-- Alerts (Milestone 9 in progress; SLO/Burn-derived evaluation)
     +-- APM (planned)
     +-- Compatibility (planned)
 ```

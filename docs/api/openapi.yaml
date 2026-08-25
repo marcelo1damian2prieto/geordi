@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Geordi Platform API
-  version: milestone-7
-  description: Platform APIs and bounded Metrics, Traces, Logs, observed Service Map, and read-only SLO evaluation capabilities.
+  version: milestone-9
+  description: Platform APIs and bounded Metrics, Traces, Logs, observed Service Map, SLO, Burn Rate, and stateless Alert Evaluation capabilities.
 servers:
   - url: http://localhost:8080
 paths:
@@ -395,8 +395,56 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+  /api/alert-policies:
+    get:
+      operationId: listAlertPolicies
+      summary: List deployment-managed alert policies.
+      description: >-
+        Returns the read-only YAML catalog. Policies contain one explicit canonical
+        burn-rate condition and no provider query, notification, or lifecycle fields.
+      responses:
+        '200':
+          description: Alert policies ordered deterministically by name then identifier.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertPolicies'
+        '404':
+          $ref: '#/components/responses/AlertEvaluationDisabled'
+  /api/alert-policies/{policyId}/evaluation:
+    get:
+      operationId: evaluateAlertPolicy
+      summary: Evaluate one alert policy against canonical burn-rate evidence.
+      description: >-
+        BURN_RATE_ABOVE uses the inclusive comparison canonical burnRate >= threshold.
+        The evidence range and evaluatedAt are the exact values returned by the
+        referenced SLO/Burn snapshot. Missing or unavailable evidence produces
+        UNAVAILABLE, never CONDITION_NOT_MET. This read is side-effect free: it sends
+        no notification and creates no incident or persistent alert instance.
+      parameters:
+        - $ref: '#/components/parameters/AlertPolicyId'
+      responses:
+        '200':
+          description: Explainable stateless condition evaluation, including unavailable outcomes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertEvaluation'
+        '404':
+          description: The capability is disabled or the policy identifier is not configured.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
 components:
   parameters:
+    AlertPolicyId:
+      name: policyId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
     SloId:
       name: sloId
       in: path
@@ -552,6 +600,8 @@ components:
       description: The Service Map capability is disabled or its trace dependency is unavailable by configuration.
     SlosDisabled:
       description: The SLO capability is disabled and its routes are absent.
+    AlertEvaluationDisabled:
+      description: The Alert Evaluation capability is disabled and its routes are absent.
   schemas:
     Platform:
       type: object
@@ -732,6 +782,114 @@ components:
       type: [string, 'null']
       description: Present only when burn-rate status is UNAVAILABLE.
       enum: [DISABLED, NO_TRAFFIC, MISSING_REQUEST_COUNT, MISSING_ERROR_COUNT, INVALID_TELEMETRY, METRICS_UNAVAILABLE, ZERO_ALLOWED_BAD_RATIO, null]
+    AlertConditionType:
+      type: string
+      description: Closed canonical Alert Evaluation condition catalog for Milestone 9.
+      enum: [BURN_RATE_ABOVE]
+    AlertEvaluationStatus:
+      type: string
+      enum: [CONDITION_MET, CONDITION_NOT_MET, UNAVAILABLE]
+    AlertUnavailableReason:
+      type: [string, 'null']
+      description: Present only when the alert evaluation status is UNAVAILABLE.
+      enum: [DISABLED, NO_TRAFFIC, MISSING_REQUEST_COUNT, MISSING_ERROR_COUNT, INVALID_TELEMETRY, METRICS_UNAVAILABLE, ZERO_ALLOWED_BAD_RATIO, null]
+    AlertCondition:
+      type: object
+      additionalProperties: false
+      required: [type, threshold]
+      properties:
+        type:
+          $ref: '#/components/schemas/AlertConditionType'
+        threshold:
+          type: number
+          format: double
+          minimum: 0
+          description: >-
+            Non-negative finite dimensionless burn-rate multiple. BURN_RATE_ABOVE is
+            inclusive: equality with this threshold is condition met. Positive values
+            must remain nonzero and finite in the IEEE-754 public contract.
+          example: 2
+    AlertPolicy:
+      type: object
+      additionalProperties: false
+      required: [id, name, description, enabled, sloId, condition]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          example: checkout-availability-burn
+        name:
+          type: string
+          minLength: 1
+          example: Checkout availability burn
+        description:
+          type: [string, 'null']
+        enabled:
+          type: boolean
+        sloId:
+          type: string
+          minLength: 1
+        condition:
+          $ref: '#/components/schemas/AlertCondition'
+    AlertPolicies:
+      type: object
+      additionalProperties: false
+      required: [alertPolicies]
+      properties:
+        alertPolicies:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/AlertPolicy'
+    AlertEvidence:
+      type: object
+      additionalProperties: false
+      required: [service, window, range, evaluatedAt, observedBurnRate]
+      properties:
+        service:
+          $ref: '#/components/schemas/ServiceIdentity'
+        window:
+          $ref: '#/components/schemas/SloWindow'
+        range:
+          $ref: '#/components/schemas/TimeRange'
+        evaluatedAt:
+          type: string
+          format: date-time
+          description: Equal to range.to; inherited from the canonical SLO/Burn snapshot.
+        observedBurnRate:
+          type: [number, 'null']
+          format: double
+          minimum: 0
+          description: >-
+            Canonical M8 burn-rate multiple, or null when burn evidence is unavailable.
+            Numeric values are finite and are compared before UI formatting.
+    AlertEvaluation:
+      type: object
+      additionalProperties: false
+      required: [policyId, policyName, sloId, condition, status, reason, evidence]
+      properties:
+        policyId:
+          type: string
+          minLength: 1
+        policyName:
+          type: string
+          minLength: 1
+        sloId:
+          type: string
+          minLength: 1
+        condition:
+          $ref: '#/components/schemas/AlertCondition'
+        status:
+          $ref: '#/components/schemas/AlertEvaluationStatus'
+        reason:
+          $ref: '#/components/schemas/AlertUnavailableReason'
+        evidence:
+          oneOf:
+            - $ref: '#/components/schemas/AlertEvidence'
+            - type: 'null'
+          description: >-
+            Null only when a disabled policy was not evaluated. Enabled unavailable
+            evaluations preserve their exact canonical evidence context.
     SloDefinition:
       type: object
       additionalProperties: false

@@ -163,6 +163,22 @@ ratios plus a dimensionless burn rate. It does not provide error-budget remainin
 long-period compliance accounting, alerts, notifications, incidents, storage, or a
 scheduler.
 
+## Milestone 9 — Alert Evaluation Foundation
+
+**READY FOR GITLAB REVALIDATION.** M9 adds a small, on-demand Alert Evaluation capability over M8's
+canonical burn evidence. A read-only deployment-managed policy names one referenced SLO
+and one `BURN_RATE_ABOVE` threshold. Canonical `burnRate >= threshold` is
+`CONDITION_MET`; a lower available value is `CONDITION_NOT_MET`; unavailable burn
+evidence remains `UNAVAILABLE` with its bounded reason. Valid zero is evidence, not
+absence of evidence.
+
+This is neither notification delivery nor an alert lifecycle: it does not page anyone,
+send email/webhooks, create incidents, acknowledge or silence anything, schedule
+evaluations, store history, or accept arbitrary provider queries. M9 remains **IN
+PROGRESS** until mandatory local verification and independent review pass. It may then
+move only to **READY FOR GITLAB REVALIDATION**; only the project owner may mark it
+**COMPLETE** after authoritative GitLab CI is green.
+
 ## Current capabilities
 
 - **Metrics:** OTLP Metrics → Collector → VictoriaMetrics → vendor-neutral Metrics
@@ -184,6 +200,9 @@ scheduler.
 - **Current-window error-budget burn (M8 complete):** the same SLO snapshot exposes
   allowed bad-event ratio, observed bad-event ratio, and finite burn evidence when
   valid; it is not compliance-period budget accounting.
+- **Alert Evaluation (M9 in progress):** read-only policy plus canonical burn evidence
+  produces one explainable stateless condition result; it does not deliver a
+  notification or create an incident.
 
 This is a bounded service-investigation foundation, not full APM.
 
@@ -262,6 +281,16 @@ behavior, and preserves the returned Service Investigation context.
 .\scripts\verify-burn-rate.ps1 -ExerciseProviderFailure
 ```
 
+The M9 Alert Evaluation smoke is also independently runnable on a fresh ready stack. It
+generates its own isolated success/error traffic, recomputes exact-window burn evidence
+directly from persisted Metrics, verifies the inclusive configured comparison and
+unavailable cases, and checks Investigation navigation and bounded alert telemetry. It
+does not repeat the provider outage exercised by the M8 smoke.
+
+```powershell
+.\scripts\verify-alert-evaluation.ps1
+```
+
 M8 is **COMPLETE**. Its complete local CI-equivalent verification and independent review
 passed without a remaining BLOCKER or HIGH finding. The authoritative GitLab pipeline
 also passed the complete OpenTelemetry, Metrics, Traces, Logs, Service Map, SLO, and Burn
@@ -290,6 +319,8 @@ Windows runner tagged `geordi-docker-pwsh` with Docker daemon access, Docker Com
 PowerShell 7, outbound image access, and the fixed local ports available. The integration
 job is serialized by a resource group and runs the self-observability, Metrics, Traces,
 Logs, Service Map, SLO, and burn-rate semantic smokes in that order.
+M9's authoritative Alert Evaluation smoke follows the burn-rate smoke. It also passes
+independently on a fresh stack and is ready for authoritative GitLab revalidation.
 
 Milestones 1 / 1.1 and 2 through 8 are complete. Milestone 7 passed complete local
 verification and independent review without a remaining BLOCKER or HIGH finding. Its

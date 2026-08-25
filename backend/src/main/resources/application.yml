@@ -16,10 +16,14 @@ geordi:
       enabled: true
     slos:
       enabled: true
+    alerts:
+      enabled: true
     self-observability:
       enabled: true
   slo:
     definitions: []
+  alert:
+    policies: []
   metrics:
     victoria-metrics:
       base-url: http://localhost:8428

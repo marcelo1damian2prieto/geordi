@@ -22,6 +22,7 @@ $BurnSloId = "burn-smoke-error-rate"
 $ZeroBudgetSloId = "demo-error-rate"
 $NoTrafficSloId = "no-traffic-availability"
 $LegacyAvailabilitySloId = "demo-downstream-availability"
+$BurnAlertPolicyId = "burn-smoke-alert"
 $BurnIdentity = [ordered]@{ name = "geordi-burn-smoke-service"; namespace = "geordi-burn-smoke"; environment = "development" }
 $ProviderSyntaxPattern = 'promql|metricsql|victoriametrics|http\.server\.request|__name__|increase\s*\(|rate\s*\('
 
@@ -192,8 +193,10 @@ function Assert-ProviderFailure {
         if ($LASTEXITCODE -ne 0) { throw "Could not stop VictoriaMetrics for burn provider-failure scenario." }
         $stopped = $true
         $burn = Get-Evaluation $BurnSloId; $legacy = Get-Evaluation $LegacyAvailabilitySloId
+        $alert = Invoke-TextRequest "$BackendBaseUrl/api/alert-policies/$BurnAlertPolicyId/evaluation" -RequestTimeoutSeconds 15 | ConvertFrom-Json
         if ($burn.status -ne 'UNAVAILABLE' -or $burn.reason -ne 'METRICS_UNAVAILABLE' -or $burn.burnRateEvaluation.status -ne 'UNAVAILABLE' -or $burn.burnRateEvaluation.reason -ne 'METRICS_UNAVAILABLE' -or $null -ne $burn.burnRateEvaluation.burnRate) { throw "Burn provider failure was not explicitly unavailable." }
         if ($legacy.status -ne 'UNAVAILABLE' -or $legacy.reason -ne 'METRICS_UNAVAILABLE' -or $null -ne $legacy.observedValue) { throw "Legacy SLO provider failure regression was not explicitly unavailable." }
+        if ($alert.policyId -ne $BurnAlertPolicyId -or $alert.sloId -ne $BurnSloId -or $alert.status -ne 'UNAVAILABLE' -or $alert.reason -ne 'METRICS_UNAVAILABLE' -or $null -eq $alert.evidence -or $null -ne $alert.evidence.observedBurnRate) { throw "Alert provider failure was not explicitly unavailable with null observed burn evidence." }
     } finally {
         if ($stopped) {
             & docker compose --project-directory $root --file $compose start victoriametrics

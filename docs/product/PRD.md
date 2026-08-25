@@ -1,6 +1,6 @@
 # Geordi Product Requirements Document
 
-Status: MILESTONES 1 THROUGH 8 COMPLETE
+Status: MILESTONES 1 THROUGH 8 COMPLETE; MILESTONE 9 READY FOR GITLAB REVALIDATION
 
 ## Vision
 
@@ -245,3 +245,29 @@ smoke with provider-failure exercise enabled. It validated `AVAILABILITY` and
 and elevated burn behavior, no-data/unavailable semantics, provider failure and recovery,
 exact-window independent recomputation, Investigation context, and bounded
 self-observability.
+
+## Milestone 9 scope
+
+Status: READY FOR GITLAB REVALIDATION
+
+M9 adds the smallest stateless Alert Evaluation boundary over canonical M8 burn
+evidence. A deployment-managed read-only policy references an SLO and has one inclusive
+`BURN_RATE_ABOVE` condition: available unrounded canonical burn at or above its finite
+non-negative threshold is `CONDITION_MET`; a lower available value is
+`CONDITION_NOT_MET`. Valid zero remains evidence. Unavailable burn evidence—including
+no traffic, Metrics unavailability, invalid telemetry, and zero allowed bad ratio—maps
+to `UNAVAILABLE` with its bounded reason. A disabled policy is not evaluated and returns
+`UNAVAILABLE/DISABLED`, never a healthy result.
+
+Each result preserves exact service namespace/name/environment identity, inherited
+configured window, absolute range, evaluation time, threshold, observed burn when
+available, and Investigation context. M9 consumes canonical SLO/Burn evidence; it does
+not query VictoriaMetrics or reimplement request counts, bad ratios, or burn formulas.
+
+M9 adds no notification delivery, pages, email/webhooks, routing, escalation,
+acknowledgement, silencing, maintenance windows, incidents, persistent firing/resolved
+lifecycle, history, scheduler, policy CRUD/reload, generic expressions, arbitrary
+PromQL/MetricsQL/TraceQL/LogQL, topology inhibition, multi-window paging, storage, or
+Milestone 10 work. All mandatory local verification and independent review passed, so
+it is `READY FOR GITLAB REVALIDATION` pending the project owner's authoritative GitLab
+CI confirmation.

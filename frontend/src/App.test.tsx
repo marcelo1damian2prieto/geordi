@@ -35,6 +35,10 @@ vi.mock('./features/slos/SloPage', () => ({
   SloPage: () => <main>SLOs route</main>,
 }))
 
+vi.mock('./features/alert-evaluations/AlertEvaluationsPage', () => ({
+  AlertEvaluationsPage: () => <main>Alert evaluations route</main>,
+}))
+
 describe('application routes', () => {
   it('renders service metrics at its public route', () => {
     render(<MemoryRouter initialEntries={['/metrics']}><App /></MemoryRouter>)
@@ -84,5 +88,12 @@ describe('application routes', () => {
 
     expect(screen.getByText('SLOs route')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'SLOs' })).toBeInTheDocument()
+  })
+
+  it('renders alert evaluations at its public route', () => {
+    render(<MemoryRouter initialEntries={['/alert-evaluations']}><App /></MemoryRouter>)
+
+    expect(screen.getByText('Alert evaluations route')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Alert evaluations' })).toBeInTheDocument()
   })
 })

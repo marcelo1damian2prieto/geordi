@@ -19,7 +19,7 @@ class ArchitectureTest {
                 .should().dependOnClassesThat().resideInAnyPackage(
                         "io.geordi.bootstrap..", "io.geordi.selfobservability..",
                         "io.geordi.metrics..", "io.geordi.traces..", "io.geordi.logs..",
-                        "io.geordi.servicemap..", "io.geordi.slos..")
+                        "io.geordi.servicemap..", "io.geordi.slos..", "io.geordi.alerts..")
                 .check(productionClasses);
     }
 
@@ -52,7 +52,7 @@ class ArchitectureTest {
         noClasses().that().resideInAPackage("io.geordi.bootstrap..")
                 .should().dependOnClassesThat().resideInAnyPackage(
                         "io.geordi.selfobservability..", "io.geordi.metrics..", "io.geordi.traces..",
-                        "io.geordi.logs..", "io.geordi.servicemap..", "io.geordi.slos..")
+                        "io.geordi.logs..", "io.geordi.servicemap..", "io.geordi.slos..", "io.geordi.alerts..")
                 .check(productionClasses);
     }
 
@@ -236,6 +236,74 @@ class ArchitectureTest {
                 .and().resideOutsideOfPackages(
                         "io.geordi.slos.adapter.out.metrics..", "io.geordi.slos.adapter.spring..")
                 .should().dependOnClassesThat().resideInAPackage("io.geordi.metrics..")
+                .check(productionClasses);
+    }
+
+    @Test
+    void alertsDomainAndApplicationAreFrameworkProviderAndSignalIndependent() {
+        noClasses().that().resideInAnyPackage("io.geordi.alerts.domain..", "io.geordi.alerts.application..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "org.springframework..",
+                        "com.fasterxml.jackson..",
+                        "io.opentelemetry..",
+                        "java.net.http..",
+                        "jakarta.persistence..",
+                        "io.geordi.alerts.adapter..",
+                        "io.geordi.slos..",
+                        "io.geordi.metrics..",
+                        "io.geordi.traces..",
+                        "io.geordi.logs..",
+                        "io.geordi.servicemap..",
+                        "io.victoriametrics..",
+                        "io.prometheus..",
+                        "org.grafana..")
+                .check(productionClasses);
+    }
+
+    @Test
+    void alertsDomainDependsOnlyOnItselfAndTheJavaRuntime() {
+        noClasses().that().resideInAPackage("io.geordi.alerts.domain..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "io.geordi.alerts.application..",
+                        "io.geordi.alerts.adapter..",
+                        "io.geordi.core..",
+                        "io.geordi.bootstrap..",
+                        "io.geordi.selfobservability..",
+                        "io.geordi.slos..",
+                        "io.geordi.metrics..")
+                .check(productionClasses);
+    }
+
+    @Test
+    void alertsConsumeOnlyTheCanonicalSloBoundaryAndExistingContextsDoNotDependOnAlerts() {
+        noClasses().that().resideInAPackage("io.geordi.alerts.adapter.out.slos..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "io.geordi.slos.adapter..",
+                        "io.geordi.metrics..",
+                        "io.victoriametrics..",
+                        "io.prometheus..")
+                .check(productionClasses);
+        noClasses().that().resideInAPackage("io.geordi.alerts..")
+                .and().resideOutsideOfPackages(
+                        "io.geordi.alerts.adapter.out.slos..", "io.geordi.alerts.adapter.spring..")
+                .should().dependOnClassesThat().resideInAPackage("io.geordi.slos..")
+                .check(productionClasses);
+        noClasses().that().resideInAnyPackage(
+                        "io.geordi.metrics..", "io.geordi.traces..", "io.geordi.logs..",
+                        "io.geordi.servicemap..", "io.geordi.slos..")
+                .should().dependOnClassesThat().resideInAPackage("io.geordi.alerts..")
+                .check(productionClasses);
+    }
+
+    @Test
+    void alertsIntroduceNoPersistenceSchedulingOrNotificationDependencies() {
+        noClasses().that().resideInAPackage("io.geordi.alerts..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "jakarta.persistence..",
+                        "org.springframework.scheduling..",
+                        "org.springframework.mail..",
+                        "org.springframework.messaging..",
+                        "org.springframework.kafka..")
                 .check(productionClasses);
     }
 }

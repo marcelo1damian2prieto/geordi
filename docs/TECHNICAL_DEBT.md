@@ -51,6 +51,37 @@ This debt is not a defect in Milestone 1.1. The milestone remains successfully c
   it; do not couple Traces discovery to Metrics or cross-product independent tag values.
 - **Priority:** Medium
 
+## Alert-policy catalog lifecycle
+
+- **Status:** Planned / Deliberate Milestone 9 limitation
+- **Detected in:** Milestone 9 in-progress design
+- **Description:** Alert policies are intentionally version-controlled YAML mounted
+  read-only and validated as an immutable startup snapshot. M9 supports no runtime CRUD,
+  reload, audit history, concurrent writers, or policy history.
+- **Current impact:** Policy changes require restart/redeployment. This keeps the first
+  condition-evaluation capability deterministic and avoids an unauthenticated mutable
+  control plane.
+- **Follow-up:** Add authenticated policy management, concurrency semantics, auditability,
+  and a replaceable durable store together only if operational policy management is
+  required.
+- **Priority:** Medium
+
+## Alert Evaluation scope bounds
+
+- **Status:** Planned / Deliberate Milestone 9 limitation
+- **Detected in:** Milestone 9 in-progress design
+- **Description:** M9 is limited to one canonical `BURN_RATE_ABOVE` condition evaluated
+  on demand from one inherited M8 configured window. It has no scheduler, persistent
+  lifecycle/history, notification delivery, acknowledgement, silencing, escalation,
+  topology inhibition, generic expression language, or multi-window burn policy.
+- **Current impact:** A condition result is explainable evidence for operator attention,
+  not a delivered page, firing/resolved record, or incident. Policies that reference the
+  same SLO may independently request the same bounded SLO evaluation.
+- **Follow-up:** Add batching, lifecycle, notification delivery, and additional canonical
+  conditions only after their product semantics, authorization, storage, and delivery
+  guarantees are explicitly designed; do not infer them from M9 results.
+- **Priority:** Medium
+
 ## Metrics upper-bound semantics
 
 - **Status:** Pending / Non-blocking

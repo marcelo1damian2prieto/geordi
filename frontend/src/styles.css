@@ -169,3 +169,19 @@ dd { margin: 0; font-weight: 650; }
 .slo-not-evaluated, .slo-reason { margin: 20px 0 0; color: #aab7c9; }
 .slo-disabled { opacity: .7; }
 @media (max-width: 760px) { .slo-card-heading, .burn-rate-heading { flex-direction: column; } .evaluation-window-facts { grid-template-columns: 1fr; } }
+.alert-evaluation-grid { display: grid; gap: 16px; }
+.alert-evaluation-card { padding: 22px; border: 1px solid #26364e; border-radius: 14px; background: rgba(16, 28, 46, .82); }
+.alert-evaluation-card-heading { display: flex; justify-content: space-between; gap: 16px; align-items: start; }
+.alert-evaluation-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin: 20px 0 0; }
+.alert-evaluation-facts dd { overflow-wrap: anywhere; }
+.alert-evaluation-status { display: inline-block; padding: 4px 9px; border-radius: 999px; background: #26364e; font-size: .78rem; font-weight: 750; letter-spacing: .04em; }
+.alert-evaluation-status-condition-met { color: #fb7185; }
+.alert-evaluation-status-condition-not-met { color: #6ee7b7; }
+.alert-evaluation-status-unavailable { color: #fbbf24; }
+.alert-evaluation-not-evaluated, .alert-evaluation-reason { margin: 20px 0 0; color: #aab7c9; }
+.alert-evaluation-disabled { opacity: .7; }
+.alert-evidence { margin-top: 24px; padding-top: 20px; border-top: 1px solid #26364e; }
+.alert-evaluation-explanation { margin: 8px 0 0; color: #91a0b5; font-size: .86rem; }
+.alert-evaluation-window-facts { grid-template-columns: repeat(2, minmax(240px, 1fr)); }
+.alert-evaluation-window-facts time { overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .82rem; }
+@media (max-width: 760px) { .alert-evaluation-card-heading { flex-direction: column; } .alert-evaluation-window-facts { grid-template-columns: 1fr; } }

@@ -92,8 +92,8 @@ services:
         condition: service_healthy
         restart: true
     environment:
-      SPRING_APPLICATION_JSON: '{"geordi":{"modules":{"self-observability":{"enabled":${GEORDI_MODULES_SELF_OBSERVABILITY_ENABLED:-true}},"metrics":{"enabled":${GEORDI_MODULES_METRICS_ENABLED:-true}},"traces":{"enabled":${GEORDI_MODULES_TRACES_ENABLED:-true}},"logs":{"enabled":${GEORDI_MODULES_LOGS_ENABLED:-true}},"service-map":{"enabled":${GEORDI_MODULES_SERVICE_MAP_ENABLED:-true}},"slos":{"enabled":${GEORDI_MODULES_SLOS_ENABLED:-true}}},"metrics":{"victoria-metrics":{"base-url":"http://victoriametrics:8428"}},"traces":{"tempo":{"base-url":"http://tempo:3200"}},"logs":{"loki":{"base-url":"http://loki:3100"}}}}'
-      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/etc/geordi/slos.yaml
+      SPRING_APPLICATION_JSON: '{"geordi":{"modules":{"self-observability":{"enabled":${GEORDI_MODULES_SELF_OBSERVABILITY_ENABLED:-true}},"metrics":{"enabled":${GEORDI_MODULES_METRICS_ENABLED:-true}},"traces":{"enabled":${GEORDI_MODULES_TRACES_ENABLED:-true}},"logs":{"enabled":${GEORDI_MODULES_LOGS_ENABLED:-true}},"service-map":{"enabled":${GEORDI_MODULES_SERVICE_MAP_ENABLED:-true}},"slos":{"enabled":${GEORDI_MODULES_SLOS_ENABLED:-true}},"alerts":{"enabled":${GEORDI_MODULES_ALERTS_ENABLED:-true}}},"metrics":{"victoria-metrics":{"base-url":"http://victoriametrics:8428"}},"traces":{"tempo":{"base-url":"http://tempo:3200"}},"logs":{"loki":{"base-url":"http://loki:3100"}}}}'
+      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/etc/geordi/slos.yaml,file:/etc/geordi/alert-policies.yaml
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       OTEL_LOGS_EXPORTER: otlp
@@ -108,6 +108,7 @@ services:
       OTEL_TRACES_SAMPLER: always_on
     volumes:
       - ./deploy/slos/slos.yaml:/etc/geordi/slos.yaml:ro
+      - ./deploy/alerts/alert-policies.yaml:/etc/geordi/alert-policies.yaml:ro
     ports:
       - "127.0.0.1:8080:8080"
     restart: unless-stopped

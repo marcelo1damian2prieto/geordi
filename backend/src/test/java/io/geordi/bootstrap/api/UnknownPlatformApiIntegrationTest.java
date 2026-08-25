@@ -23,7 +23,7 @@ import org.springframework.http.ResponseEntity;
         classes = {GeordiApplication.class, UnknownPlatformApiIntegrationTest.UnknownModuleConfiguration.class},
         properties = {"geordi.modules.metrics.enabled=false", "geordi.modules.traces.enabled=false",
             "geordi.modules.logs.enabled=false", "geordi.modules.service-map.enabled=false",
-            "geordi.modules.slos.enabled=false"},
+            "geordi.modules.slos.enabled=false", "geordi.modules.alerts.enabled=false"},
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class UnknownPlatformApiIntegrationTest {
 

@@ -1,6 +1,6 @@
 # Service Investigation Architecture
 
-Status: IMPLEMENTED THROUGH MILESTONE 8 / MILESTONES 7–8 COMPLETE
+Status: IMPLEMENTED THROUGH MILESTONE 8 / MILESTONES 7–8 COMPLETE; M9 READY FOR GITLAB REVALIDATION
 
 ## Scope
 
@@ -109,6 +109,19 @@ M8's burn evidence is nested in that same returned SLO snapshot. It uses no inde
 relative clock or range; the `/slos` action continues to preserve the snapshot's exact
 namespace/name/environment and `[from,to)` range. Investigation does not interpret burn
 rate, calculate budget remaining, or add a duplicate reliability panel.
+
+## M9 Alert Evaluation navigation
+
+M9 is in progress. An enabled Alert Evaluation result consumes the canonical SLO/Burn
+snapshot and its `Investigate service` action constructs this same `/investigate` context
+only from returned namespace, service name, environment, and absolute `[from,to)` range.
+It must not replace that evidence with a relative range. An unavailable enabled result
+retains canonical context when the source SLO/Burn snapshot provides it; a disabled
+policy has no evaluated snapshot and therefore offers no fabricated Investigation link.
+
+Service Investigation remains an investigation destination only. It does not decide
+whether a policy condition is met, deliver notifications, create incidents, or provide
+alert lifecycle controls.
 
 ## Self-observability
 

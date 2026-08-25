@@ -125,10 +125,24 @@ valid-zero and elevated burn evidence, exact-window independent recomputation,
 unavailable semantics, provider failure and recovery, Investigation context, and bounded
 burn telemetry.
 
-## Later — Alerts
+## Milestone 9 — Alert Evaluation Foundation
+
+READY FOR GITLAB REVALIDATION
+
+- read-only deployment-managed policies over canonical M8 burn evidence;
+- one inclusive `BURN_RATE_ABOVE` condition with explainable `CONDITION_MET`,
+  `CONDITION_NOT_MET`, or `UNAVAILABLE` results;
+- exact SLO identity/window evidence and Service Investigation navigation;
+- no notification delivery, page, incident, persistent lifecycle, scheduler, or generic
+  rule engine.
+
+M9 is not complete following implementation alone. Successful mandatory local
+verification can move it only to `READY FOR GITLAB REVALIDATION`; completion requires
+the project owner's confirmation that authoritative GitLab CI is green.
+
+## Later — Notification delivery
 
 DEFERRED
-- threshold alerts;
 - webhook/email notifications.
 
 ## Later

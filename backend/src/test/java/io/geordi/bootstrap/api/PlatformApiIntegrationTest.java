@@ -19,7 +19,7 @@ import org.springframework.http.ResponseEntity;
         classes = GeordiApplication.class,
         properties = {"geordi.modules.metrics.enabled=false", "geordi.modules.traces.enabled=false",
             "geordi.modules.logs.enabled=false", "geordi.modules.service-map.enabled=false",
-            "geordi.modules.slos.enabled=false"},
+            "geordi.modules.slos.enabled=false", "geordi.modules.alerts.enabled=false"},
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class PlatformApiIntegrationTest {
 
@@ -57,7 +57,8 @@ class PlatformApiIntegrationTest {
         assertThat(modulesResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         List<Map<String, Object>> modules = (List<Map<String, Object>>) modulesResponse.getBody().get("modules");
         assertThat(modules).extracting(module -> module.get("id"))
-                .containsExactly("core", "logs", "metrics", "self-observability", "service-map", "slos", "traces");
+                .containsExactly(
+                        "alerts", "core", "logs", "metrics", "self-observability", "service-map", "slos", "traces");
         assertThat(modules).allSatisfy(module -> {
             assertThat(module).containsOnlyKeys("id", "name", "enabled");
         });
@@ -70,6 +71,8 @@ class PlatformApiIntegrationTest {
         assertThat(modules).filteredOn(module -> module.get("id").equals("service-map"))
                 .singleElement().satisfies(module -> assertThat(module).containsEntry("enabled", false));
         assertThat(modules).filteredOn(module -> module.get("id").equals("slos"))
+                .singleElement().satisfies(module -> assertThat(module).containsEntry("enabled", false));
+        assertThat(modules).filteredOn(module -> module.get("id").equals("alerts"))
                 .singleElement().satisfies(module -> assertThat(module).containsEntry("enabled", false));
 
         assertThat(healthResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -85,6 +88,8 @@ class PlatformApiIntegrationTest {
         assertThat(healthModules).filteredOn(module -> module.get("id").equals("service-map"))
                 .singleElement().satisfies(module -> assertThat(module).containsEntry("status", "DISABLED"));
         assertThat(healthModules).filteredOn(module -> module.get("id").equals("slos"))
+                .singleElement().satisfies(module -> assertThat(module).containsEntry("status", "DISABLED"));
+        assertThat(healthModules).filteredOn(module -> module.get("id").equals("alerts"))
                 .singleElement().satisfies(module -> assertThat(module).containsEntry("status", "DISABLED"));
     }
 

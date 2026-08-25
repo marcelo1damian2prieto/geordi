@@ -15,8 +15,9 @@ deployment-managed SLO evaluation foundation after complete local verification,
 independent review, and the project owner's confirmation that the authoritative GitLab
 pipeline is green. Milestone 8 is complete and adds current-window
 error-budget burn evidence to the same SLO snapshots; it does not add budget accounting.
-The broader MVP target remains planned because alert delivery and
-other P1 capabilities are still deferred.
+Milestone 9 is in progress to add stateless alert-condition evaluation, not alert
+delivery. The broader MVP target remains planned because delivery and other P1
+capabilities are still deferred.
 
 ## Goal
 
@@ -39,6 +40,8 @@ P1:
 - SLO evaluation foundation (COMPLETE; no runtime CRUD or alerts);
 - current-window SLO error-budget burn evidence (COMPLETE; no
   compliance-period accounting or alerts);
+- alert-condition evaluation (M9 READY FOR GITLAB REVALIDATION; read-only policies and no notification
+  delivery or lifecycle);
 - basic infrastructure monitoring;
 - threshold alerts;
 - email/webhook notifications.

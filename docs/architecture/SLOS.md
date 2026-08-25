@@ -1,6 +1,6 @@
 # SLO Architecture
 
-Status: MILESTONES 7–8 COMPLETE
+Status: MILESTONES 7–8 COMPLETE; MILESTONE 9 ALERT EVALUATION READY FOR GITLAB REVALIDATION
 
 ## Scope
 
@@ -171,6 +171,20 @@ This is current-window consumption evidence, not error-budget accounting. It mus
 be described as budget remaining, exhausted monthly budget, or compliance-period SLO
 performance. M8 supports no fast/slow multi-window policy, alerts, notifications,
 incidents, history, persistence, or scheduler.
+
+## M9 Alert Evaluation consumption boundary
+
+M9 is in progress and consumes, rather than extends or recalculates, the M8 burn
+snapshot. SLOs remain the sole owner of request-outcome, allowed bad ratio, observed bad
+ratio, burn-rate, evidence availability, identity, and time-window semantics. An
+alerts-owned composition adapter maps that one canonical SLO result into provider-neutral
+alert evidence; it does not issue another provider query or capture another clock.
+
+The initial consumer condition is inclusive `BURN_RATE_ABOVE` (`burnRate >= threshold`).
+An available valid zero burn remains evidence; unavailable M8 burn evidence remains
+unavailable for Alert Evaluation, including `NO_TRAFFIC`, `METRICS_UNAVAILABLE`, and
+`ZERO_ALLOWED_BAD_RATIO`. M9 policy/result semantics, notification delivery, alert
+lifecycle, and incidents are not SLO responsibilities.
 
 ## REST and frontend
 

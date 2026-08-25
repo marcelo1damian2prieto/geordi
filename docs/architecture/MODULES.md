@@ -1,6 +1,6 @@
 # Module Architecture
 
-Status: MILESTONES 1 THROUGH 8 COMPLETE
+Status: MILESTONES 1 THROUGH 8 COMPLETE; MILESTONE 9 READY FOR GITLAB REVALIDATION
 
 ## Initial modules
 
@@ -76,11 +76,26 @@ read-only mounted YAML catalog and cannot be changed through runtime APIs. Burn 
 is derived from the same canonical request outcomes and carries no persistence, scheduler,
 alerting, notification, incident, or long-period-accounting responsibility.
 
+### alerts
+
+Milestone 9 is in progress. The `alerts` compile-time module provides a read-only,
+deployment-managed policy catalog and on-demand, side-effect-free condition evaluation.
+It depends on the enabled `slos` module and consumes M8 burn evidence only through an
+alerts-owned port and an SLO composition adapter. One `BURN_RATE_ABOVE` condition
+compares canonical unrounded burn evidence inclusively with a finite non-negative
+threshold and returns `CONDITION_MET`, `CONDITION_NOT_MET`, or `UNAVAILABLE`.
+
+Evaluations preserve the SLO snapshot's exact identity and range. Burn unavailability
+remains alert unavailability; a disabled policy yields `UNAVAILABLE/DISABLED` without
+invoking the SLO evaluator. The module does not query VictoriaMetrics, calculate burn
+inputs, send notifications, schedule evaluation, store history, or own an incident or
+firing/resolved lifecycle. Catalog changes require restart/redeployment and runtime
+policy mutation is not supported.
+
 ## Planned modules
 
 - apm
 - infrastructure
-- alerts
 - compatibility
 - ai-rca
 
