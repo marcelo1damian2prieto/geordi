@@ -1,6 +1,6 @@
 # Service Investigation Architecture
 
-Status: IMPLEMENTED THROUGH MILESTONE 8 / MILESTONES 7–8 COMPLETE; M9 READY FOR GITLAB REVALIDATION
+Status: IMPLEMENTED THROUGH MILESTONE 9 / MILESTONES 7–9 COMPLETE
 
 ## Scope
 
@@ -112,7 +112,7 @@ rate, calculate budget remaining, or add a duplicate reliability panel.
 
 ## M9 Alert Evaluation navigation
 
-M9 is in progress. An enabled Alert Evaluation result consumes the canonical SLO/Burn
+M9 is complete. An enabled Alert Evaluation result consumes the canonical SLO/Burn
 snapshot and its `Investigate service` action constructs this same `/investigate` context
 only from returned namespace, service name, environment, and absolute `[from,to)` range.
 It must not replace that evidence with a relative range. An unavailable enabled result

@@ -1,6 +1,6 @@
 # Module Architecture
 
-Status: MILESTONES 1 THROUGH 8 COMPLETE; MILESTONE 9 READY FOR GITLAB REVALIDATION
+Status: MILESTONES 1 THROUGH 9 COMPLETE
 
 ## Initial modules
 
@@ -78,7 +78,7 @@ alerting, notification, incident, or long-period-accounting responsibility.
 
 ### alerts
 
-Milestone 9 is in progress. The `alerts` compile-time module provides a read-only,
+Milestone 9 is complete. The `alerts` compile-time module provides a read-only,
 deployment-managed policy catalog and on-demand, side-effect-free condition evaluation.
 It depends on the enabled `slos` module and consumes M8 burn evidence only through an
 alerts-owned port and an SLO composition adapter. One `BURN_RATE_ABOVE` condition

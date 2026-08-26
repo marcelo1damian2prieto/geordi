@@ -1,6 +1,6 @@
 # SLO Architecture
 
-Status: MILESTONES 7–8 COMPLETE; MILESTONE 9 ALERT EVALUATION READY FOR GITLAB REVALIDATION
+Status: MILESTONES 7–9 COMPLETE
 
 ## Scope
 
@@ -174,7 +174,7 @@ incidents, history, persistence, or scheduler.
 
 ## M9 Alert Evaluation consumption boundary
 
-M9 is in progress and consumes, rather than extends or recalculates, the M8 burn
+M9 is complete and consumes, rather than extends or recalculates, the M8 burn
 snapshot. SLOs remain the sole owner of request-outcome, allowed bad ratio, observed bad
 ratio, burn-rate, evidence availability, identity, and time-window semantics. An
 alerts-owned composition adapter maps that one canonical SLO result into provider-neutral

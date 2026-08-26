@@ -1,6 +1,6 @@
 # Alert Evaluation Architecture
 
-Status: MILESTONE 9 READY FOR GITLAB REVALIDATION
+Status: MILESTONE 9 COMPLETE
 
 ## Scope
 
@@ -91,3 +91,16 @@ syntax/payloads, and exception text are excluded.
 The 50-policy cap, one condition type, single inherited window, per-policy on-demand
 endpoint, and lack of persistence/background work keep evaluation bounded. The alerts
 module health check verifies catalog/evidence wiring and issues no provider probe.
+
+## Authoritative validation
+
+The authoritative GitLab pipeline passed the Service Map, SLO, Burn Rate, and Alert
+Evaluation gates. M9 ran
+`pwsh -File ./scripts/verify-alert-evaluation.ps1 -TimeoutSeconds 150` and verified the
+catalog, self-contained traffic, independent exact-window zero/not-met and elevated/met
+comparison evidence, disabled/no-traffic/zero-budget behavior, identity/range/threshold
+preservation, provider-neutral API, Investigation context, and bounded telemetry.
+
+The Burn Rate gate owns the relevant VictoriaMetrics outage/recovery exercise. Alert
+Evaluation consumes that canonical boundary, so its smoke intentionally avoids a second
+expensive outage scenario.

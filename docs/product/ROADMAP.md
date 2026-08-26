@@ -127,7 +127,7 @@ burn telemetry.
 
 ## Milestone 9 — Alert Evaluation Foundation
 
-READY FOR GITLAB REVALIDATION
+COMPLETE
 
 - read-only deployment-managed policies over canonical M8 burn evidence;
 - one inclusive `BURN_RATE_ABOVE` condition with explainable `CONDITION_MET`,
@@ -136,9 +136,11 @@ READY FOR GITLAB REVALIDATION
 - no notification delivery, page, incident, persistent lifecycle, scheduler, or generic
   rule engine.
 
-M9 is not complete following implementation alone. Successful mandatory local
-verification can move it only to `READY FOR GITLAB REVALIDATION`; completion requires
-the project owner's confirmation that authoritative GitLab CI is green.
+Mandatory local verification and independent review passed without a remaining BLOCKER
+or HIGH finding. The authoritative GitLab pipeline passed the Service Map, SLO, Burn
+Rate, and Alert Evaluation verification chain. The M9 smoke intentionally reuses the
+Burn Rate gate's VictoriaMetrics outage/recovery evidence instead of duplicating that
+expensive scenario.
 
 ## Later — Notification delivery
 

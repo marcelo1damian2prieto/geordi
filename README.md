@@ -165,7 +165,7 @@ scheduler.
 
 ## Milestone 9 — Alert Evaluation Foundation
 
-**READY FOR GITLAB REVALIDATION.** M9 adds a small, on-demand Alert Evaluation capability over M8's
+**COMPLETE.** M9 adds a small, on-demand Alert Evaluation capability over M8's
 canonical burn evidence. A read-only deployment-managed policy names one referenced SLO
 and one `BURN_RATE_ABOVE` threshold. Canonical `burnRate >= threshold` is
 `CONDITION_MET`; a lower available value is `CONDITION_NOT_MET`; unavailable burn
@@ -174,10 +174,9 @@ absence of evidence.
 
 This is neither notification delivery nor an alert lifecycle: it does not page anyone,
 send email/webhooks, create incidents, acknowledge or silence anything, schedule
-evaluations, store history, or accept arbitrary provider queries. M9 remains **IN
-PROGRESS** until mandatory local verification and independent review pass. It may then
-move only to **READY FOR GITLAB REVALIDATION**; only the project owner may mark it
-**COMPLETE** after authoritative GitLab CI is green.
+evaluations, store history, or accept arbitrary provider queries. Mandatory local
+verification and independent review passed without a remaining BLOCKER or HIGH finding,
+and the authoritative GitLab revalidation is green.
 
 ## Current capabilities
 
@@ -200,7 +199,7 @@ move only to **READY FOR GITLAB REVALIDATION**; only the project owner may mark 
 - **Current-window error-budget burn (M8 complete):** the same SLO snapshot exposes
   allowed bad-event ratio, observed bad-event ratio, and finite burn evidence when
   valid; it is not compliance-period budget accounting.
-- **Alert Evaluation (M9 in progress):** read-only policy plus canonical burn evidence
+- **Alert Evaluation (M9 complete):** read-only policy plus canonical burn evidence
   produces one explainable stateless condition result; it does not deliver a
   notification or create an incident.
 
@@ -288,8 +287,19 @@ unavailable cases, and checks Investigation navigation and bounded alert telemet
 does not repeat the provider outage exercised by the M8 smoke.
 
 ```powershell
-.\scripts\verify-alert-evaluation.ps1
+pwsh -File ./scripts/verify-alert-evaluation.ps1 -TimeoutSeconds 150
 ```
+
+The authoritative GitLab run passed with:
+
+> PASS: Alert policy catalog, self-contained traffic generation, independent exact-window
+> zero/not-met and elevated/met comparator evidence, disabled/no-traffic/zero-budget
+> semantics, identity/range/threshold preservation, provider-neutral API, frontend
+> Investigation context, and bounded self-observability verified.
+
+The preceding Service Map, SLO, and Burn Rate gates also passed. The Burn Rate gate is
+the authoritative exercise of VictoriaMetrics outage and recovery, so the M9 smoke
+intentionally does not duplicate that expensive scenario.
 
 M8 is **COMPLETE**. Its complete local CI-equivalent verification and independent review
 passed without a remaining BLOCKER or HIGH finding. The authoritative GitLab pipeline
@@ -320,15 +330,19 @@ PowerShell 7, outbound image access, and the fixed local ports available. The in
 job is serialized by a resource group and runs the self-observability, Metrics, Traces,
 Logs, Service Map, SLO, and burn-rate semantic smokes in that order.
 M9's authoritative Alert Evaluation smoke follows the burn-rate smoke. It also passes
-independently on a fresh stack and is ready for authoritative GitLab revalidation.
+independently on a fresh stack, and the authoritative GitLab revalidation is green.
 
-Milestones 1 / 1.1 and 2 through 8 are complete. Milestone 7 passed complete local
+Milestones 1 / 1.1 and 2 through 9 are complete. Milestone 7 passed complete local
 verification and independent review without a remaining BLOCKER or HIGH finding. Its
 SLO semantic smoke runs after the five existing regression smokes in the authoritative
 GitLab integration gate, and the project owner confirmed that pipeline green.
 
 M8's burn-rate smoke follows the M7 smoke in the same job. M8 is **COMPLETE** after all
 mandatory local gates, independent review, and the authoritative GitLab pipeline passed.
+
+M9 is **COMPLETE** after its mandatory local gates, independent review, and the
+authoritative GitLab pipeline passed the Service Map, SLO, Burn Rate, and Alert
+Evaluation verification chain.
 
 ## Documentation
 

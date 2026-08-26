@@ -1,6 +1,6 @@
 # Architecture
 
-Status: MILESTONES 1 THROUGH 8 COMPLETE; MILESTONE 9 READY FOR GITLAB REVALIDATION
+Status: MILESTONES 1 THROUGH 9 COMPLETE
 
 ## Initial style
 
@@ -127,7 +127,7 @@ React /alert-evaluations <- read-only REST <- exact SLO/Burn composition -- SLO 
           `-- exact identity and [from,to) --> existing /investigate
 ```
 
-M9 is in progress. The `alerts` logical bounded context owns policy validation and the
+M9 is complete. The `alerts` logical bounded context owns policy validation and the
 stateless condition comparison; it consumes canonical burn evidence through an
 alerts-owned port. The SLO composition adapter is the only alert-side code that refers
 to the SLO boundary. Alert domain/application code has no Metrics, VictoriaMetrics,
@@ -159,7 +159,7 @@ Geordi Platform
     +-- Traces (implemented)
     +-- Service Map (implemented; Milestone 6 complete; trace-derived, no storage)
     +-- SLOs (Milestones 7–8 complete; Metrics-derived)
-    +-- Alerts (Milestone 9 in progress; SLO/Burn-derived evaluation)
+    +-- Alerts (Milestone 9 complete; SLO/Burn-derived evaluation)
     +-- APM (planned)
     +-- Compatibility (planned)
 ```

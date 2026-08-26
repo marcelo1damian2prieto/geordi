@@ -1,6 +1,6 @@
 # Geordi Product Requirements Document
 
-Status: MILESTONES 1 THROUGH 8 COMPLETE; MILESTONE 9 READY FOR GITLAB REVALIDATION
+Status: MILESTONES 1 THROUGH 9 COMPLETE
 
 ## Vision
 
@@ -248,7 +248,7 @@ self-observability.
 
 ## Milestone 9 scope
 
-Status: READY FOR GITLAB REVALIDATION
+Status: COMPLETE
 
 M9 adds the smallest stateless Alert Evaluation boundary over canonical M8 burn
 evidence. A deployment-managed read-only policy references an SLO and has one inclusive
@@ -268,6 +268,7 @@ M9 adds no notification delivery, pages, email/webhooks, routing, escalation,
 acknowledgement, silencing, maintenance windows, incidents, persistent firing/resolved
 lifecycle, history, scheduler, policy CRUD/reload, generic expressions, arbitrary
 PromQL/MetricsQL/TraceQL/LogQL, topology inhibition, multi-window paging, storage, or
-Milestone 10 work. All mandatory local verification and independent review passed, so
-it is `READY FOR GITLAB REVALIDATION` pending the project owner's authoritative GitLab
-CI confirmation.
+Milestone 10 work. All mandatory local verification and independent review passed with
+no remaining BLOCKER or HIGH finding. The authoritative GitLab pipeline passed the
+preceding Service Map, SLO, and Burn Rate gates and the M9 Alert Evaluation semantic
+smoke, so M9 is `COMPLETE`.

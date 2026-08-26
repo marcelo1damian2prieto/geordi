@@ -184,7 +184,7 @@ bounded telemetry together with isolated valid-zero and elevated burn evidence,
 unavailable semantics, provider failure and recovery, exact-window independent
 recomputation, and Investigation context.
 
-## Milestone 9 in-progress additions
+## Milestone 9 additions
 
 Alert Evaluation records only bounded platform telemetry for on-demand evaluation
 attempts, results, unexpected failures, and duration. Its permitted attributes are the
@@ -194,9 +194,9 @@ range, provider syntax/payloads, and exception text are excluded.
 
 The alerts module validates catalog/evidence wiring without a separate provider probe.
 Metrics provider failures continue through canonical SLO/Burn evidence and are alert
-`UNAVAILABLE`; no notification, queue, or scheduler telemetry is introduced. M9 is **IN
-PROGRESS**: its dedicated semantic smoke and CI placement are not evidence of completion
-until all mandatory verification and authoritative GitLab revalidation are complete.
+`UNAVAILABLE`; no notification, queue, or scheduler telemetry is introduced. M9 is
+**COMPLETE** after mandatory verification, independent review, and authoritative GitLab
+revalidation passed with no remaining BLOCKER or HIGH finding.
 
 ## Future health indicators
 

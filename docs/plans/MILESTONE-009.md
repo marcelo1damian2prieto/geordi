@@ -1,6 +1,6 @@
 # Milestone 009 — Alert Evaluation Foundation
 
-Status: READY FOR GITLAB REVALIDATION
+Status: COMPLETE
 
 ## Objective
 
@@ -108,6 +108,26 @@ Alert telemetry is limited to closed condition type, result status, and optional
 reason. Policy/SLO ids and names, service identity, threshold, observed value, timestamps,
 provider expressions, payloads, and exception text are never telemetry attributes.
 
+## Authoritative GitLab revalidation
+
+The authoritative GitLab pipeline passed the preceding Service Map, SLO, and Burn Rate
+gates and then the M9 command:
+
+```powershell
+pwsh -File ./scripts/verify-alert-evaluation.ps1 -TimeoutSeconds 150
+```
+
+Its semantic result was:
+
+> PASS: Alert policy catalog, self-contained traffic generation, independent exact-window
+> zero/not-met and elevated/met comparator evidence, disabled/no-traffic/zero-budget
+> semantics, identity/range/threshold preservation, provider-neutral API, frontend
+> Investigation context, and bounded self-observability verified.
+
+The preceding Burn Rate gate already validates the relevant VictoriaMetrics outage and
+recovery behavior. M9 intentionally composes that proven capability and does not repeat
+the expensive provider-outage scenario in its own smoke.
+
 ## Explicit non-goals
 
 No notification delivery or provider, routing, retry queue, templates, on-call or
@@ -117,9 +137,10 @@ rule engine or expression language, arbitrary PromQL/MetricsQL/TraceQL/LogQL, co
 signal, anomaly/AI/RCA behavior, automatic remediation, topology inhibition, multi-window
 burn paging, new telemetry storage, or Milestone 10 work.
 
-## Status rule
+## Closure
 
-Successful mandatory local verification can move this plan only to
-`READY FOR GITLAB REVALIDATION`. Milestone 9 must not be marked `COMPLETE` until the
-project owner explicitly confirms the authoritative GitLab pipeline is green. Any
-mandatory verification failure leaves the milestone `NOT READY`.
+Milestone 9 is **COMPLETE**. Mandatory local verification and independent review passed
+with no remaining BLOCKER or HIGH finding, and the project owner confirmed the
+authoritative GitLab pipeline is green. The delivered scope remains the bounded,
+provider-neutral, stateless Alert Evaluation foundation described above; none of the
+explicit non-goals became part of M9.
