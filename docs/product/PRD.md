@@ -1,6 +1,6 @@
 # Geordi Product Requirements Document
 
-Status: MILESTONES 1 THROUGH 9 COMPLETE
+Status: MILESTONES 1 THROUGH 10 COMPLETE
 
 ## Vision
 
@@ -275,7 +275,7 @@ smoke, so M9 is `COMPLETE`.
 
 ## Milestone 10 scope
 
-Status: READY FOR GITLAB REVALIDATION
+Status: COMPLETE
 
 M10 extends the existing alerts bounded context with durable current state. An explicit
 POST command consumes the canonical M9 result exactly once and applies the closed
@@ -291,4 +291,6 @@ state separately from M9 condition evidence and preserves exact Investigation co
 
 M10 adds no scheduler, transition history, episode model, outbox, notification,
 routing, retry, acknowledgement, silence, escalation, maintenance window, or incident.
-It cannot become complete until the authoritative GitLab pipeline is revalidated.
+The authoritative GitLab semantic chain passed M8 Burn Rate, M9 Alert Evaluation, and
+M10 Alert Lifecycle after checking out the Alert Lifecycle Persistence Health fix at
+commit `4a81d9f8`. No BLOCKER or HIGH finding remains. Milestone 11 has not started.

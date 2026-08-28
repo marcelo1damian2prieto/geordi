@@ -1,6 +1,6 @@
 # Module Architecture
 
-Status: MILESTONES 1 THROUGH 9 COMPLETE
+Status: MILESTONES 1 THROUGH 10 COMPLETE
 
 ## Initial modules
 
@@ -78,7 +78,7 @@ alerting, notification, incident, or long-period-accounting responsibility.
 
 ### alerts
 
-Milestone 9 is complete and Milestone 10 is ready for GitLab revalidation. The `alerts` compile-time
+Milestones 9 and 10 are complete. The `alerts` compile-time
 module provides a read-only, deployment-managed policy catalog, on-demand stateless
 condition evaluation, and an explicit durable lifecycle command.
 It depends on the enabled `slos` module and consumes M8 burn evidence only through an

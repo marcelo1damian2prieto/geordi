@@ -1,8 +1,10 @@
 openapi: 3.1.0
 info:
   title: Geordi Platform API
-  version: milestone-9
-  description: Platform APIs and bounded Metrics, Traces, Logs, observed Service Map, SLO, Burn Rate, and stateless Alert Evaluation capabilities.
+  version: milestone-10
+  description: >-
+    Platform APIs and bounded Metrics, Traces, Logs, observed Service Map, SLO, Burn
+    Rate, stateless Alert Evaluation, and durable current Alert Lifecycle capabilities.
 servers:
   - url: http://localhost:8080
 paths:
@@ -431,11 +433,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/AlertEvaluation'
         '404':
-          description: The capability is disabled or the policy identifier is not configured.
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
+          description: >-
+            The policy identifier is not configured, or the capability is disabled and
+            the controller route is absent. A response body is not guaranteed for the
+            disabled-route case.
   /api/alert-policies/{policyId}/lifecycle-evaluations:
     post:
       operationId: evaluateAlertLifecycle
@@ -455,11 +456,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/AlertLifecycleEvaluationResult'
         '404':
-          description: The capability is disabled or the policy identifier is not configured.
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
+          description: >-
+            The policy identifier is not configured, or the capability is disabled and
+            the controller route is absent. A response body is not guaranteed for the
+            disabled-route case.
         '409':
           description: Persisted lifecycle identity conflicts with the configured policy or canonical evidence.
           content:

@@ -1,6 +1,6 @@
 # Milestone 010 — Alert Lifecycle Foundation
 
-Status: READY FOR GITLAB REVALIDATION
+Status: COMPLETE
 
 ## Objective
 
@@ -8,8 +8,9 @@ Add the smallest durable, explainable lifecycle layer over the canonical M9 Aler
 Evaluation result. M10 answers whether an operational alert state changed; it does
 not change how a policy is evaluated, deliver a notification, or manage an incident.
 
-M10 is not complete until the project owner confirms the authoritative GitLab CI
-pipeline is green. Local success may result only in **READY FOR GITLAB REVALIDATION**.
+M10 completion requires the authoritative GitLab semantic pipeline to be green in
+addition to local implementation and verification. That requirement is satisfied by
+the closure evidence recorded below.
 
 ## Reconciled decision
 
@@ -210,3 +211,19 @@ navigation. It does not become alert management or alert history.
 8. Update architecture, API, product, startup, deployment, and technical-debt
    documentation in step with implementation; obtain independent review and fix every
    BLOCKER/HIGH finding.
+
+## Closure
+
+- Implementation is complete, including the Alert Lifecycle Persistence Health fix.
+- The authoritative GitLab `local_stack_smoke` job checked out commit `4a81d9f8` and
+  passed the required semantic validation chain.
+- The M9 Alert Evaluation and M10 Alert Lifecycle semantic smokes passed; the preceding
+  M8 Burn Rate smoke also remained green.
+- The M10 smoke passed durable lifecycle transitions, exact canonical evidence,
+  restart survival, firing-state unavailability freeze, disabled unavailability, its
+  independent provider oracle, Investigation context, and bounded telemetry.
+- Backend verification is green with 214 tests plus ArchUnit, PMD, SpotBugs, and Find
+  Security Bugs.
+- No BLOCKER or HIGH finding remains.
+- Milestone 11 has not started. Scheduler, lifecycle history, notifications, incidents,
+  multi-node guarantees, and exactly-once delivery remain outside M10.

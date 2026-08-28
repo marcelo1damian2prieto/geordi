@@ -222,3 +222,46 @@ This debt is not a defect in Milestone 1.1. The milestone remains successfully c
   the capability, conditionally own DataSource/Flyway infrastructure without changing
   startup order or migration guarantees for enabled Alerts.
 - **Priority:** Medium
+
+## Alert lifecycle persistence health probe is read-only
+
+- **Status:** Pending / Non-blocking
+- **Detected in:** Milestone 10 persistence-health validation
+- **Description:** The Alerts health check uses a bounded read-only lifecycle
+  persistence probe. It verifies connectivity, schema presence, and read access while
+  Alerts is enabled; disabling Alerts skips the lifecycle persistence health
+  requirement.
+- **Current impact:** Persistence/schema/read unavailability correctly drives Alerts
+  health and platform readiness `DOWN`, but the probe does not prove every possible
+  write-path failure mode.
+- **Follow-up:** Reassess write-path health evidence only if operational incidents or a
+  future external store justify it. Do not infer write availability from the current
+  probe.
+- **Priority:** Low
+
+## GitLab Compose diagnostic log size
+
+- **Status:** Pending / Non-blocking
+- **Detected in:** Milestone 10 authoritative GitLab semantic revalidation
+- **Description:** The integration job's `after_script` collects full
+  `docker compose logs --no-color`. That diagnostic output can exceed GitLab's 4 MiB
+  job-log limit.
+- **Current impact:** The semantic M10 PASS occurs before `after_script` diagnostic
+  collection, so oversized diagnostic output does not invalidate the completed semantic
+  assertions. It can truncate or obscure the final job log.
+- **Follow-up:** Bound diagnostics with `--tail`, select only relevant services, or
+  publish full logs as artifacts.
+- **Priority:** Low
+
+## Alerts module display name
+
+- **Status:** Pending / Non-blocking
+- **Detected in:** Milestone 10 documentation closure
+- **Description:** `AlertsPlatformModule` still exposes the display name
+  `Alert Evaluation` although the module now also owns the M10 Alert Lifecycle
+  foundation.
+- **Current impact:** Module identity and behavior are unaffected; only operator-facing
+  inventory/health display metadata is narrower than the delivered capability.
+- **Follow-up:** Reconcile the display name in a future product-code change with its
+  focused tests. Do not change production code during M10 documentation closure.
+- **Priority:** Low

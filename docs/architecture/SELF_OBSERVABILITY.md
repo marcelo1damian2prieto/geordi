@@ -207,8 +207,12 @@ provider syntax/payloads, database contents, and exception text are excluded.
 
 Persistence failures and exhausted optimistic retries are controlled failures and are
 observable without leaking storage details. The lifecycle smoke verifies metric names
-and label allowlists. M10 adds no scheduler, queue, notification, or incident telemetry
-because those components do not exist.
+and label allowlists. While Alerts is enabled, its bounded read-only persistence probe
+makes Alerts health and platform readiness `DOWN` when lifecycle connectivity, schema,
+or read access is unavailable; disabling Alerts skips that requirement. The probe does
+not prove every write path. M10 is **COMPLETE** after authoritative GitLab semantic
+revalidation passed with no remaining BLOCKER or HIGH finding. It adds no scheduler,
+queue, notification, or incident telemetry because those components do not exist.
 
 ## Future health indicators
 

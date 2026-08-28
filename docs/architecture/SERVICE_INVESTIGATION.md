@@ -1,6 +1,6 @@
 # Service Investigation Architecture
 
-Status: IMPLEMENTED THROUGH MILESTONE 9 / MILESTONES 7–9 COMPLETE
+Status: IMPLEMENTED THROUGH MILESTONE 10 / MILESTONES 7–10 COMPLETE
 
 ## Scope
 
@@ -121,7 +121,7 @@ policy has no evaluated snapshot and therefore offers no fabricated Investigatio
 
 Service Investigation remains an investigation destination only. It does not decide
 whether a policy condition is met, deliver notifications, create incidents, or provide
-alert lifecycle controls. M10 may expose the same exact canonical evidence link from a
+alert lifecycle controls. M10 exposes the same exact canonical evidence link from a
 current lifecycle record; Investigation still neither mutates lifecycle state nor
 interprets `FIRING`, `INACTIVE`, `ALERT_STARTED`, or `ALERT_RESOLVED`.
 

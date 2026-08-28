@@ -144,7 +144,7 @@ expensive scenario.
 
 ## Milestone 10 — Alert Lifecycle Foundation
 
-READY FOR GITLAB REVALIDATION
+COMPLETE
 
 - durable single-node `INACTIVE`/`FIRING` state over canonical M9 evaluation;
 - explicit state-changing POST and side-effect-free current-state GET;
@@ -154,8 +154,12 @@ READY FOR GITLAB REVALIDATION
   Investigation context, and bounded self-observability;
 - no scheduler, history, delivery, acknowledgement, silencing, or incident workflow.
 
-Local implementation and verification do not mark this milestone complete; the maximum
-pre-pipeline status is `READY FOR GITLAB REVALIDATION`.
+The Alert Lifecycle Persistence Health fix is complete. The authoritative GitLab
+semantic chain checked out commit `4a81d9f8` and passed the M8 Burn Rate, M9 Alert
+Evaluation, and M10 Alert Lifecycle smokes with no remaining BLOCKER or HIGH finding.
+
+Milestone 11 is NOT STARTED. Notification delivery and the other capabilities excluded
+above remain deferred.
 
 ## Later — Notification delivery
 

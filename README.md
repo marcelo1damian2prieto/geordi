@@ -180,7 +180,7 @@ and the authoritative GitLab revalidation is green.
 
 ## Milestone 10 — Alert Lifecycle Foundation
 
-**READY FOR GITLAB REVALIDATION.** M10 adds a durable `INACTIVE`/`FIRING` state machine over the canonical
+**COMPLETE.** M10 adds a durable `INACTIVE`/`FIRING` state machine over the canonical
 M9 result. `POST /api/alert-policies/{policyId}/lifecycle-evaluations` explicitly
 evaluates and persists one policy; `GET /api/alert-states` reads current state without
 evaluating providers or mutating state. Only `ALERT_STARTED` and `ALERT_RESOLVED` are
@@ -192,6 +192,11 @@ compare-and-set updates, monotonic evidence time, and immutable policy/evidence 
 prevent duplicate or cross-policy transitions on the supported single-node runtime.
 This is current lifecycle state, not history, notification delivery, scheduling,
 acknowledgement, silencing, or incident management.
+
+The authoritative GitLab semantic chain passed M8 Burn Rate, M9 Alert Evaluation, and
+M10 Alert Lifecycle after checking out the Alert Lifecycle Persistence Health fix at
+commit `4a81d9f8`. No BLOCKER or HIGH finding remains. Milestone 11 is not started, and
+future notification delivery remains deferred.
 
 ## Current capabilities
 
@@ -217,7 +222,7 @@ acknowledgement, silencing, or incident management.
 - **Alert Evaluation (M9 complete):** read-only policy plus canonical burn evidence
   produces one explainable stateless condition result; it does not deliver a
   notification or create an incident.
-- **Alert lifecycle (M10 ready for GitLab revalidation):** explicit evaluation commands persist current
+- **Alert lifecycle (M10 complete):** explicit evaluation commands persist current
   `INACTIVE`/`FIRING` state and the latest canonical transition in the single-node
   runtime; no background evaluation or delivery is implied.
 
@@ -358,10 +363,10 @@ job is serialized by a resource group and runs the self-observability, Metrics, 
 Logs, Service Map, SLO, and burn-rate semantic smokes in that order.
 M9's authoritative Alert Evaluation smoke follows the burn-rate smoke. It also passes
 independently on a fresh stack, and the authoritative GitLab revalidation is green.
-The M10 lifecycle smoke is configured immediately after M9 and starts from the fresh
-named lifecycle volume created by the integration job.
+The M10 lifecycle smoke runs immediately after M9 and starts from the fresh named
+lifecycle volume created by the integration job. The authoritative run passed.
 
-Milestones 1 / 1.1 and 2 through 9 are complete. Milestone 7 passed complete local
+Milestones 1 / 1.1 and 2 through 10 are complete. Milestone 7 passed complete local
 verification and independent review without a remaining BLOCKER or HIGH finding. Its
 SLO semantic smoke runs after the five existing regression smokes in the authoritative
 GitLab integration gate, and the project owner confirmed that pipeline green.
@@ -372,6 +377,9 @@ mandatory local gates, independent review, and the authoritative GitLab pipeline
 M9 is **COMPLETE** after its mandatory local gates, independent review, and the
 authoritative GitLab pipeline passed the Service Map, SLO, Burn Rate, and Alert
 Evaluation verification chain.
+
+M10 is **COMPLETE** after the Alert Lifecycle Persistence Health fix and authoritative
+GitLab semantic revalidation passed. Milestone 11 is **NOT STARTED**.
 
 ## Documentation
 

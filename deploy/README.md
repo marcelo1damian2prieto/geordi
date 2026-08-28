@@ -1,8 +1,10 @@
 # Local deployment
 
-The Milestone 7 local runtime runs the frontend, backend, two monitored demo applications, OpenTelemetry
-Collector, VictoriaMetrics, Grafana Tempo, and Grafana Loki single-node storage with
-Docker Compose. It has no Kubernetes or production multi-node storage cluster.
+The Milestone 10 local runtime runs the frontend, backend, two monitored demo
+applications, OpenTelemetry Collector, VictoriaMetrics, Grafana Tempo, and Grafana Loki
+single-node storage with Docker Compose. The enabled SLO and Alerts modules provide
+deployment-managed definitions, on-demand Alert Evaluation, and explicit durable Alert
+Lifecycle processing. It has no Kubernetes or production multi-node storage cluster.
 
 ## Start
 
@@ -50,12 +52,20 @@ and the OpenTelemetry Java Agent derives `service.version` from the same artifac
 Compose translates the `.env` self-observability toggle into Spring's JSON property
 form so the generic configuration map retains the stable hyphenated module ID.
 
-Compose also enables the `slos` module and mounts `deploy/slos/slos.yaml` read-only at
+Compose enables the `slos` and `alerts` modules. It mounts `deploy/slos/slos.yaml` read-only at
 `/etc/geordi/slos.yaml` through Spring's additional configuration location. The file is
 the durable definition source for the local deployment and currently provides three
 deterministic smoke definitions. The backend validates at most 50 definitions at
 startup. Editing the catalog requires backend restart/redeployment; there is no runtime
 CRUD or dynamic reload.
+
+The deployment also mounts `deploy/alerts/alert-policies.yaml` read-only at
+`/etc/geordi/alert-policies.yaml`. Alert Lifecycle current state is stored in file-backed
+H2 under `/var/lib/geordi/alerts`, backed by the named `alert-lifecycle-data` volume and
+versioned with Flyway. Lifecycle state survives backend/container restart while that
+volume is retained. Removing the volume explicitly resets lifecycle state. This is a
+single-node local-development persistence design; it makes no production multi-node,
+distributed-consensus, or exactly-once delivery guarantee.
 
 ## Verify
 
@@ -88,6 +98,8 @@ Or run the automated end-to-end check:
 .\scripts\verify-service-map.ps1
 .\scripts\verify-slos.ps1
 .\scripts\verify-burn-rate.ps1 -ExerciseProviderFailure
+pwsh -File ./scripts/verify-alert-evaluation.ps1 -TimeoutSeconds 150
+pwsh -File ./scripts/verify-alert-lifecycle.ps1 -TimeoutSeconds 240
 ```
 
 The OpenTelemetry smoke check requires the Collector's backend `service.version` to
@@ -120,8 +132,33 @@ and then controlled finite-budget burn above one. It independently recomputes th
 whole-window evidence from VictoriaMetrics, verifies zero-budget and no-traffic
 semantics, and performs the single provider-failure/recovery exercise for the complete
 SLO/Burn integration sequence.
-Milestone 7's complete local execution and independent review passed, and the project
-owner confirmed the authoritative GitLab pipeline green.
+
+Run the Alert Evaluation smoke after Burn Rate. It generates isolated traffic,
+independently checks the exact-window canonical burn evidence and inclusive condition,
+and verifies unavailable behavior, Investigation context, and bounded telemetry without
+creating lifecycle state.
+
+Run the Alert Lifecycle smoke after Alert Evaluation. It drives explicit lifecycle POST
+commands and verifies current state, canonical start/resolution transitions, restart
+durability, unavailable/disabled freezing, exact evidence and Investigation context,
+and bounded telemetry. It does not schedule evaluation or deliver notifications.
+
+The full M10 lifecycle smoke requires a fresh lifecycle volume so prior durable state
+cannot contaminate its isolated oracle. Before starting the stack for that run, stop the
+project-scoped Compose stack and remove its volumes, then start a new stack. This deletes
+all named local Compose data, so use it only for an intentionally disposable smoke
+environment:
+
+```powershell
+docker compose down --volumes --remove-orphans
+docker compose up --build -d
+pwsh -File ./scripts/verify-alert-evaluation.ps1 -TimeoutSeconds 150
+pwsh -File ./scripts/verify-alert-lifecycle.ps1 -TimeoutSeconds 240
+```
+
+The running lifecycle smoke never removes a live volume and there is no reset endpoint.
+The authoritative GitLab integration job provides the same fresh-volume prerequisite,
+runs M10 after M9, and passed the complete semantic chain.
 
 ## GitLab runner
 

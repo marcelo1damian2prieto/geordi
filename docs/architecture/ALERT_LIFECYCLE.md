@@ -1,6 +1,6 @@
 # Alert Lifecycle Architecture
 
-Status: MILESTONE 10 READY FOR GITLAB REVALIDATION
+Status: MILESTONE 10 COMPLETE
 
 ## Scope
 
@@ -143,7 +143,12 @@ deferred. This keeps current semantics bounded and makes smoke evidence determin
 
 ## Observability and validation
 
-While Alerts is enabled, module health runs a bounded, read-only lifecycle persistence probe. Store or schema unavailability makes Alerts health and platform readiness `DOWN`; disabling Alerts skips this probe.
+While Alerts is enabled, module health runs a bounded, read-only lifecycle persistence
+probe. Persistence connectivity, schema, or read-access unavailability makes Alerts
+health and platform readiness `DOWN`. Disabling Alerts skips the Alerts persistence
+health requirement. The probe is intentionally read-only: it verifies the lifecycle
+store can be reached and its schema can be read, but does not claim that every write-path
+failure mode is available.
 
 Lifecycle self-observability uses bounded result/transition/outcome labels only. It
 never labels by policy, SLO, service, namespace, environment, timestamp, evidence
@@ -165,3 +170,7 @@ the stack with Compose `down --volumes`. The smoke runs after the M9 smoke in
 authoritative GitLab CI, and existing smokes remain mandatory. Notification delivery,
 incident management, and scheduler coverage are intentionally absent because those
 capabilities are not implemented.
+
+The authoritative GitLab semantic chain passed the M9 Alert Evaluation and M10 Alert
+Lifecycle smokes after checking out commit `4a81d9f8`, including the persistence-health
+fix. No BLOCKER or HIGH finding remains; M11 has not started.

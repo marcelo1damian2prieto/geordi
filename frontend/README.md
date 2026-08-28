@@ -2,8 +2,10 @@
 
 React application for the Geordi platform overview and bounded Metrics, Traces, and
 Logs vertical slices, the lightweight `/investigate` workflow, the trace-derived
-`/service-map` workflow, and the completed Milestone 7 `/slos` foundation. Service
-Investigation composes all three signal APIs with one canonical service identity and
+`/service-map` workflow, the completed Milestones 7–8 `/slos` foundation, and the
+completed M9 Alert Evaluation and M10 Alert Lifecycle experience at
+`/alert-evaluations`. Service Investigation composes all three signal APIs with one
+canonical service identity and
 absolute range, isolates partial failures, and returns from Trace Detail without losing
 context. Trace Detail opens related Logs only when valid carried context is available.
 Service Map is a bounded observed-dependency view for one exact environment and range;
@@ -19,6 +21,25 @@ bounded unavailable reasons. Disabled definitions are shown without a query. Eva
 query keys include every definition identity/semantic field, and Investigation links use
 the evaluation response's exact service identity and absolute range. The catalog limit
 of 50 bounds the current per-row query fan-out.
+
+`/alert-evaluations` is the implemented alert route for both milestones. M9 contributes
+the canonical condition result—`CONDITION_MET`, `CONDITION_NOT_MET`, or `UNAVAILABLE`—
+with its bounded reason and exact evidence. M10 adds current `INACTIVE`/`FIRING`
+lifecycle state, an explicit “Evaluate now” command, and nullable
+`ALERT_STARTED`/`ALERT_RESOLVED` transition presentation. The page keeps condition
+evaluation, lifecycle state, and transition as separate concepts. Investigation
+navigation uses only the canonical service identity and exact evidence range, including
+retained firing evidence when the latest evaluation is unavailable.
+
+The corresponding implemented API routes remain distinct: M9's side-effect-free
+`GET /api/alert-policies/{policyId}/evaluation`, M10's explicit state-changing
+`POST /api/alert-policies/{policyId}/lifecycle-evaluations`, and M10's read-only
+`GET /api/alert-states`. The current page reads lifecycle snapshots and renders the
+nested/latest M9 condition evidence without presenting it as lifecycle state.
+
+The frontend has no scheduler, notification delivery, incident, acknowledgement,
+silencing, or related management UI. A transition is not presented as a delivered
+notification or incident event.
 
 ## Local development
 
