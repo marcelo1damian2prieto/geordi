@@ -205,3 +205,36 @@ It must:
 - expose its own health/telemetry where applicable;
 - update relevant documentation;
 - pass independent review.
+
+## Caveman Skills
+
+Caveman skills are available in this repository's Codex environment.
+
+Use Caveman selectively when it materially improves the task.
+
+Default engineering workflow where applicable:
+
+investigate-first
+→ caveman-explore
+→ implementation using surgical-patch principles
+→ caveman-evidence-review
+→ caveman-review
+→ verify-and-stop
+→ caveman-commit
+
+Rules:
+
+- Never invoke skills mechanically just because they are installed.
+- Prefer investigate-first before non-trivial changes.
+- Prefer surgical-patch for bounded fixes and milestone closure work.
+- Use safe-refactor only for genuine refactoring tasks.
+- Use migration only for actual migrations.
+- Use lean-build only when appropriate to the implementation task.
+- Use cavecrew when multi-agent orchestration materially helps.
+- Use caveman-evidence-review when claims must be validated against evidence.
+- Use caveman-review before completing substantial changes.
+- Use verify-and-stop to prevent scope creep after the requested goal is satisfied.
+- Project architecture, ADRs, milestone scope, and AGENTS.md remain authoritative.
+- A Caveman recommendation does not authorize scope expansion.
+- Record useful out-of-scope findings as technical debt instead of implementing them.
+- When Caveman is used, report which skills were actually applied.
