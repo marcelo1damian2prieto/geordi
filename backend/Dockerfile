@@ -23,7 +23,8 @@ WORKDIR /app
 COPY --from=build /tmp/application.jar application.jar
 COPY --from=otel-java-agent /opentelemetry-javaagent.jar /opt/opentelemetry/opentelemetry-javaagent.jar
 COPY --from=healthcheck /bin/busybox /bin/busybox
-RUN chown -R geordi:geordi /app /opt/opentelemetry
+RUN mkdir -p /var/lib/geordi/alerts \
+    && chown -R geordi:geordi /app /opt/opentelemetry /var/lib/geordi
 USER 10001
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=6 \

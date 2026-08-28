@@ -198,6 +198,18 @@ Metrics provider failures continue through canonical SLO/Burn evidence and are a
 **COMPLETE** after mandatory verification, independent review, and authoritative GitLab
 revalidation passed with no remaining BLOCKER or HIGH finding.
 
+## Milestone 10 additions
+
+Lifecycle commands record bounded attempt/result/transition/failure counts and duration.
+Permitted labels are closed outcome, current state, evaluation status/reason, and
+transition type. Policy/SLO/service identifiers, thresholds, timestamps, ranges,
+provider syntax/payloads, database contents, and exception text are excluded.
+
+Persistence failures and exhausted optimistic retries are controlled failures and are
+observable without leaking storage details. The lifecycle smoke verifies metric names
+and label allowlists. M10 adds no scheduler, queue, notification, or incident telemetry
+because those components do not exist.
+
 ## Future health indicators
 
 - received telemetry;

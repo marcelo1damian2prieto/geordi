@@ -296,14 +296,27 @@ class ArchitectureTest {
     }
 
     @Test
-    void alertsIntroduceNoPersistenceSchedulingOrNotificationDependencies() {
+    void alertsIntroduceNoSchedulingOrNotificationDependencies() {
         noClasses().that().resideInAPackage("io.geordi.alerts..")
                 .should().dependOnClassesThat().resideInAnyPackage(
-                        "jakarta.persistence..",
                         "org.springframework.scheduling..",
                         "org.springframework.mail..",
                         "org.springframework.messaging..",
                         "org.springframework.kafka..")
+                .check(productionClasses);
+    }
+
+    @Test
+    void alertLifecyclePersistenceIsConfinedToItsOutboundAdapter() {
+        noClasses().that().resideInAPackage("io.geordi.alerts..")
+                .and().resideOutsideOfPackages(
+                        "io.geordi.alerts.adapter.out.persistence..", "io.geordi.alerts.adapter.spring..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "org.springframework.jdbc..", "java.sql..")
+                .check(productionClasses);
+        noClasses().that().resideInAPackage("io.geordi.alerts.adapter.out.persistence..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "io.geordi.slos..", "io.geordi.metrics..", "io.victoriametrics..", "io.prometheus..")
                 .check(productionClasses);
     }
 }

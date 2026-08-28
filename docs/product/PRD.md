@@ -272,3 +272,23 @@ Milestone 10 work. All mandatory local verification and independent review passe
 no remaining BLOCKER or HIGH finding. The authoritative GitLab pipeline passed the
 preceding Service Map, SLO, and Burn Rate gates and the M9 Alert Evaluation semantic
 smoke, so M9 is `COMPLETE`.
+
+## Milestone 10 scope
+
+Status: READY FOR GITLAB REVALIDATION
+
+M10 extends the existing alerts bounded context with durable current state. An explicit
+POST command consumes the canonical M9 result exactly once and applies the closed
+`INACTIVE`/`FIRING` transition table. Only inactive-to-firing `ALERT_STARTED` and
+firing-to-inactive `ALERT_RESOLVED` changes are emitted. `UNAVAILABLE`, including
+`DISABLED`, freezes state. The current-state GET is side-effect-free.
+
+File-backed H2 with Flyway and a Compose named volume provides restart-safe state for
+the supported single-node runtime. Provider-neutral optimistic compare-and-set,
+immutable policy/SLO/condition/service/window binding, and monotonic evidence time
+prevent duplicate, stale, and cross-policy transitions. The UI presents lifecycle
+state separately from M9 condition evidence and preserves exact Investigation context.
+
+M10 adds no scheduler, transition history, episode model, outbox, notification,
+routing, retry, acknowledgement, silence, escalation, maintenance window, or incident.
+It cannot become complete until the authoritative GitLab pipeline is revalidated.

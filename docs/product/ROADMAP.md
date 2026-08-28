@@ -142,6 +142,21 @@ Rate, and Alert Evaluation verification chain. The M9 smoke intentionally reuses
 Burn Rate gate's VictoriaMetrics outage/recovery evidence instead of duplicating that
 expensive scenario.
 
+## Milestone 10 — Alert Lifecycle Foundation
+
+READY FOR GITLAB REVALIDATION
+
+- durable single-node `INACTIVE`/`FIRING` state over canonical M9 evaluation;
+- explicit state-changing POST and side-effect-free current-state GET;
+- canonical `ALERT_STARTED`/`ALERT_RESOLVED` transitions with unavailable/disabled
+  freezing;
+- file-backed H2/Flyway persistence, optimistic concurrency, restart proof, exact
+  Investigation context, and bounded self-observability;
+- no scheduler, history, delivery, acknowledgement, silencing, or incident workflow.
+
+Local implementation and verification do not mark this milestone complete; the maximum
+pre-pipeline status is `READY FOR GITLAB REVALIDATION`.
+
 ## Later — Notification delivery
 
 DEFERRED

@@ -178,6 +178,13 @@ dd { margin: 0; font-weight: 650; }
 .alert-evaluation-status-condition-met { color: #fb7185; }
 .alert-evaluation-status-condition-not-met { color: #6ee7b7; }
 .alert-evaluation-status-unavailable { color: #fbbf24; }
+.alert-lifecycle-status { display: inline-block; padding: 4px 9px; border-radius: 999px; background: #26364e; font-size: .78rem; font-weight: 750; letter-spacing: .04em; }
+.alert-lifecycle-status-firing { color: #fb7185; }
+.alert-lifecycle-status-inactive { color: #6ee7b7; }
+.alert-lifecycle-section { margin-top: 22px; padding-top: 18px; border-top: 1px solid #26364e; }
+.alert-lifecycle-section h3, .alert-lifecycle-section h4 { margin: 0; }
+.alert-lifecycle-transition, .alert-lifecycle-command-result { margin: 18px 0 0; color: #c7d2e2; }
+.alert-lifecycle-evaluate { margin-top: 20px; }
 .alert-evaluation-not-evaluated, .alert-evaluation-reason { margin: 20px 0 0; color: #aab7c9; }
 .alert-evaluation-disabled { opacity: .7; }
 .alert-evidence { margin-top: 24px; padding-top: 20px; border-top: 1px solid #26364e; }

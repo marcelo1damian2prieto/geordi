@@ -54,7 +54,7 @@ This debt is not a defect in Milestone 1.1. The milestone remains successfully c
 ## Alert-policy catalog lifecycle
 
 - **Status:** Planned / Deliberate Milestone 9 limitation
-- **Detected in:** Milestone 9 in-progress design
+- **Detected in:** Milestone 9 implementation
 - **Description:** Alert policies are intentionally version-controlled YAML mounted
   read-only and validated as an immutable startup snapshot. M9 supports no runtime CRUD,
   reload, audit history, concurrent writers, or policy history.
@@ -69,17 +69,35 @@ This debt is not a defect in Milestone 1.1. The milestone remains successfully c
 ## Alert Evaluation scope bounds
 
 - **Status:** Planned / Deliberate Milestone 9 limitation
-- **Detected in:** Milestone 9 in-progress design
+- **Detected in:** Milestone 9 implementation; updated in Milestone 10
 - **Description:** M9 is limited to one canonical `BURN_RATE_ABOVE` condition evaluated
-  on demand from one inherited M8 configured window. It has no scheduler, persistent
-  lifecycle/history, notification delivery, acknowledgement, silencing, escalation,
+  on demand from one inherited M8 configured window. It has no background scheduler,
+  full lifecycle history, notification delivery, acknowledgement, silencing, escalation,
   topology inhibition, generic expression language, or multi-window burn policy.
 - **Current impact:** A condition result is explainable evidence for operator attention,
-  not a delivered page, firing/resolved record, or incident. Policies that reference the
-  same SLO may independently request the same bounded SLO evaluation.
-- **Follow-up:** Add batching, lifecycle, notification delivery, and additional canonical
+  not a delivered page or incident. M10 now provides durable current firing/resolved
+  state and the latest transition only; it intentionally provides no transition ledger.
+  Policies that reference the same SLO may independently request the same bounded SLO
+  evaluation.
+- **Follow-up:** Add batching, scheduling, lifecycle history, notification delivery, and additional canonical
   conditions only after their product semantics, authorization, storage, and delivery
   guarantees are explicitly designed; do not infer them from M9 results.
+- **Priority:** Medium
+
+## Alert lifecycle persistence and execution bounds
+
+- **Status:** Pending / Deliberate Milestone 10 limitation
+- **Detected in:** Milestone 10 implementation
+- **Description:** Current lifecycle state uses embedded file-backed H2 and optimistic
+  compare-and-set in one backend process. Evaluation is explicit and on demand; there
+  is no scheduler, history ledger, episode id, outbox, or delivery subsystem.
+- **Current impact:** Restart-safe deduplication is limited to the configured named
+  volume and single-node modular-monolith runtime. Deleting the volume explicitly resets
+  state. Multiple backend replicas do not have a designed shared durability or
+  distributed-transition guarantee.
+- **Follow-up:** Select an external replaceable store and define multi-node concurrency,
+  retention/history, scheduling, and transactional delivery only when deployment or
+  product evidence requires each capability.
 - **Priority:** Medium
 
 ## Metrics upper-bound semantics
@@ -186,4 +204,21 @@ This debt is not a defect in Milestone 1.1. The milestone remains successfully c
 - **Follow-up:** Measure realistic catalog sizes and add bounded concurrency or a
   canonical batch-evaluation boundary only when evidence justifies it; do not add a
   scheduler or cache speculatively.
+- **Priority:** Medium
+
+## Alert lifecycle store initializes with the modular monolith
+
+- **Status:** Pending / Bounded modular-monolith constraint
+- **Detected in:** Milestone 10 implementation
+- **Description:** Spring DataSource and Flyway auto-configuration initialize the local
+  alert lifecycle store as platform runtime infrastructure even when the optional
+  `alerts` capability is disabled. Disabling Alerts removes its catalog, API, lifecycle,
+  and adapter beans, but does not remove the embedded database startup dependency.
+- **Current impact:** The default H2 file store has no external availability dependency,
+  and its directory must remain writable for every backend deployment. A custom or
+  externally hosted lifecycle JDBC URL can therefore still prevent a deliberately
+  Alerts-disabled backend from starting.
+- **Follow-up:** If deployments require removal of the storage dependency together with
+  the capability, conditionally own DataSource/Flyway infrastructure without changing
+  startup order or migration guarantees for enabled Alerts.
 - **Priority:** Medium

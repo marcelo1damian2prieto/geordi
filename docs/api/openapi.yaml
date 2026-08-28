@@ -436,6 +436,71 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+  /api/alert-policies/{policyId}/lifecycle-evaluations:
+    post:
+      operationId: evaluateAlertLifecycle
+      summary: Apply one canonical alert evaluation to its lifecycle state.
+      description: >-
+        Evaluates the policy through the canonical Milestone 9 boundary exactly once and
+        atomically applies the result to the durable lifecycle record. Repeated or
+        unavailable evaluations do not fabricate transitions. This operation sends no
+        notification and creates no incident.
+      parameters:
+        - $ref: '#/components/parameters/AlertPolicyId'
+      responses:
+        '200':
+          description: Explainable lifecycle processing result, including ignored stale or duplicate evidence.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertLifecycleEvaluationResult'
+        '404':
+          description: The capability is disabled or the policy identifier is not configured.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Persisted lifecycle identity conflicts with the configured policy or canonical evidence.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: Lifecycle state could not be read or updated because persistence or bounded concurrency failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/alert-states:
+    get:
+      operationId: listAlertStates
+      summary: List current alert lifecycle state for every configured policy.
+      description: >-
+        Returns a bounded read model joined with the immutable policy catalog. Policies
+        without a lifecycle evaluation are explicitly uninitialized and appear INACTIVE;
+        reading this resource never evaluates telemetry or changes state.
+      responses:
+        '200':
+          description: Alert lifecycle snapshots ordered like the configured policy catalog.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertStates'
+        '404':
+          $ref: '#/components/responses/AlertEvaluationDisabled'
+        '409':
+          description: Persisted lifecycle identity conflicts with the configured policy.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: Lifecycle state could not be read from persistence.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
 components:
   parameters:
     AlertPolicyId:
@@ -890,6 +955,109 @@ components:
           description: >-
             Null only when a disabled policy was not evaluated. Enabled unavailable
             evaluations preserve their exact canonical evidence context.
+    AlertLifecycleState:
+      type: string
+      enum: [INACTIVE, FIRING]
+    AlertTransitionType:
+      type: string
+      enum: [ALERT_STARTED, ALERT_RESOLVED]
+    AlertLifecycleProcessingOutcome:
+      type: string
+      enum: [APPLIED, STALE_IGNORED, DUPLICATE_IGNORED]
+    AlertTransition:
+      type: object
+      additionalProperties: false
+      required: [policyId, type, previousState, currentState, occurredAt, evaluation]
+      properties:
+        policyId:
+          type: string
+        type:
+          $ref: '#/components/schemas/AlertTransitionType'
+        previousState:
+          $ref: '#/components/schemas/AlertLifecycleState'
+        currentState:
+          $ref: '#/components/schemas/AlertLifecycleState'
+        occurredAt:
+          type: string
+          format: date-time
+        evaluation:
+          $ref: '#/components/schemas/AlertEvaluation'
+    AlertLifecycleSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        - policy
+        - initialized
+        - state
+        - latestEvaluation
+        - activeEvidence
+        - startedAt
+        - resolvedAt
+        - lastStateChangeAt
+        - lastProcessedAt
+        - lastEvidenceAt
+        - latestTransition
+      properties:
+        policy:
+          $ref: '#/components/schemas/AlertPolicy'
+        initialized:
+          type: boolean
+        state:
+          $ref: '#/components/schemas/AlertLifecycleState'
+        latestEvaluation:
+          oneOf:
+            - $ref: '#/components/schemas/AlertEvaluation'
+            - type: 'null'
+        activeEvidence:
+          oneOf:
+            - $ref: '#/components/schemas/AlertEvidence'
+            - type: 'null'
+          description: Last condition-met evidence retained while FIRING, including through UNAVAILABLE or disabled checks.
+        startedAt:
+          type: [string, 'null']
+          format: date-time
+        resolvedAt:
+          type: [string, 'null']
+          format: date-time
+        lastStateChangeAt:
+          type: [string, 'null']
+          format: date-time
+        lastProcessedAt:
+          type: [string, 'null']
+          format: date-time
+        lastEvidenceAt:
+          type: [string, 'null']
+          format: date-time
+          description: Canonical evaluatedAt of the newest applied evidence; disabled no-evidence checks do not change it.
+        latestTransition:
+          oneOf:
+            - $ref: '#/components/schemas/AlertTransition'
+            - type: 'null'
+    AlertStates:
+      type: object
+      additionalProperties: false
+      required: [alertStates]
+      properties:
+        alertStates:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/AlertLifecycleSnapshot'
+    AlertLifecycleEvaluationResult:
+      type: object
+      additionalProperties: false
+      required: [triggeringEvaluation, outcome, current, transition]
+      properties:
+        triggeringEvaluation:
+          $ref: '#/components/schemas/AlertEvaluation'
+        outcome:
+          $ref: '#/components/schemas/AlertLifecycleProcessingOutcome'
+        current:
+          $ref: '#/components/schemas/AlertLifecycleSnapshot'
+        transition:
+          oneOf:
+            - $ref: '#/components/schemas/AlertTransition'
+            - type: 'null'
     SloDefinition:
       type: object
       additionalProperties: false

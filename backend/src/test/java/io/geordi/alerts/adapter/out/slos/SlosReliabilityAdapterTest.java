@@ -42,6 +42,11 @@ class SlosReliabilityAdapterTest {
         assertThat(evidence.reason()).isNull();
         assertThat(adapter.exists("checkout-availability")).isTrue();
         assertThat(adapter.exists("missing")).isFalse();
+        assertThat(adapter.findById("checkout-availability")).get().satisfies(binding -> {
+            assertThat(binding.service().name()).isEqualTo("checkout");
+            assertThat(binding.service().environment()).isEqualTo("production");
+            assertThat(binding.window().value()).isEqualTo("PT5M");
+        });
     }
 
     @Test

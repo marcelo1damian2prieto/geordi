@@ -1,26 +1,36 @@
 package io.geordi.alerts.adapter.spring;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.geordi.alerts.AlertsPlatformModule;
 import io.geordi.alerts.adapter.out.config.AlertPoliciesProperties;
 import io.geordi.alerts.adapter.out.config.ConfigurationAlertPolicyCatalog;
+import io.geordi.alerts.adapter.out.persistence.H2AlertLifecycleRepository;
 import io.geordi.alerts.adapter.out.slos.SlosReliabilityAdapter;
 import io.geordi.alerts.adapter.out.telemetry.ObservedAlertEvaluationUseCase;
+import io.geordi.alerts.adapter.out.telemetry.ObservedAlertLifecycleEvaluationUseCase;
 import io.geordi.alerts.application.AlertEvaluationService;
 import io.geordi.alerts.application.AlertEvaluationUseCase;
+import io.geordi.alerts.application.AlertLifecycleEvaluationUseCase;
+import io.geordi.alerts.application.AlertLifecycleQueryService;
+import io.geordi.alerts.application.AlertLifecycleService;
 import io.geordi.alerts.application.AlertPolicyQueryService;
 import io.geordi.alerts.application.AlertPolicyReferenceValidator;
+import io.geordi.alerts.application.port.out.AlertLifecycleRepository;
 import io.geordi.alerts.application.port.out.AlertPolicyCatalog;
 import io.geordi.alerts.application.port.out.BurnRateEvidencePort;
+import io.geordi.alerts.application.port.out.SloLifecycleBindingPort;
 import io.geordi.alerts.application.port.out.SloReferencePort;
 import io.geordi.core.module.PlatformModule;
 import io.geordi.slos.application.SloEvaluationUseCase;
 import io.geordi.slos.application.port.out.SloDefinitionCatalog;
+import java.time.Clock;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 @Configuration(proxyBeanMethods = false)
 public class AlertsModuleConfiguration {
@@ -28,9 +38,12 @@ public class AlertsModuleConfiguration {
     @Bean
     PlatformModule alertsPlatformModule(
             ObjectProvider<AlertPolicyCatalog> catalogProvider,
-            ObjectProvider<BurnRateEvidencePort> evidenceProvider) {
+            ObjectProvider<BurnRateEvidencePort> evidenceProvider,
+            ObjectProvider<AlertLifecycleRepository> lifecycleProvider) {
         return new AlertsPlatformModule(
-                () -> catalogProvider.getIfAvailable() != null && evidenceProvider.getIfAvailable() != null);
+                () -> catalogProvider.getIfAvailable() != null
+                        && evidenceProvider.getIfAvailable() != null
+                        && lifecycleProvider.getIfAvailable() != null);
     }
 
     @Configuration(proxyBeanMethods = false)
@@ -59,10 +72,35 @@ public class AlertsModuleConfiguration {
         }
 
         @Bean
+        AlertLifecycleRepository alertLifecycleRepository(JdbcTemplate jdbc, ObjectMapper objectMapper) {
+            return new H2AlertLifecycleRepository(jdbc, objectMapper);
+        }
+
+        @Bean
+        AlertLifecycleQueryService alertLifecycleQueryService(
+                AlertPolicyCatalog catalog,
+                AlertLifecycleRepository repository,
+                SloLifecycleBindingPort sloBindings) {
+            return new AlertLifecycleQueryService(catalog, repository, sloBindings);
+        }
+
+        @Bean
         @Primary
         AlertEvaluationUseCase observedAlertEvaluationUseCase(
                 AlertPolicyCatalog catalog, BurnRateEvidencePort evidencePort) {
             return new ObservedAlertEvaluationUseCase(new AlertEvaluationService(catalog, evidencePort));
+        }
+
+        @Bean
+        AlertLifecycleEvaluationUseCase observedAlertLifecycleEvaluationUseCase(
+                AlertPolicyCatalog catalog,
+                AlertEvaluationUseCase evaluations,
+                AlertLifecycleRepository repository,
+                SloLifecycleBindingPort sloBindings,
+                Clock sloClock) {
+            AlertLifecycleService delegate = new AlertLifecycleService(
+                    catalog, evaluations, repository, sloBindings, sloClock);
+            return new ObservedAlertLifecycleEvaluationUseCase(delegate);
         }
     }
 }

@@ -16,7 +16,9 @@ independent review, and the project owner's confirmation that the authoritative 
 pipeline is green. Milestone 8 is complete and adds current-window
 error-budget burn evidence to the same SLO snapshots; it does not add budget accounting.
 Milestone 9 is complete and adds stateless alert-condition evaluation, not alert
-delivery. The broader MVP target remains planned because delivery and other P1
+delivery. Milestone 10 is ready for GitLab revalidation and adds durable current lifecycle state and
+canonical start/resolution transitions, still without delivery. The broader MVP target
+remains planned because delivery and other P1
 capabilities are still deferred.
 
 ## Goal
@@ -41,7 +43,9 @@ P1:
 - current-window SLO error-budget burn evidence (COMPLETE; no
   compliance-period accounting or alerts);
 - alert-condition evaluation (M9 COMPLETE; read-only policies and no notification
-  delivery or lifecycle);
+  delivery);
+- alert lifecycle foundation (M10 READY FOR GITLAB REVALIDATION; durable current state and transitions,
+  no scheduler, history, acknowledgement, silencing, incident, or delivery);
 - basic infrastructure monitoring;
 - threshold alerts;
 - email/webhook notifications.

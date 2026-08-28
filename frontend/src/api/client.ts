@@ -17,9 +17,11 @@ export class ApiError extends Error {
   }
 }
 
-export async function getJson<T>(path: string): Promise<T> {
+async function requestJson<T>(path: string, method: 'GET' | 'POST', signal?: AbortSignal): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
+    method,
     headers: { Accept: 'application/json' },
+    signal,
   })
 
   if (!response.ok) {
@@ -35,4 +37,12 @@ export async function getJson<T>(path: string): Promise<T> {
     throw new ApiError(response.status, problem)
   }
   return (await response.json()) as T
+}
+
+export function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+  return requestJson(path, 'GET', signal)
+}
+
+export function postJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+  return requestJson(path, 'POST', signal)
 }

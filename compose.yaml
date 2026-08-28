@@ -94,6 +94,7 @@ services:
     environment:
       SPRING_APPLICATION_JSON: '{"geordi":{"modules":{"self-observability":{"enabled":${GEORDI_MODULES_SELF_OBSERVABILITY_ENABLED:-true}},"metrics":{"enabled":${GEORDI_MODULES_METRICS_ENABLED:-true}},"traces":{"enabled":${GEORDI_MODULES_TRACES_ENABLED:-true}},"logs":{"enabled":${GEORDI_MODULES_LOGS_ENABLED:-true}},"service-map":{"enabled":${GEORDI_MODULES_SERVICE_MAP_ENABLED:-true}},"slos":{"enabled":${GEORDI_MODULES_SLOS_ENABLED:-true}},"alerts":{"enabled":${GEORDI_MODULES_ALERTS_ENABLED:-true}}},"metrics":{"victoria-metrics":{"base-url":"http://victoriametrics:8428"}},"traces":{"tempo":{"base-url":"http://tempo:3200"}},"logs":{"loki":{"base-url":"http://loki:3100"}}}}'
       SPRING_CONFIG_ADDITIONAL_LOCATION: file:/etc/geordi/slos.yaml,file:/etc/geordi/alert-policies.yaml
+      SPRING_DATASOURCE_URL: jdbc:h2:file:/var/lib/geordi/alerts/lifecycle;DB_CLOSE_ON_EXIT=FALSE
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       OTEL_LOGS_EXPORTER: otlp
@@ -109,6 +110,7 @@ services:
     volumes:
       - ./deploy/slos/slos.yaml:/etc/geordi/slos.yaml:ro
       - ./deploy/alerts/alert-policies.yaml:/etc/geordi/alert-policies.yaml:ro
+      - alert-lifecycle-data:/var/lib/geordi/alerts
     ports:
       - "127.0.0.1:8080:8080"
     restart: unless-stopped
@@ -230,3 +232,4 @@ volumes:
   victoriametrics-data:
   tempo-data:
   loki-data:
+  alert-lifecycle-data:

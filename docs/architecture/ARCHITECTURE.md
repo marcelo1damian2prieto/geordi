@@ -140,6 +140,24 @@ Unavailable evidence remains `UNAVAILABLE`; disabled policies are
 `UNAVAILABLE/DISABLED` without SLO evaluation. These are current stateless conclusions,
 not firing/resolved alert instances, delivery events, pages, or incidents.
 
+## Milestone 10 Alert Lifecycle flow
+
+```text
+explicit POST -> canonical M9 evaluation -> pure lifecycle transition -> CAS repository
+                                                        |                    |
+                                                        v                    v
+React /alert-evaluations <- current-state REST <- INACTIVE/FIRING <- H2 named volume
+```
+
+M10 remains inside the `alerts` bounded context. The application invokes M9 exactly
+once per command, applies a provider-neutral transition function, and persists through
+a repository port. H2/JDBC/Flyway and HTTP remain adapters. Current-state GET performs
+no evaluation. Immutable policy/SLO/condition and evidence service/window binding,
+monotonic evidence time, and optimistic compare-and-set make transitions fail closed
+and idempotent in the supported single-node runtime. `UNAVAILABLE`, including disabled,
+never starts or resolves. There is no scheduler, history ledger, outbox, notification,
+acknowledgement, silence, or incident workflow.
+
 ## Target logical view
 
 ```text
@@ -159,7 +177,7 @@ Geordi Platform
     +-- Traces (implemented)
     +-- Service Map (implemented; Milestone 6 complete; trace-derived, no storage)
     +-- SLOs (Milestones 7–8 complete; Metrics-derived)
-    +-- Alerts (Milestone 9 complete; SLO/Burn-derived evaluation)
+    +-- Alerts (M9 complete; M10 lifecycle foundation ready for GitLab revalidation)
     +-- APM (planned)
     +-- Compatibility (planned)
 ```

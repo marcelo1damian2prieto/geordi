@@ -1,6 +1,7 @@
 package io.geordi.alerts.adapter.out.slos;
 
 import io.geordi.alerts.application.port.out.BurnRateEvidencePort;
+import io.geordi.alerts.application.port.out.SloLifecycleBindingPort;
 import io.geordi.alerts.application.port.out.SloReferencePort;
 import io.geordi.alerts.domain.AlertUnavailableReason;
 import io.geordi.alerts.domain.BurnRateEvidence;
@@ -11,8 +12,10 @@ import io.geordi.slos.application.SloEvaluationUseCase;
 import io.geordi.slos.application.port.out.SloDefinitionCatalog;
 import io.geordi.slos.domain.SloEvaluation;
 import java.util.Objects;
+import java.util.Optional;
 
-public final class SlosReliabilityAdapter implements BurnRateEvidencePort, SloReferencePort {
+public final class SlosReliabilityAdapter
+        implements BurnRateEvidencePort, SloReferencePort, SloLifecycleBindingPort {
 
     private final SloEvaluationUseCase evaluations;
     private final SloDefinitionCatalog definitions;
@@ -42,5 +45,16 @@ public final class SlosReliabilityAdapter implements BurnRateEvidencePort, SloRe
     @Override
     public boolean exists(String sloId) {
         return definitions.findById(sloId).isPresent();
+    }
+
+    @Override
+    public Optional<Binding> findById(String sloId) {
+        return definitions.findById(sloId).map(definition -> new Binding(
+                definition.id(),
+                new ServiceIdentity(
+                        definition.service().name(),
+                        definition.service().namespace(),
+                        definition.service().environment()),
+                EvaluationWindow.valueOf(definition.window().name())));
     }
 }

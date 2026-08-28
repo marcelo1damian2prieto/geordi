@@ -15,17 +15,32 @@ import java.util.List;
 import java.util.Properties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.info.BuildProperties;
+import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
+import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration;
+import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 class AlertsModuleConfigurationTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
+            .withConfiguration(AutoConfigurations.of(
+                    DataSourceAutoConfiguration.class,
+                    JdbcTemplateAutoConfiguration.class,
+                    FlywayAutoConfiguration.class,
+                    JacksonAutoConfiguration.class))
             .withUserConfiguration(
                     ModuleConfiguration.class,
                     MetricsModuleConfiguration.class,
                     SlosModuleConfiguration.class,
                     AlertsModuleConfiguration.class)
             .withBean(BuildProperties.class, AlertsModuleConfigurationTest::buildProperties)
+            .withPropertyValues(
+                    "spring.datasource.url=jdbc:h2:mem:alerts-configuration;DB_CLOSE_DELAY=-1",
+                    "spring.datasource.username=sa",
+                    "spring.datasource.password=",
+                    "spring.datasource.driver-class-name=org.h2.Driver")
             .withPropertyValues(sloProperties());
 
     @Test

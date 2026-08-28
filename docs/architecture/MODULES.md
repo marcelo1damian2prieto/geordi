@@ -78,8 +78,9 @@ alerting, notification, incident, or long-period-accounting responsibility.
 
 ### alerts
 
-Milestone 9 is complete. The `alerts` compile-time module provides a read-only,
-deployment-managed policy catalog and on-demand, side-effect-free condition evaluation.
+Milestone 9 is complete and Milestone 10 is ready for GitLab revalidation. The `alerts` compile-time
+module provides a read-only, deployment-managed policy catalog, on-demand stateless
+condition evaluation, and an explicit durable lifecycle command.
 It depends on the enabled `slos` module and consumes M8 burn evidence only through an
 alerts-owned port and an SLO composition adapter. One `BURN_RATE_ABOVE` condition
 compares canonical unrounded burn evidence inclusively with a finite non-negative
@@ -87,10 +88,14 @@ threshold and returns `CONDITION_MET`, `CONDITION_NOT_MET`, or `UNAVAILABLE`.
 
 Evaluations preserve the SLO snapshot's exact identity and range. Burn unavailability
 remains alert unavailability; a disabled policy yields `UNAVAILABLE/DISABLED` without
-invoking the SLO evaluator. The module does not query VictoriaMetrics, calculate burn
-inputs, send notifications, schedule evaluation, store history, or own an incident or
-firing/resolved lifecycle. Catalog changes require restart/redeployment and runtime
-policy mutation is not supported.
+invoking the SLO evaluator. M10 adds current `INACTIVE`/`FIRING` state and canonical
+`ALERT_STARTED`/`ALERT_RESOLVED` transitions behind a provider-neutral repository port.
+File-backed H2 and Flyway are persistence adapters for the single-node runtime;
+optimistic compare-and-set and immutable semantic binding protect updates. The module
+still does not query VictoriaMetrics, calculate burn inputs, send notifications,
+schedule evaluation, store lifecycle history, acknowledge/silence alerts, or own
+incidents. Catalog changes require restart/redeployment and runtime policy mutation is
+not supported.
 
 ## Planned modules
 

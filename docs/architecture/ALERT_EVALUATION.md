@@ -9,6 +9,10 @@ satisfied by trustworthy canonical reliability evidence, and why. It is an on-de
 side-effect-free evaluation capability—not notification delivery, an alert lifecycle,
 an incident manager, a scheduler, or a generic rule engine.
 
+Milestone 10 composes this unchanged stateless boundary into a separate explicit,
+state-changing lifecycle use case. The M9 GET endpoint remains side-effect-free and
+does not read or mutate lifecycle state; see `ALERT_LIFECYCLE.md`.
+
 ```text
 read-only YAML policies
           |

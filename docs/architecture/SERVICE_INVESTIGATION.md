@@ -121,7 +121,9 @@ policy has no evaluated snapshot and therefore offers no fabricated Investigatio
 
 Service Investigation remains an investigation destination only. It does not decide
 whether a policy condition is met, deliver notifications, create incidents, or provide
-alert lifecycle controls.
+alert lifecycle controls. M10 may expose the same exact canonical evidence link from a
+current lifecycle record; Investigation still neither mutates lifecycle state nor
+interprets `FIRING`, `INACTIVE`, `ALERT_STARTED`, or `ALERT_RESOLVED`.
 
 ## Self-observability
 

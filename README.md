@@ -178,6 +178,21 @@ evaluations, store history, or accept arbitrary provider queries. Mandatory loca
 verification and independent review passed without a remaining BLOCKER or HIGH finding,
 and the authoritative GitLab revalidation is green.
 
+## Milestone 10 — Alert Lifecycle Foundation
+
+**READY FOR GITLAB REVALIDATION.** M10 adds a durable `INACTIVE`/`FIRING` state machine over the canonical
+M9 result. `POST /api/alert-policies/{policyId}/lifecycle-evaluations` explicitly
+evaluates and persists one policy; `GET /api/alert-states` reads current state without
+evaluating providers or mutating state. Only `ALERT_STARTED` and `ALERT_RESOLVED` are
+transitions. Unavailable or disabled evidence freezes state and never fabricates
+recovery.
+
+State is stored in file-backed H2 with Flyway and a Compose named volume. Optimistic
+compare-and-set updates, monotonic evidence time, and immutable policy/evidence binding
+prevent duplicate or cross-policy transitions on the supported single-node runtime.
+This is current lifecycle state, not history, notification delivery, scheduling,
+acknowledgement, silencing, or incident management.
+
 ## Current capabilities
 
 - **Metrics:** OTLP Metrics → Collector → VictoriaMetrics → vendor-neutral Metrics
@@ -202,6 +217,9 @@ and the authoritative GitLab revalidation is green.
 - **Alert Evaluation (M9 complete):** read-only policy plus canonical burn evidence
   produces one explainable stateless condition result; it does not deliver a
   notification or create an incident.
+- **Alert lifecycle (M10 ready for GitLab revalidation):** explicit evaluation commands persist current
+  `INACTIVE`/`FIRING` state and the latest canonical transition in the single-node
+  runtime; no background evaluation or delivery is implied.
 
 This is a bounded service-investigation foundation, not full APM.
 
@@ -290,6 +308,15 @@ does not repeat the provider outage exercised by the M8 smoke.
 pwsh -File ./scripts/verify-alert-evaluation.ps1 -TimeoutSeconds 150
 ```
 
+Run the M10 lifecycle smoke only on a fresh stack whose lifecycle named volume was
+created for that run. The smoke drives explicit lifecycle commands, verifies one start
+and one resolution, restart persistence, unavailable/disabled freezing, exact context,
+and bounded telemetry. It never deletes a live volume or uses a reset endpoint.
+
+```powershell
+pwsh -File ./scripts/verify-alert-lifecycle.ps1 -TimeoutSeconds 240
+```
+
 The authoritative GitLab run passed with:
 
 > PASS: Alert policy catalog, self-contained traffic generation, independent exact-window
@@ -331,6 +358,8 @@ job is serialized by a resource group and runs the self-observability, Metrics, 
 Logs, Service Map, SLO, and burn-rate semantic smokes in that order.
 M9's authoritative Alert Evaluation smoke follows the burn-rate smoke. It also passes
 independently on a fresh stack, and the authoritative GitLab revalidation is green.
+The M10 lifecycle smoke is configured immediately after M9 and starts from the fresh
+named lifecycle volume created by the integration job.
 
 Milestones 1 / 1.1 and 2 through 9 are complete. Milestone 7 passed complete local
 verification and independent review without a remaining BLOCKER or HIGH finding. Its

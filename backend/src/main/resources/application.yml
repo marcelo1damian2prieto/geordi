@@ -1,6 +1,15 @@
 spring:
   application:
     name: geordi-backend
+  datasource:
+    url: ${GEORDI_ALERT_LIFECYCLE_DB_URL:jdbc:h2:file:./data/geordi-alerts;DB_CLOSE_ON_EXIT=FALSE}
+    username: ${GEORDI_ALERT_LIFECYCLE_DB_USERNAME:sa}
+    password: ${GEORDI_ALERT_LIFECYCLE_DB_PASSWORD:}
+    driver-class-name: org.h2.Driver
+    hikari:
+      maximum-pool-size: 4
+  flyway:
+    locations: classpath:db/migration
 
 geordi:
   modules:
