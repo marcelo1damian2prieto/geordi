@@ -16,6 +16,7 @@ import io.geordi.alerts.application.AlertLifecycleService;
 import io.geordi.alerts.application.AlertPolicyQueryService;
 import io.geordi.alerts.application.AlertPolicyReferenceValidator;
 import io.geordi.alerts.application.port.out.AlertLifecycleRepository;
+import io.geordi.alerts.application.port.out.AlertLifecyclePersistenceHealthProbe;
 import io.geordi.alerts.application.port.out.AlertPolicyCatalog;
 import io.geordi.alerts.application.port.out.BurnRateEvidencePort;
 import io.geordi.alerts.application.port.out.SloLifecycleBindingPort;
@@ -39,11 +40,12 @@ public class AlertsModuleConfiguration {
     PlatformModule alertsPlatformModule(
             ObjectProvider<AlertPolicyCatalog> catalogProvider,
             ObjectProvider<BurnRateEvidencePort> evidenceProvider,
-            ObjectProvider<AlertLifecycleRepository> lifecycleProvider) {
+            ObjectProvider<AlertLifecyclePersistenceHealthProbe> persistenceHealthProvider) {
         return new AlertsPlatformModule(
                 () -> catalogProvider.getIfAvailable() != null
                         && evidenceProvider.getIfAvailable() != null
-                        && lifecycleProvider.getIfAvailable() != null);
+                        && persistenceHealthProvider.getIfAvailable(
+                                () -> () -> false).isAvailable());
     }
 
     @Configuration(proxyBeanMethods = false)
@@ -72,7 +74,7 @@ public class AlertsModuleConfiguration {
         }
 
         @Bean
-        AlertLifecycleRepository alertLifecycleRepository(JdbcTemplate jdbc, ObjectMapper objectMapper) {
+        H2AlertLifecycleRepository alertLifecycleRepository(JdbcTemplate jdbc, ObjectMapper objectMapper) {
             return new H2AlertLifecycleRepository(jdbc, objectMapper);
         }
 

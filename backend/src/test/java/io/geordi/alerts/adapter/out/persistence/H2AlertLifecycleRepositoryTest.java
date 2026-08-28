@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -50,6 +51,8 @@ class H2AlertLifecycleRepositoryTest {
 
     @Test
     void roundTripsTheCanonicalAggregateAndUsesVersionedCompareAndSet() {
+        assertThat(repository.isAvailable()).isTrue();
+
         AlertLifecycle firing = lifecycle(AlertEvaluationStatus.CONDITION_MET, FIRST, Optional.empty());
 
         assertThat(repository.insertIfAbsent(firing)).isTrue();
@@ -82,6 +85,21 @@ class H2AlertLifecycleRepositoryTest {
         assertThatThrownBy(failingRepository::findAll)
                 .isInstanceOf(AlertLifecyclePersistenceException.class)
                 .hasMessage("alert lifecycle persistence operation failed");
+    }
+
+    @Test
+    void reportsPersistenceOutageAndRecoveryWithoutLeakingTheFailure() {
+        JdbcTemplate changingJdbc = mock(JdbcTemplate.class);
+        when(changingJdbc.queryForObject(anyString(), eq(Integer.class)))
+                .thenReturn(0)
+                .thenThrow(new DataAccessResourceFailureException("database unavailable"))
+                .thenReturn(0);
+        H2AlertLifecycleRepository changingRepository = new H2AlertLifecycleRepository(
+                changingJdbc, JsonMapper.builder().findAndAddModules().build());
+
+        assertThat(changingRepository.isAvailable()).isTrue();
+        assertThat(changingRepository.isAvailable()).isFalse();
+        assertThat(changingRepository.isAvailable()).isTrue();
     }
 
     @Test

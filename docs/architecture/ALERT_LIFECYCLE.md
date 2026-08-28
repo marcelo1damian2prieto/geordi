@@ -143,6 +143,8 @@ deferred. This keeps current semantics bounded and makes smoke evidence determin
 
 ## Observability and validation
 
+While Alerts is enabled, module health runs a bounded, read-only lifecycle persistence probe. Store or schema unavailability makes Alerts health and platform readiness `DOWN`; disabling Alerts skips this probe.
+
 Lifecycle self-observability uses bounded result/transition/outcome labels only. It
 never labels by policy, SLO, service, namespace, environment, timestamp, evidence
 value/range, exception, or provider syntax. Telemetry distinguishes an unavailable

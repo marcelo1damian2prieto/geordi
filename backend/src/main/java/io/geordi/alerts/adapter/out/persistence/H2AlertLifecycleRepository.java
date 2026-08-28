@@ -3,6 +3,7 @@ package io.geordi.alerts.adapter.out.persistence;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.geordi.alerts.application.AlertLifecyclePersistenceException;
+import io.geordi.alerts.application.port.out.AlertLifecyclePersistenceHealthProbe;
 import io.geordi.alerts.application.port.out.AlertLifecycleRepository;
 import io.geordi.alerts.application.port.out.VersionedAlertLifecycle;
 import io.geordi.alerts.domain.AlertLifecycle;
@@ -15,7 +16,14 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-public final class H2AlertLifecycleRepository implements AlertLifecycleRepository {
+public final class H2AlertLifecycleRepository
+        implements AlertLifecycleRepository, AlertLifecyclePersistenceHealthProbe {
+
+    private static final String AVAILABILITY_CHECK = """
+            SELECT COUNT(*)
+            FROM alert_lifecycle_state
+            WHERE 1 = 0
+            """;
 
     private static final String SELECT_BY_POLICY = """
             SELECT version, aggregate_json
@@ -42,6 +50,15 @@ public final class H2AlertLifecycleRepository implements AlertLifecycleRepositor
     public H2AlertLifecycleRepository(JdbcTemplate jdbc, ObjectMapper objectMapper) {
         this.jdbc = Objects.requireNonNull(jdbc, "JDBC template must not be null");
         this.objectMapper = Objects.requireNonNull(objectMapper, "object mapper must not be null");
+    }
+
+    @Override
+    public boolean isAvailable() {
+        try {
+            return jdbc.queryForObject(AVAILABILITY_CHECK, Integer.class) != null;
+        } catch (DataAccessException exception) {
+            return false;
+        }
     }
 
     @Override

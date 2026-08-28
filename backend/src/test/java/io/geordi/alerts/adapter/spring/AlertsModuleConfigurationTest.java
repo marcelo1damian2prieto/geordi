@@ -1,8 +1,12 @@
 package io.geordi.alerts.adapter.spring;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.geordi.alerts.application.AlertEvaluationUseCase;
+import io.geordi.alerts.application.AlertLifecyclePersistenceException;
+import io.geordi.alerts.application.port.out.AlertLifecyclePersistenceHealthProbe;
+import io.geordi.alerts.application.port.out.AlertLifecycleRepository;
 import io.geordi.alerts.application.port.out.AlertPolicyCatalog;
 import io.geordi.bootstrap.ModuleConfiguration;
 import io.geordi.core.module.ModuleInventory;
@@ -21,6 +25,7 @@ import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 class AlertsModuleConfigurationTest {
 
@@ -99,6 +104,29 @@ class AlertsModuleConfigurationTest {
                             .filteredOn(module -> module.id().equals("alerts"))
                             .singleElement().satisfies(module -> assertThat(module.status()).isEqualTo(ModuleStatus.DOWN));
                 });
+    }
+
+    @Test
+    void reportsActualLifecyclePersistenceOutageThroughAlertsHealth() {
+        runner.run(context -> {
+            assertThat(context).hasNotFailed().hasSingleBean(AlertLifecyclePersistenceHealthProbe.class);
+            assertThat(context.getBean(PlatformHealthService.class).health().modules())
+                    .filteredOn(module -> module.id().equals("alerts"))
+                    .singleElement().satisfies(module -> assertThat(module.status()).isEqualTo(ModuleStatus.UP));
+
+            JdbcTemplate jdbc = context.getBean(JdbcTemplate.class);
+            jdbc.execute("ALTER TABLE alert_lifecycle_state RENAME TO alert_lifecycle_state_unavailable");
+            try {
+                assertThat(context.getBean(AlertLifecyclePersistenceHealthProbe.class).isAvailable()).isFalse();
+                assertThat(context.getBean(PlatformHealthService.class).health().modules())
+                        .filteredOn(module -> module.id().equals("alerts"))
+                        .singleElement().satisfies(module -> assertThat(module.status()).isEqualTo(ModuleStatus.DOWN));
+                assertThatThrownBy(() -> context.getBean(AlertLifecycleRepository.class).findAll())
+                        .isInstanceOf(AlertLifecyclePersistenceException.class);
+            } finally {
+                jdbc.execute("ALTER TABLE alert_lifecycle_state_unavailable RENAME TO alert_lifecycle_state");
+            }
+        });
     }
 
     private static String[] sloProperties() {
