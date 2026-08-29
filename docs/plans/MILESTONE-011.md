@@ -1,6 +1,6 @@
 # Milestone 11 — Notification Delivery Foundation
 
-Status: READY FOR GITLAB REVALIDATION
+Status: COMPLETE
 
 ## Objective and product value
 
@@ -61,12 +61,14 @@ or concurrent lifecycle processing.
 ## Storage, processing, concurrency, and restart recovery
 
 Add a Flyway table for delivery records: delivery ID (unique), immutable destination
-ID and non-secret endpoint/configuration fingerprint, transition type, canonical payload
-JSON, state, attempts, next-attempt time, claim token/lease expiry and completion time.
+ID and non-secret endpoint/configuration fingerprint, transition type, serialized
+canonical transition evidence, state, attempts, next-attempt time, claim token/lease
+expiry and completion time.
 States are `PENDING`, `LEASED`, `DELIVERED`, and `FAILED`; lifecycle state never
-changes when delivery fails. A provider-neutral port accepts the lifecycle decision and
-optional delivery candidate, then returns `COMMITTED` (with its delivery ID) or
-`CONFLICT`. Its H2 adapter executes conditional lifecycle INSERT/UPDATE and outbox
+changes when delivery fails. The provider-neutral repository accepts the lifecycle
+decision and optional delivery candidate and reports whether the conditional commit
+won or conflicted; the candidate already carries its deterministic delivery ID. Its H2
+adapter executes conditional lifecycle INSERT/UPDATE and outbox
 INSERT in one transaction; conflict or outbox failure rolls both back. HTTP never runs
 in that transaction.
 
@@ -105,7 +107,8 @@ persistence representation, credentials, provider response types or incident fie
 
 Configuration is deployment-managed YAML/properties: enabled flag, selected canonical
 transition types, immutable destination ID, HTTPS endpoint URL, connect/read timeout,
-and a secret token sourced only from an environment variable. Enabled configuration
+and a secret token supplied through deployment configuration; local Compose sources it
+from `GEORDI_NOTIFICATION_TOKEN`. Enabled configuration
 fails closed at startup when any field, bounds, supported transition type, endpoint,
 header name, or required secret is invalid/missing. The token is put in a fixed header
 by the HTTP adapter; it is never stored, returned by an API, placed in payloads, logs,
@@ -151,9 +154,11 @@ tests prohibit framework/HTTP/JDBC/telemetry dependencies in notification domain
 application packages.
 
 `scripts/verify-notification-delivery.ps1` uses a deterministic local receiver and
-proves STARTED/RESOLVED, stable identity, no-transition/unavailable absence, retry and
-recovery, restart recovery, successful non-redelivery, bounded telemetry and absence
-of configured secret material. It is appended after the M10 smoke in GitLab.
+proves STARTED/RESOLVED delivery, stable identity, no-transition suppression, retry and
+pending-work recovery after restart, successful non-redelivery, result-label bounds,
+and absence of configured token material from the checked public API and backend/fixture
+logs. Focused tests cover atomic persistence and the remaining delivery boundaries. The
+smoke is appended after the M10 smoke in GitLab.
 
 ## Non-goals
 
@@ -181,7 +186,7 @@ HTTP; receiver-side delivery-ID deduplication is required. Deferred: delivery-st
 API/UI, richer routing/adapters, production HA store/coordination, and a configurable
 backoff policy.
 
-## Implementation and local validation
+## Implementation and closure validation
 
 Implemented on 2026-08-28 with Flyway V2, atomic lifecycle/outbox persistence,
 deterministic SHA-256 delivery IDs, token-guarded leases, bounded durable retries, one
@@ -190,5 +195,12 @@ ArchUnit enforcement, and a deterministic local receiver/smoke. No API or fronte
 added. Java 21 Docker verification passed 231 tests plus PMD, SpotBugs, Find Security
 Bugs, and ArchUnit. Compose validation and the M1–M10 semantic regression chain passed;
 the M11 smoke passed STARTED/RESOLVED delivery, stable identity, retry, restart recovery,
-terminal non-redelivery, bounded telemetry, and secret isolation. Authoritative GitLab
-revalidation remains required before COMPLETE.
+terminal non-redelivery, the result-label allowlist, and configured-token absence from
+the checked public API and backend/fixture logs.
+
+Independent review completed with no remaining BLOCKER or HIGH findings. Authoritative
+GitLab semantic revalidation on `main` at commit `f087da71` passed the M9 Alert
+Evaluation, M10 Alert Lifecycle, and M11 Notification Delivery smokes. The M11 command
+`pwsh -File ./scripts/verify-notification-delivery.ps1 -TimeoutSeconds 300` exercised
+real delivery, backend restart, and healthy recovery and completed with its semantic
+PASS. M11 is therefore COMPLETE. M12 has not started.

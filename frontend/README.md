@@ -4,7 +4,9 @@ React application for the Geordi platform overview and bounded Metrics, Traces, 
 Logs vertical slices, the lightweight `/investigate` workflow, the trace-derived
 `/service-map` workflow, the completed Milestones 7–8 `/slos` foundation, and the
 completed M9 Alert Evaluation and M10 Alert Lifecycle experience at
-`/alert-evaluations`. Service Investigation composes all three signal APIs with one
+`/alert-evaluations`. M11 Notification Delivery is complete but backend/operational
+only and adds no frontend route. Service Investigation composes all three signal APIs
+with one
 canonical service identity and
 absolute range, isolates partial failures, and returns from Trace Detail without losing
 context. Trace Detail opens related Logs only when valid carried context is available.
@@ -37,8 +39,9 @@ The corresponding implemented API routes remain distinct: M9's side-effect-free
 `GET /api/alert-states`. The current page reads lifecycle snapshots and renders the
 nested/latest M9 condition evidence without presenting it as lifecycle state.
 
-The frontend has no scheduler, notification delivery, incident, acknowledgement,
-silencing, or related management UI. A transition is not presented as a delivered
+The frontend has no scheduler, notification-delivery status or management UI, incident,
+acknowledgement, silencing, or related management UI. M11 webhook delivery remains a
+backend/operational capability. A transition is not presented as a delivered
 notification or incident event.
 
 ## Local development

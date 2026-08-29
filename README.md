@@ -225,6 +225,9 @@ the notification-delivery foundation described below.
 - **Alert lifecycle (M10 complete):** explicit evaluation commands persist current
   `INACTIVE`/`FIRING` state and the latest canonical transition in the single-node
   runtime; no background evaluation or delivery is implied.
+- **Notification delivery (M11 complete):** eligible canonical lifecycle transitions
+  commit atomically with durable webhook work; a bounded single-node worker provides
+  restart-safe at-least-once attempts with stable receiver-deduplication identity.
 
 This is a bounded service-investigation foundation, not full APM.
 
@@ -322,6 +325,16 @@ and bounded telemetry. It never deletes a live volume or uses a reset endpoint.
 pwsh -File ./scripts/verify-alert-lifecycle.ps1 -TimeoutSeconds 240
 ```
 
+Run the M11 Notification Delivery smoke after M10. Together with the focused repository
+tests, validation covers atomic STARTED/RESOLVED work. The runtime smoke exercises
+stable delivery identity, no-transition suppression, bounded retry, backend restart
+recovery, terminal non-redelivery, bounded result labels, and configured-token absence
+from the checked public API and backend/fixture logs.
+
+```powershell
+pwsh -File ./scripts/verify-notification-delivery.ps1 -TimeoutSeconds 300
+```
+
 The authoritative GitLab run passed with:
 
 > PASS: Alert policy catalog, self-contained traffic generation, independent exact-window
@@ -364,10 +377,12 @@ Logs, Service Map, SLO, and burn-rate semantic smokes in that order.
 M9's authoritative Alert Evaluation smoke follows the burn-rate smoke. It also passes
 independently on a fresh stack, and the authoritative GitLab revalidation is green.
 The M10 lifecycle smoke runs immediately after M9 and starts from the fresh named
-lifecycle volume created by the integration job. The authoritative run passed.
+lifecycle volume created by the integration job. M11 Notification Delivery runs after
+M10 against the same durable state. The authoritative run passed all three smokes.
 
-Milestones 1 / 1.1 and 2 through 10 are complete. Milestone 7 passed complete local
-verification and independent review without a remaining BLOCKER or HIGH finding. Its
+Milestones 1 / 1.1 and 2 through 11 are complete; M12 has not started. Milestone 7
+passed complete local verification and independent review without a remaining BLOCKER
+or HIGH finding. Its
 SLO semantic smoke runs after the five existing regression smokes in the authoritative
 GitLab integration gate, and the project owner confirmed that pipeline green.
 
@@ -379,12 +394,11 @@ authoritative GitLab pipeline passed the Service Map, SLO, Burn Rate, and Alert
 Evaluation verification chain.
 
 M10 is **COMPLETE** after the Alert Lifecycle Persistence Health fix and authoritative
-GitLab semantic revalidation passed for M10. The following M11 implementation is
-locally validated and awaits authoritative GitLab revalidation.
+GitLab semantic revalidation passed for M10.
 
 ## Milestone 11 — Notification Delivery Foundation
 
-Status: **READY FOR GITLAB REVALIDATION**.
+Status: **COMPLETE**.
 
 Canonical M10 `ALERT_STARTED` and `ALERT_RESOLVED` transitions now commit atomically
 with durable webhook work. A bounded single-node worker uses stable delivery IDs,
@@ -392,6 +406,11 @@ lease-token concurrency protection, restart-safe retry state, and one deployment
 webhook. Delivery is at-least-once; receivers should deduplicate by `Idempotency-Key`.
 No notification API/frontend, email adapter, incident workflow, or alert-evaluation
 scheduler was added.
+
+Independent review completed with no remaining BLOCKER or HIGH findings. Authoritative
+GitLab semantic revalidation on `main` at commit `f087da71` passed M9 Alert Evaluation,
+M10 Alert Lifecycle, and M11 Notification Delivery, including real backend restart and
+healthy recovery. **M12 has not started.**
 
 ## Documentation
 

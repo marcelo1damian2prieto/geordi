@@ -1,6 +1,6 @@
 # Architecture
 
-Status: MILESTONES 1 THROUGH 10 COMPLETE; MILESTONE 11 READY FOR GITLAB REVALIDATION
+Status: MILESTONES 1 THROUGH 11 COMPLETE; MILESTONE 12 NOT STARTED
 
 ## Initial style
 
@@ -184,7 +184,7 @@ Geordi Platform
     +-- Traces (implemented)
     +-- Service Map (implemented; Milestone 6 complete; trace-derived, no storage)
     +-- SLOs (Milestones 7–8 complete; Metrics-derived)
-    +-- Alerts (M9 evaluation and M10 lifecycle foundation complete)
+    +-- Alerts (M9 evaluation, M10 lifecycle, and M11 webhook delivery complete)
     +-- APM (planned)
     +-- Compatibility (planned)
 ```

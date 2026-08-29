@@ -1,6 +1,6 @@
 # Geordi Product Requirements Document
 
-Status: MILESTONES 1 THROUGH 10 COMPLETE; MILESTONE 11 READY FOR GITLAB REVALIDATION
+Status: MILESTONES 1 THROUGH 11 COMPLETE; MILESTONE 12 NOT STARTED
 
 ## Vision
 
@@ -298,7 +298,7 @@ implements the notification-delivery foundation below.
 
 ## Milestone 11 scope
 
-Status: READY FOR GITLAB REVALIDATION
+Status: COMPLETE
 
 M11 atomically persists eligible canonical M10 transitions with durable webhook work,
 then processes it with a bounded single-node lease worker. Stable delivery IDs support
@@ -306,3 +306,10 @@ receiver deduplication. Retryable transport/429/5xx outcomes use durable bounded
 other 4xx responses are terminal. Delivery never mutates lifecycle state. Configuration
 supplies one webhook and secret; there is no runtime CRUD, API/UI, evaluation scheduler,
 broker, email adapter, incident workflow, or exactly-once claim.
+
+Independent review completed with no remaining BLOCKER or HIGH findings. Authoritative
+GitLab semantic revalidation on `main` at commit `f087da71` passed M9 Alert Evaluation,
+M10 Alert Lifecycle, and M11 Notification Delivery. Repository tests cover atomic
+lifecycle/outbox persistence; the M11 smoke exercised STARTED/RESOLVED delivery, stable
+identity, bounded retry, restart recovery, no-transition suppression, terminal success,
+and the checked token/telemetry boundaries. M12 has not started.

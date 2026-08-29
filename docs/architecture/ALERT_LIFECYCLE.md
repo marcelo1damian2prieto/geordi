@@ -18,7 +18,7 @@ Alert Lifecycle transition function
         v
 durable current alert state + optional canonical transition
         |
-        `-- future notification delivery boundary (not implemented)
+        `-- M11 durable notification-delivery handoff (implemented outside transition logic)
 ```
 
 `CONDITION_MET` is an evaluation result, not itself a firing transition. `FIRING` is a
@@ -34,9 +34,9 @@ types, provider query languages, notifications, and incident systems.
 
 The H2/Flyway persistence implementation and HTTP endpoints are adapters. The M9 SLO
 composition adapter remains the only alerts code allowed to call the SLO boundary; no
-lifecycle code may bypass M9 to reach SLO, burn, Metrics, or a provider. A future
+lifecycle code may bypass M9 to reach SLO, burn, Metrics, or a provider. The M11
 notification adapter consumes canonical `AlertTransition` values from this boundary;
-it must not depend on VictoriaMetrics, PromQL/MetricsQL, SLOs, or burn-rate formulas.
+it does not depend on VictoriaMetrics, PromQL/MetricsQL, SLOs, or burn-rate formulas.
 
 ## Canonical state machine
 

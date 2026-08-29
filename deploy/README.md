@@ -1,10 +1,11 @@
 # Local deployment
 
-The Milestone 10 local runtime runs the frontend, backend, two monitored demo
+The Milestone 11 local runtime runs the frontend, backend, two monitored demo
 applications, OpenTelemetry Collector, VictoriaMetrics, Grafana Tempo, and Grafana Loki
-single-node storage with Docker Compose. The enabled SLO and Alerts modules provide
-deployment-managed definitions, on-demand Alert Evaluation, and explicit durable Alert
-Lifecycle processing. It has no Kubernetes or production multi-node storage cluster.
+single-node storage, plus a deterministic webhook receiver, with Docker Compose. The
+enabled SLO and Alerts modules provide deployment-managed definitions, on-demand Alert
+Evaluation, explicit durable Alert Lifecycle processing, and bounded webhook delivery.
+It has no Kubernetes or production multi-node storage cluster.
 
 ## Start
 
@@ -35,6 +36,7 @@ All published ports are loopback-only:
   `http://127.0.0.1:3100/loki/api/v1/query_range`.
 - monitored demo service: `http://127.0.0.1:8081`.
 - monitored downstream demo service: `http://127.0.0.1:8082`.
+- deterministic webhook receiver fixture: `http://127.0.0.1:18080`.
 
 VictoriaMetrics stores seven days of local development metric data in the named
 `victoriametrics-data` volume. Tempo stores local trace WAL and blocks in the named
@@ -60,12 +62,14 @@ startup. Editing the catalog requires backend restart/redeployment; there is no 
 CRUD or dynamic reload.
 
 The deployment also mounts `deploy/alerts/alert-policies.yaml` read-only at
-`/etc/geordi/alert-policies.yaml`. Alert Lifecycle current state is stored in file-backed
-H2 under `/var/lib/geordi/alerts`, backed by the named `alert-lifecycle-data` volume and
-versioned with Flyway. Lifecycle state survives backend/container restart while that
-volume is retained. Removing the volume explicitly resets lifecycle state. This is a
-single-node local-development persistence design; it makes no production multi-node,
-distributed-consensus, or exactly-once delivery guarantee.
+`/etc/geordi/alert-policies.yaml`. Alert Lifecycle current state and the separate M11
+notification outbox are stored in file-backed H2 under `/var/lib/geordi/alerts`, backed
+by the named `alert-lifecycle-data` volume and versioned with Flyway. Lifecycle and
+pending delivery state survive backend/container restart while that volume is retained.
+Removing the volume explicitly resets both. This is a single-node local-development
+persistence design; it makes no production multi-node, distributed-consensus, or
+exactly-once delivery guarantee. Unavailable lifecycle/outbox storage makes Alerts and
+platform readiness `DOWN`; a remote webhook failure remains a delivery outcome.
 
 ## Verify
 
@@ -100,6 +104,7 @@ Or run the automated end-to-end check:
 .\scripts\verify-burn-rate.ps1 -ExerciseProviderFailure
 pwsh -File ./scripts/verify-alert-evaluation.ps1 -TimeoutSeconds 150
 pwsh -File ./scripts/verify-alert-lifecycle.ps1 -TimeoutSeconds 240
+pwsh -File ./scripts/verify-notification-delivery.ps1 -TimeoutSeconds 300
 ```
 
 The OpenTelemetry smoke check requires the Collector's backend `service.version` to
@@ -142,7 +147,7 @@ Run the Alert Lifecycle smoke after Alert Evaluation. It drives explicit lifecyc
 commands and verifies current state, canonical start/resolution transitions, restart
 durability, unavailable/disabled freezing, exact evidence and Investigation context,
 and bounded telemetry. The M10 smoke itself does not schedule evaluation or dispatch
-delivery work; M11 adds the separate bounded delivery worker described below.
+delivery work; the separate M11 worker consumes only committed outbox work.
 
 Notification Delivery is enabled in the local stack with the deterministic internal
 `webhook-receiver` fixture on `127.0.0.1:18080`. The backend persists delivery work in
@@ -166,11 +171,14 @@ docker compose down --volumes --remove-orphans
 docker compose up --build -d
 pwsh -File ./scripts/verify-alert-evaluation.ps1 -TimeoutSeconds 150
 pwsh -File ./scripts/verify-alert-lifecycle.ps1 -TimeoutSeconds 240
+pwsh -File ./scripts/verify-notification-delivery.ps1 -TimeoutSeconds 300
 ```
 
 The running lifecycle smoke never removes a live volume and there is no reset endpoint.
-The authoritative GitLab integration job provides the same fresh-volume prerequisite,
-runs M10 after M9, and passed the complete semantic chain.
+The authoritative GitLab integration job provides the same fresh-volume prerequisite
+and runs M10 after M9 and M11 after M10. On `main` at commit `f087da71`, all three
+semantic smokes passed, including M11 retry/restart recovery and subsequent backend
+recovery.
 
 ## GitLab runner
 

@@ -1,5 +1,7 @@
 # Notification Delivery
 
+Status: MILESTONE 11 COMPLETE
+
 ## Scope
 
 Notification Delivery is an Alerts capability that consumes only canonical committed
@@ -49,3 +51,20 @@ duration using only closed outcome/transition labels. It never uses policy, serv
 destination, URL, delivery ID, or error text as labels. A remote recipient outage is a
 delivery outcome, not platform unhealthiness. Unavailability of Geordi's lifecycle and
 outbox store makes Alerts/readiness DOWN.
+
+## Operational limitations
+
+M11 supports one deployment-managed webhook in a local single-node topology. It has no
+multi-node ownership, exactly-once receiver guarantee, dead-letter or operator re-drive
+workflow, retention management, delivery-status API/UI, additional channel, or alert
+evaluation scheduler. Receivers must deduplicate by the stable delivery ID.
+
+## Closure validation
+
+Independent review completed with no remaining BLOCKER or HIGH findings. Authoritative
+GitLab semantic revalidation on `main` at commit `f087da71` passed the M9 Alert
+Evaluation, M10 Alert Lifecycle, and M11 Notification Delivery smokes. Repository tests
+cover atomic lifecycle/outbox persistence. The M11 smoke observed STARTED/RESOLVED
+delivery, stable identity, retry and pending-work recovery after restart, no-transition
+suppression, terminal success, bounded result labels, and no configured token in the
+checked public API or backend/fixture logs. M12 has not started.

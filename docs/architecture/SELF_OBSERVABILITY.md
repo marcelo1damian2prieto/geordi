@@ -212,8 +212,8 @@ and label allowlists. While Alerts is enabled, its bounded read-only persistence
 makes Alerts health and platform readiness `DOWN` when lifecycle connectivity, schema,
 or read access is unavailable; disabling Alerts skips that requirement. The probe does
 not prove every write path. M10 is **COMPLETE** after authoritative GitLab semantic
-revalidation passed with no remaining BLOCKER or HIGH finding. It adds no scheduler,
-queue, notification, or incident telemetry because those components do not exist.
+revalidation passed with no remaining BLOCKER or HIGH finding. At the M10 boundary it
+added no scheduler, queue, notification, or incident telemetry.
 
 ## Milestone 11 notification delivery
 
@@ -224,6 +224,10 @@ are limited to closed outcome and transition-type values. Policy, SLO, service,
 environment, delivery ID, destination, URL, HTTP status, exception text, and secrets
 are forbidden labels. Recipient failures do not make readiness DOWN; unavailable
 lifecycle/outbox storage makes Alerts and platform readiness DOWN.
+
+M11 is **COMPLETE** after independent review found no remaining BLOCKER or HIGH finding
+and authoritative GitLab semantic revalidation on `main` at commit `f087da71` passed
+the M9, M10, and M11 smokes, including backend restart and recovery.
 
 ## Future health indicators
 

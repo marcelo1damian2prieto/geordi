@@ -1,10 +1,11 @@
 openapi: 3.1.0
 info:
   title: Geordi Platform API
-  version: milestone-10
+  version: milestone-11
   description: >-
     Platform APIs and bounded Metrics, Traces, Logs, observed Service Map, SLO, Burn
-    Rate, stateless Alert Evaluation, and durable current Alert Lifecycle capabilities.
+    Rate, stateless Alert Evaluation, durable current Alert Lifecycle, and backend-only
+    durable webhook Notification Delivery capabilities. M11 adds no delivery API.
 servers:
   - url: http://localhost:8080
 paths:
@@ -444,8 +445,10 @@ paths:
       description: >-
         Evaluates the policy through the canonical Milestone 9 boundary exactly once and
         atomically applies the result to the durable lifecycle record. Repeated or
-        unavailable evaluations do not fabricate transitions. This operation sends no
-        notification and creates no incident.
+        unavailable evaluations do not fabricate transitions. The request does not
+        synchronously dispatch a webhook or create an incident; an eligible committed
+        transition may atomically enqueue durable notification work for the configured
+        worker.
       parameters:
         - $ref: '#/components/parameters/AlertPolicyId'
       responses:

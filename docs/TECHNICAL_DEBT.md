@@ -69,35 +69,39 @@ This debt is not a defect in Milestone 1.1. The milestone remains successfully c
 ## Alert Evaluation scope bounds
 
 - **Status:** Planned / Deliberate Milestone 9 limitation
-- **Detected in:** Milestone 9 implementation; updated in Milestone 10
+- **Detected in:** Milestone 9 implementation; updated through Milestone 11
 - **Description:** M9 is limited to one canonical `BURN_RATE_ABOVE` condition evaluated
   on demand from one inherited M8 configured window. It has no background scheduler,
-  full lifecycle history, notification delivery, acknowledgement, silencing, escalation,
+  full lifecycle history, acknowledgement, silencing, escalation,
   topology inhibition, generic expression language, or multi-window burn policy.
 - **Current impact:** A condition result is explainable evidence for operator attention,
-  not a delivered page or incident. M10 now provides durable current firing/resolved
-  state and the latest transition only; it intentionally provides no transition ledger.
+  not by itself a delivered page or incident. M10 provides durable current
+  firing/resolved state and the latest transition only; M11 consumes eligible committed
+  transitions for bounded webhook delivery. There is still no transition ledger.
   Policies that reference the same SLO may independently request the same bounded SLO
   evaluation.
-- **Follow-up:** Add batching, scheduling, lifecycle history, notification delivery, and additional canonical
-  conditions only after their product semantics, authorization, storage, and delivery
-  guarantees are explicitly designed; do not infer them from M9 results.
+- **Follow-up:** Add batching, scheduling, lifecycle history, and additional canonical
+  conditions or delivery channels only after their product semantics, authorization,
+  storage, and delivery guarantees are explicitly designed; do not infer them from M9
+  results.
 - **Priority:** Medium
 
 ## Alert lifecycle persistence and execution bounds
 
 - **Status:** Pending / Deliberate Milestone 10 limitation
-- **Detected in:** Milestone 10 implementation
+- **Detected in:** Milestone 10 implementation; updated in Milestone 11
 - **Description:** Current lifecycle state uses embedded file-backed H2 and optimistic
-  compare-and-set in one backend process. Evaluation is explicit and on demand; there
-  is no scheduler, history ledger, episode id, outbox, or delivery subsystem.
+  compare-and-set in one backend process. Evaluation is explicit and on demand; M11
+  adds an outbox and delivery worker, but there is no evaluation scheduler, history
+  ledger, or episode id.
 - **Current impact:** Restart-safe deduplication is limited to the configured named
   volume and single-node modular-monolith runtime. Deleting the volume explicitly resets
-  state. Multiple backend replicas do not have a designed shared durability or
-  distributed-transition guarantee.
+  state. M11 pending delivery work shares that local volume. Multiple backend replicas
+  do not have a designed shared durability, distributed-transition, or delivery-owner
+  guarantee.
 - **Follow-up:** Select an external replaceable store and define multi-node concurrency,
-  retention/history, scheduling, and transactional delivery only when deployment or
-  product evidence requires each capability.
+  retention/history, scheduling, and distributed delivery coordination only when
+  deployment or product evidence requires each capability.
 - **Priority:** Medium
 
 ## Metrics upper-bound semantics
@@ -223,13 +227,13 @@ This debt is not a defect in Milestone 1.1. The milestone remains successfully c
   startup order or migration guarantees for enabled Alerts.
 - **Priority:** Medium
 
-## Alert lifecycle persistence health probe is read-only
+## Alert lifecycle and outbox persistence health probe is read-only
 
 - **Status:** Pending / Non-blocking
-- **Detected in:** Milestone 10 persistence-health validation
-- **Description:** The Alerts health check uses a bounded read-only lifecycle
-  persistence probe. It verifies connectivity, schema presence, and read access while
-  Alerts is enabled; disabling Alerts skips the lifecycle persistence health
+- **Detected in:** Milestone 10 persistence-health validation; updated in Milestone 11
+- **Description:** The Alerts health check uses a bounded read-only lifecycle/outbox
+  persistence probe. It verifies connectivity, both schemas, and read access while
+  Alerts is enabled; disabling Alerts skips the persistence health
   requirement.
 - **Current impact:** Persistence/schema/read unavailability correctly drives Alerts
   health and platform readiness `DOWN`, but the probe does not prove every possible
@@ -246,9 +250,9 @@ This debt is not a defect in Milestone 1.1. The milestone remains successfully c
 - **Description:** The integration job's `after_script` collects full
   `docker compose logs --no-color`. That diagnostic output can exceed GitLab's 4 MiB
   job-log limit.
-- **Current impact:** The semantic M10 PASS occurs before `after_script` diagnostic
-  collection, so oversized diagnostic output does not invalidate the completed semantic
-  assertions. It can truncate or obscure the final job log.
+- **Current impact:** The semantic M11 PASS occurs before `after_script` diagnostic
+  collection, so oversized diagnostic output does not invalidate the completed M9–M11
+  semantic assertions. It can truncate or obscure the final job log.
 - **Follow-up:** Bound diagnostics with `--tail`, select only relevant services, or
   publish full logs as artifacts.
 - **Priority:** Low
@@ -274,8 +278,9 @@ This debt is not a defect in Milestone 1.1. The milestone remains successfully c
   deployment-managed webhook destination.
 - **Current impact:** Restart recovery is supported for the local single-node runtime,
   but there is no multi-node ownership, email/provider adapter, runtime re-drive,
-  retention policy, or status UI/API. HTTP remains at-least-once; receivers must
-  deduplicate by stable delivery ID.
+  retention policy, dead-letter/operator recovery workflow, or status UI/API. Retry
+  count and delays are deliberately fixed and bounded in M11. HTTP remains
+  at-least-once; receivers must deduplicate by stable delivery ID.
 - **Follow-up:** Add HA coordination and operator inspection only when deployment
   evidence requires them.
 - **Priority:** Medium

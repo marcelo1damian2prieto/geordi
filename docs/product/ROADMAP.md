@@ -158,15 +158,19 @@ The Alert Lifecycle Persistence Health fix is complete. The authoritative GitLab
 semantic chain checked out commit `4a81d9f8` and passed the M8 Burn Rate, M9 Alert
 Evaluation, and M10 Alert Lifecycle smokes with no remaining BLOCKER or HIGH finding.
 
-Milestone 11 is READY FOR GITLAB REVALIDATION. It adds an atomic transactional outbox,
+Milestone 11 is COMPLETE. It adds an atomic transactional outbox,
 bounded restart-safe webhook worker, stable delivery identity, bounded retries, and
 low-cardinality delivery telemetry without scheduling alert evaluation.
 
 ## Milestone 11 — Notification delivery
 
-READY FOR GITLAB REVALIDATION
+COMPLETE
 - webhook delivery foundation;
 - email and provider-specific adapters remain deferred.
+
+Authoritative GitLab semantic revalidation on `main` at commit `f087da71` passed M9
+Alert Evaluation, M10 Alert Lifecycle, and M11 Notification Delivery with no remaining
+BLOCKER or HIGH finding. Milestone 12 has not started.
 
 ## Later
 
