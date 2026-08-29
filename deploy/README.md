@@ -141,7 +141,19 @@ creating lifecycle state.
 Run the Alert Lifecycle smoke after Alert Evaluation. It drives explicit lifecycle POST
 commands and verifies current state, canonical start/resolution transitions, restart
 durability, unavailable/disabled freezing, exact evidence and Investigation context,
-and bounded telemetry. It does not schedule evaluation or deliver notifications.
+and bounded telemetry. The M10 smoke itself does not schedule evaluation or dispatch
+delivery work; M11 adds the separate bounded delivery worker described below.
+
+Notification Delivery is enabled in the local stack with the deterministic internal
+`webhook-receiver` fixture on `127.0.0.1:18080`. The backend persists delivery work in
+the same named H2 volume as lifecycle state, using a separate Flyway outbox table. The
+local `GEORDI_NOTIFICATION_TOKEN` fallback is test-only; production must inject a real
+secret and use HTTPS. Redirects and URI credentials are rejected. Run the M11 smoke
+after M10:
+
+```powershell
+pwsh -File ./scripts/verify-notification-delivery.ps1 -TimeoutSeconds 300
+```
 
 The full M10 lifecycle smoke requires a fresh lifecycle volume so prior durable state
 cannot contaminate its isolated oracle. Before starting the stack for that run, stop the

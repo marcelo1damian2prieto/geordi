@@ -1,6 +1,6 @@
 # Geordi Product Requirements Document
 
-Status: MILESTONES 1 THROUGH 10 COMPLETE
+Status: MILESTONES 1 THROUGH 10 COMPLETE; MILESTONE 11 READY FOR GITLAB REVALIDATION
 
 ## Vision
 
@@ -293,4 +293,16 @@ M10 adds no scheduler, transition history, episode model, outbox, notification,
 routing, retry, acknowledgement, silence, escalation, maintenance window, or incident.
 The authoritative GitLab semantic chain passed M8 Burn Rate, M9 Alert Evaluation, and
 M10 Alert Lifecycle after checking out the Alert Lifecycle Persistence Health fix at
-commit `4a81d9f8`. No BLOCKER or HIGH finding remains. Milestone 11 has not started.
+commit `4a81d9f8`. No BLOCKER or HIGH finding remained at the M10 boundary. M11 now
+implements the notification-delivery foundation below.
+
+## Milestone 11 scope
+
+Status: READY FOR GITLAB REVALIDATION
+
+M11 atomically persists eligible canonical M10 transitions with durable webhook work,
+then processes it with a bounded single-node lease worker. Stable delivery IDs support
+receiver deduplication. Retryable transport/429/5xx outcomes use durable bounded retry;
+other 4xx responses are terminal. Delivery never mutates lifecycle state. Configuration
+supplies one webhook and secret; there is no runtime CRUD, API/UI, evaluation scheduler,
+broker, email adapter, incident workflow, or exactly-once claim.

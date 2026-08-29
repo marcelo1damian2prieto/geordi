@@ -265,3 +265,17 @@ This debt is not a defect in Milestone 1.1. The milestone remains successfully c
 - **Follow-up:** Reconcile the display name in a future product-code change with its
   focused tests. Do not change production code during M10 documentation closure.
 - **Priority:** Low
+
+## Notification delivery is single-node and webhook-only
+
+- **Status:** Pending / Deliberate Milestone 11 limitation
+- **Detected in:** Milestone 11
+- **Description:** Durable leasing and retry use file-backed H2 and one
+  deployment-managed webhook destination.
+- **Current impact:** Restart recovery is supported for the local single-node runtime,
+  but there is no multi-node ownership, email/provider adapter, runtime re-drive,
+  retention policy, or status UI/API. HTTP remains at-least-once; receivers must
+  deduplicate by stable delivery ID.
+- **Follow-up:** Add HA coordination and operator inspection only when deployment
+  evidence requires them.
+- **Priority:** Medium

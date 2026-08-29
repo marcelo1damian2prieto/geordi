@@ -15,6 +15,8 @@ import io.geordi.alerts.domain.AlertLifecycle;
 import io.geordi.alerts.domain.AlertLifecycleBindingMismatchException;
 import io.geordi.alerts.domain.AlertLifecycleProcessingOutcome;
 import io.geordi.alerts.domain.AlertLifecycleTransitions;
+import io.geordi.alerts.domain.NotificationDelivery;
+import io.geordi.alerts.domain.NotificationDestination;
 import io.geordi.alerts.domain.AlertPolicy;
 import io.geordi.alerts.domain.AlertTransitionType;
 import io.geordi.alerts.domain.BurnRateEvidence;
@@ -121,6 +123,23 @@ class AlertLifecycleServiceTest {
     }
 
     @Test
+    void createsOneNotificationCandidateOnlyForTheWinningLifecycleTransition() {
+        InMemoryRepository repository = new InMemoryRepository();
+        AlertLifecycleService service = new AlertLifecycleService(
+                catalog(), id -> evaluation(AlertEvaluationStatus.CONDITION_MET, FIRST), repository, bindings(),
+                Clock.fixed(FIRST.plusSeconds(10), ZoneOffset.UTC), transition -> Optional.of(
+                        new NotificationDestination("operations-webhook", "fingerprint")));
+
+        service.evaluate(POLICY.id());
+        service.evaluate(POLICY.id());
+
+        assertThat(repository.deliveries).singleElement().satisfies(delivery -> {
+            assertThat(delivery.transition().type()).isEqualTo(AlertTransitionType.ALERT_STARTED);
+            assertThat(delivery.destination().id()).isEqualTo("operations-webhook");
+        });
+    }
+
+    @Test
     void concurrentStartsAndResolutionsEachProduceOneLogicalTransition() throws Exception {
         InMemoryRepository repository = new InMemoryRepository();
         AlertLifecycleService starts = service(
@@ -206,6 +225,7 @@ class AlertLifecycleServiceTest {
     private static class InMemoryRepository implements AlertLifecycleRepository {
 
         private final ConcurrentHashMap<String, VersionedAlertLifecycle> records = new ConcurrentHashMap<>();
+        private final List<NotificationDelivery> deliveries = new ArrayList<>();
 
         @Override
         public Optional<VersionedAlertLifecycle> findByPolicyId(String policyId) {
@@ -234,6 +254,17 @@ class AlertLifecycleServiceTest {
                 return value;
             });
             return replaced[0];
+        }
+
+        @Override
+        public boolean commit(
+                AlertLifecycle lifecycle, Optional<Long> expectedVersion, Optional<NotificationDelivery> delivery) {
+            boolean committed = expectedVersion.map(version -> replaceIfVersionMatches(lifecycle, version))
+                    .orElseGet(() -> insertIfAbsent(lifecycle));
+            if (committed) {
+                delivery.ifPresent(deliveries::add);
+            }
+            return committed;
         }
     }
 }

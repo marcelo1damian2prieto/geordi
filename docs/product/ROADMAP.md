@@ -158,13 +158,15 @@ The Alert Lifecycle Persistence Health fix is complete. The authoritative GitLab
 semantic chain checked out commit `4a81d9f8` and passed the M8 Burn Rate, M9 Alert
 Evaluation, and M10 Alert Lifecycle smokes with no remaining BLOCKER or HIGH finding.
 
-Milestone 11 is NOT STARTED. Notification delivery and the other capabilities excluded
-above remain deferred.
+Milestone 11 is READY FOR GITLAB REVALIDATION. It adds an atomic transactional outbox,
+bounded restart-safe webhook worker, stable delivery identity, bounded retries, and
+low-cardinality delivery telemetry without scheduling alert evaluation.
 
-## Later — Notification delivery
+## Milestone 11 — Notification delivery
 
-DEFERRED
-- webhook/email notifications.
+READY FOR GITLAB REVALIDATION
+- webhook delivery foundation;
+- email and provider-specific adapters remain deferred.
 
 ## Later
 

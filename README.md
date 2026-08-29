@@ -195,8 +195,8 @@ acknowledgement, silencing, or incident management.
 
 The authoritative GitLab semantic chain passed M8 Burn Rate, M9 Alert Evaluation, and
 M10 Alert Lifecycle after checking out the Alert Lifecycle Persistence Health fix at
-commit `4a81d9f8`. No BLOCKER or HIGH finding remains. Milestone 11 is not started, and
-future notification delivery remains deferred.
+commit `4a81d9f8`. No BLOCKER or HIGH finding remained at the M10 boundary; M11 now adds
+the notification-delivery foundation described below.
 
 ## Current capabilities
 
@@ -379,7 +379,19 @@ authoritative GitLab pipeline passed the Service Map, SLO, Burn Rate, and Alert
 Evaluation verification chain.
 
 M10 is **COMPLETE** after the Alert Lifecycle Persistence Health fix and authoritative
-GitLab semantic revalidation passed. Milestone 11 is **NOT STARTED**.
+GitLab semantic revalidation passed for M10. The following M11 implementation is
+locally validated and awaits authoritative GitLab revalidation.
+
+## Milestone 11 — Notification Delivery Foundation
+
+Status: **READY FOR GITLAB REVALIDATION**.
+
+Canonical M10 `ALERT_STARTED` and `ALERT_RESOLVED` transitions now commit atomically
+with durable webhook work. A bounded single-node worker uses stable delivery IDs,
+lease-token concurrency protection, restart-safe retry state, and one deployment-managed
+webhook. Delivery is at-least-once; receivers should deduplicate by `Idempotency-Key`.
+No notification API/frontend, email adapter, incident workflow, or alert-evaluation
+scheduler was added.
 
 ## Documentation
 

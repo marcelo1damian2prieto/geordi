@@ -168,9 +168,9 @@ smoke requires the operator to do the same; smoke code never deletes a live volu
 There is no reset API or test-only reset mechanism. GitLab `after_script` also tears down
 the stack with Compose `down --volumes`. The smoke runs after the M9 smoke in
 authoritative GitLab CI, and existing smokes remain mandatory. Notification delivery,
-incident management, and scheduler coverage are intentionally absent because those
-capabilities are not implemented.
+incident management, and scheduler coverage were intentionally absent from M10; M11
+adds only the notification-delivery foundation.
 
 The authoritative GitLab semantic chain passed the M9 Alert Evaluation and M10 Alert
 Lifecycle smokes after checking out commit `4a81d9f8`, including the persistence-health
-fix. No BLOCKER or HIGH finding remains; M11 has not started.
+fix. No BLOCKER or HIGH finding remained at the M10 boundary.

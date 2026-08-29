@@ -4,7 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.geordi.alerts.AlertsPlatformModule;
 import io.geordi.alerts.adapter.out.config.AlertPoliciesProperties;
 import io.geordi.alerts.adapter.out.config.ConfigurationAlertPolicyCatalog;
+import io.geordi.alerts.adapter.out.config.ConfigurationNotificationDestinationSelector;
+import io.geordi.alerts.adapter.out.config.WebhookNotificationProperties;
+import io.geordi.alerts.adapter.in.worker.NotificationDeliveryWorker;
 import io.geordi.alerts.adapter.out.persistence.H2AlertLifecycleRepository;
+import io.geordi.alerts.adapter.out.webhook.HttpWebhookNotificationSender;
 import io.geordi.alerts.adapter.out.slos.SlosReliabilityAdapter;
 import io.geordi.alerts.adapter.out.telemetry.ObservedAlertEvaluationUseCase;
 import io.geordi.alerts.adapter.out.telemetry.ObservedAlertLifecycleEvaluationUseCase;
@@ -15,10 +19,14 @@ import io.geordi.alerts.application.AlertLifecycleQueryService;
 import io.geordi.alerts.application.AlertLifecycleService;
 import io.geordi.alerts.application.AlertPolicyQueryService;
 import io.geordi.alerts.application.AlertPolicyReferenceValidator;
+import io.geordi.alerts.application.NotificationDeliveryWorkService;
 import io.geordi.alerts.application.port.out.AlertLifecycleRepository;
 import io.geordi.alerts.application.port.out.AlertLifecyclePersistenceHealthProbe;
 import io.geordi.alerts.application.port.out.AlertPolicyCatalog;
 import io.geordi.alerts.application.port.out.BurnRateEvidencePort;
+import io.geordi.alerts.application.port.out.NotificationDestinationSelector;
+import io.geordi.alerts.application.port.out.NotificationDeliverySender;
+import io.geordi.alerts.application.port.out.NotificationDeliveryWorkRepository;
 import io.geordi.alerts.application.port.out.SloLifecycleBindingPort;
 import io.geordi.alerts.application.port.out.SloReferencePort;
 import io.geordi.core.module.PlatformModule;
@@ -27,11 +35,15 @@ import io.geordi.slos.application.port.out.SloDefinitionCatalog;
 import java.time.Clock;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.JdbcTransactionManager;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Configuration(proxyBeanMethods = false)
 public class AlertsModuleConfiguration {
@@ -52,7 +64,7 @@ public class AlertsModuleConfiguration {
     @ConditionalOnExpression(
             "${geordi.modules.alerts.enabled:true} && ${geordi.modules.slos.enabled:true}"
                     + " && ${geordi.modules.metrics.enabled:true}")
-    @EnableConfigurationProperties(AlertPoliciesProperties.class)
+    @EnableConfigurationProperties({AlertPoliciesProperties.class, WebhookNotificationProperties.class})
     static class EnabledAlertsConfiguration {
 
         @Bean
@@ -74,8 +86,15 @@ public class AlertsModuleConfiguration {
         }
 
         @Bean
-        H2AlertLifecycleRepository alertLifecycleRepository(JdbcTemplate jdbc, ObjectMapper objectMapper) {
-            return new H2AlertLifecycleRepository(jdbc, objectMapper);
+        H2AlertLifecycleRepository alertLifecycleRepository(
+                JdbcTemplate jdbc, ObjectMapper objectMapper) {
+            return new H2AlertLifecycleRepository(
+                    jdbc, objectMapper, new TransactionTemplate(new JdbcTransactionManager(jdbc.getDataSource())));
+        }
+
+        @Bean
+        NotificationDestinationSelector notificationDestinationSelector(WebhookNotificationProperties properties) {
+            return new ConfigurationNotificationDestinationSelector(properties);
         }
 
         @Bean
@@ -99,10 +118,38 @@ public class AlertsModuleConfiguration {
                 AlertEvaluationUseCase evaluations,
                 AlertLifecycleRepository repository,
                 SloLifecycleBindingPort sloBindings,
-                Clock sloClock) {
+                Clock sloClock,
+                NotificationDestinationSelector destinations) {
             AlertLifecycleService delegate = new AlertLifecycleService(
-                    catalog, evaluations, repository, sloBindings, sloClock);
+                    catalog, evaluations, repository, sloBindings, sloClock, destinations);
             return new ObservedAlertLifecycleEvaluationUseCase(delegate);
+        }
+
+        @Configuration(proxyBeanMethods = false)
+        @EnableScheduling
+        @ConditionalOnProperty(prefix = "geordi.notification", name = "enabled", havingValue = "true")
+        static class EnabledNotificationDeliveryConfiguration {
+
+            @Bean
+            NotificationDeliveryWorkService notificationDeliveryWorkService(
+                    NotificationDeliveryWorkRepository repository, Clock sloClock) {
+                return new NotificationDeliveryWorkService(repository, sloClock);
+            }
+
+            @Bean
+            NotificationDeliverySender notificationDeliverySender(
+                    WebhookNotificationProperties properties, ObjectMapper objectMapper) {
+                return new HttpWebhookNotificationSender(properties, objectMapper);
+            }
+
+            @Bean
+            NotificationDeliveryWorker notificationDeliveryWorker(
+                    NotificationDeliveryWorkService work,
+                    NotificationDeliverySender sender,
+                    WebhookNotificationProperties properties,
+                    Clock sloClock) {
+                return new NotificationDeliveryWorker(work, sender, properties, sloClock);
+            }
         }
     }
 }

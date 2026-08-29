@@ -33,6 +33,18 @@ geordi:
     definitions: []
   alert:
     policies: []
+  notification:
+    enabled: false
+    destination-id: primary-webhook
+    token-header: X-Geordi-Token
+    transitions: [ALERT_STARTED, ALERT_RESOLVED]
+    connect-timeout: 1s
+    read-timeout: 2s
+    poll-interval: 1s
+    lease-duration: 10s
+    batch-size: 10
+    maximum-attempts: 3
+    allow-insecure-local-http: false
   metrics:
     victoria-metrics:
       base-url: http://localhost:8428

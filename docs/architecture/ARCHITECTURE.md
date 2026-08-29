@@ -1,6 +1,6 @@
 # Architecture
 
-Status: MILESTONES 1 THROUGH 10 COMPLETE
+Status: MILESTONES 1 THROUGH 10 COMPLETE; MILESTONE 11 READY FOR GITLAB REVALIDATION
 
 ## Initial style
 
@@ -155,8 +155,15 @@ a repository port. H2/JDBC/Flyway and HTTP remain adapters. Current-state GET pe
 no evaluation. Immutable policy/SLO/condition and evidence service/window binding,
 monotonic evidence time, and optimistic compare-and-set make transitions fail closed
 and idempotent in the supported single-node runtime. `UNAVAILABLE`, including disabled,
-never starts or resolves. There is no scheduler, history ledger, outbox, notification,
-acknowledgement, silence, or incident workflow.
+never starts or resolves. At the M10 boundary there was no scheduler, history ledger,
+outbox, notification, acknowledgement, silence, or incident workflow; M11 adds only the
+outbox and notification-delivery foundation described next.
+
+M11 adds notification delivery inside the Alerts bounded context. The lifecycle
+persistence adapter atomically commits a lifecycle CAS mutation and immutable outbox
+row. A separate bounded worker leases due work and invokes one HTTP adapter outside the
+transaction. Domain/application remain free of Spring, JDBC, HTTP, provider, and
+telemetry implementation types. Alert evaluation remains command-driven.
 
 ## Target logical view
 

@@ -17,8 +17,8 @@ pipeline is green. Milestone 8 is complete and adds current-window
 error-budget burn evidence to the same SLO snapshots; it does not add budget accounting.
 Milestone 9 is complete and adds stateless alert-condition evaluation, not alert
 delivery. Milestone 10 is complete and adds durable current lifecycle state and
-canonical start/resolution transitions, still without delivery. Milestone 11 has not
-started. The broader MVP target remains planned because delivery and other P1
+canonical start/resolution transitions. Milestone 11 is ready for GitLab revalidation
+and adds bounded durable webhook delivery. The broader MVP target remains planned because other P1
 capabilities are still deferred.
 
 ## Goal
@@ -48,7 +48,7 @@ P1:
   no scheduler, history, acknowledgement, silencing, incident, or delivery);
 - basic infrastructure monitoring;
 - threshold alerts;
-- email/webhook notifications.
+- webhook notifications (M11 READY FOR GITLAB REVALIDATION; email deferred).
 
 ## Explicit non-goals for early MVP
 

@@ -194,7 +194,8 @@ range, provider syntax/payloads, and exception text are excluded.
 
 The alerts module validates catalog/evidence wiring without a separate provider probe.
 Metrics provider failures continue through canonical SLO/Burn evidence and are alert
-`UNAVAILABLE`; no notification, queue, or scheduler telemetry is introduced. M9 is
+`UNAVAILABLE`; through M10 no notification, queue, or scheduler telemetry was
+introduced. M9 is
 **COMPLETE** after mandatory verification, independent review, and authoritative GitLab
 revalidation passed with no remaining BLOCKER or HIGH finding.
 
@@ -213,6 +214,16 @@ or read access is unavailable; disabling Alerts skips that requirement. The prob
 not prove every write path. M10 is **COMPLETE** after authoritative GitLab semantic
 revalidation passed with no remaining BLOCKER or HIGH finding. It adds no scheduler,
 queue, notification, or incident telemetry because those components do not exist.
+
+## Milestone 11 notification delivery
+
+The delivery worker emits `geordi.alert.delivery.attempts`,
+`geordi.alert.delivery.results`, `geordi.alert.delivery.retries`,
+`geordi.alert.delivery.failures`, and `geordi.alert.delivery.duration`. Result labels
+are limited to closed outcome and transition-type values. Policy, SLO, service,
+environment, delivery ID, destination, URL, HTTP status, exception text, and secrets
+are forbidden labels. Recipient failures do not make readiness DOWN; unavailable
+lifecycle/outbox storage makes Alerts and platform readiness DOWN.
 
 ## Future health indicators
 

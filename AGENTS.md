@@ -238,3 +238,16 @@ Rules:
 - A Caveman recommendation does not authorize scope expansion.
 - Record useful out-of-scope findings as technical debt instead of implementing them.
 - When Caveman is used, report which skills were actually applied.
+- Caveman skills complement the Geordi agent workflow; they do not replace specialized subagents.
+- For milestone closure or architecture-significant work, always perform an independent reviewer pass before reporting completion.
+
+After implementation:
+
+1. run relevant tests;
+2. run the relevant build/quality gates;
+3. ask the reviewer agent to inspect the changes;
+4. fix BLOCKER and HIGH findings;
+5. update documentation when behavior, architecture, APIs, operations, or milestone status changed;
+6. verify the final diff;
+7. summarize exactly what was implemented;
+8. stop when the requested scope is satisfied.

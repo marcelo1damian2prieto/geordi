@@ -296,10 +296,14 @@ class ArchitectureTest {
     }
 
     @Test
-    void alertsIntroduceNoSchedulingOrNotificationDependencies() {
+    void alertSchedulingIsConfinedToTheDeliveryWorkerAndSpringComposition() {
+        noClasses().that().resideInAPackage("io.geordi.alerts..")
+                .and().resideOutsideOfPackages(
+                        "io.geordi.alerts.adapter.in.worker..", "io.geordi.alerts.adapter.spring..")
+                .should().dependOnClassesThat().resideInAPackage("org.springframework.scheduling..")
+                .check(productionClasses);
         noClasses().that().resideInAPackage("io.geordi.alerts..")
                 .should().dependOnClassesThat().resideInAnyPackage(
-                        "org.springframework.scheduling..",
                         "org.springframework.mail..",
                         "org.springframework.messaging..",
                         "org.springframework.kafka..")

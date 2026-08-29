@@ -1,6 +1,6 @@
 # Module Architecture
 
-Status: MILESTONES 1 THROUGH 10 COMPLETE
+Status: MILESTONES 1 THROUGH 10 COMPLETE; MILESTONE 11 READY FOR GITLAB REVALIDATION
 
 ## Initial modules
 
@@ -91,11 +91,15 @@ remains alert unavailability; a disabled policy yields `UNAVAILABLE/DISABLED` wi
 invoking the SLO evaluator. M10 adds current `INACTIVE`/`FIRING` state and canonical
 `ALERT_STARTED`/`ALERT_RESOLVED` transitions behind a provider-neutral repository port.
 File-backed H2 and Flyway are persistence adapters for the single-node runtime;
-optimistic compare-and-set and immutable semantic binding protect updates. The module
-still does not query VictoriaMetrics, calculate burn inputs, send notifications,
-schedule evaluation, store lifecycle history, acknowledge/silence alerts, or own
-incidents. Catalog changes require restart/redeployment and runtime policy mutation is
+optimistic compare-and-set and immutable semantic binding protect updates. At the M10
+boundary the module did not query VictoriaMetrics, calculate burn inputs, send
+notifications, schedule evaluation, store lifecycle history, acknowledge/silence
+alerts, or own incidents. Catalog changes require restart/redeployment and runtime policy mutation is
 not supported.
+
+M11 extends Alerts with provider-neutral notification ports, a transactional H2 outbox
+adapter, one webhook adapter, and one bounded delivery worker. Scheduling is confined
+to consuming already-committed outbox work; lifecycle evaluation is not scheduled.
 
 ## Planned modules
 
