@@ -3,6 +3,7 @@ package io.geordi.alerts.adapter.in.web;
 import io.geordi.alerts.application.AlertPolicyNotFoundException;
 import io.geordi.alerts.application.AlertLifecycleConcurrencyException;
 import io.geordi.alerts.application.AlertLifecyclePersistenceException;
+import io.geordi.alerts.application.AlertLifecycleEvaluationInProgressException;
 import io.geordi.alerts.domain.AlertLifecycleBindingMismatchException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -28,6 +29,12 @@ public class AlertPolicyExceptionHandler {
                 HttpStatus.CONFLICT,
                 "Alert lifecycle identity conflict",
                 "Persisted lifecycle identity conflicts with the canonical alert evaluation");
+    }
+
+    @ExceptionHandler(AlertLifecycleEvaluationInProgressException.class)
+    ProblemDetail lifecycleEvaluationInProgress(AlertLifecycleEvaluationInProgressException exception) {
+        return problem(HttpStatus.CONFLICT, "Alert lifecycle evaluation in progress",
+                "An alert lifecycle evaluation is already in progress for this policy");
     }
 
     @ExceptionHandler({AlertLifecycleConcurrencyException.class, AlertLifecyclePersistenceException.class})

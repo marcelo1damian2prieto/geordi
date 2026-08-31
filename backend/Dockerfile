@@ -17,16 +17,43 @@ RUN wget --no-verbose --output-document=/opentelemetry-javaagent.jar \
 
 FROM busybox:1.37.0-musl AS healthcheck
 
-FROM eclipse-temurin:21-jre-jammy
+FROM eclipse-temurin:21-jre-jammy AS runtime
 RUN useradd --system --uid 10001 --create-home geordi
 WORKDIR /app
 COPY --from=build /tmp/application.jar application.jar
 COPY --from=otel-java-agent /opentelemetry-javaagent.jar /opt/opentelemetry/opentelemetry-javaagent.jar
 COPY --from=healthcheck /bin/busybox /bin/busybox
-RUN mkdir -p /var/lib/geordi/alerts \
+RUN mkdir -p /var/lib/geordi/alerts /var/lib/geordi/alerts-m10 /var/lib/geordi/alerts-m12 \
     && chown -R geordi:geordi /app /opt/opentelemetry /var/lib/geordi
 USER 10001
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=6 \
   CMD ["/bin/busybox", "wget", "-q", "--spider", "http://localhost:8080/actuator/health/readiness"]
 ENTRYPOINT ["sh", "-c", "export OTEL_RESOURCE_ATTRIBUTES=\"${OTEL_RESOURCE_ATTRIBUTES},service.instance.id=$(cat /proc/sys/kernel/random/uuid)\"; exec java -javaagent:/opt/opentelemetry/opentelemetry-javaagent.jar -jar /app/application.jar"]
+
+# Keep the developer default source-building runtime as the final target below.
+
+FROM eclipse-temurin:21-jre-jammy AS ci-artifact
+ARG VERIFIED_JAR_SHA256
+ARG SOURCE_REVISION
+COPY .ci-artifact/application.jar /verified/application.jar
+RUN test -n "$VERIFIED_JAR_SHA256" && test -n "$SOURCE_REVISION" \
+    && echo "$VERIFIED_JAR_SHA256  /verified/application.jar" | sha256sum -c -
+
+FROM eclipse-temurin:21-jre-jammy AS ci-runtime
+ARG SOURCE_REVISION
+ARG VERIFIED_JAR_SHA256
+LABEL org.opencontainers.image.revision=$SOURCE_REVISION \
+      io.geordi.verified-artifact.sha256=$VERIFIED_JAR_SHA256
+RUN useradd --system --uid 10001 --create-home geordi
+WORKDIR /app
+COPY --from=ci-artifact /verified/application.jar application.jar
+COPY --from=otel-java-agent /opentelemetry-javaagent.jar /opt/opentelemetry/opentelemetry-javaagent.jar
+COPY --from=healthcheck /bin/busybox /bin/busybox
+RUN mkdir -p /var/lib/geordi/alerts /var/lib/geordi/alerts-m10 /var/lib/geordi/alerts-m12 && chown -R geordi:geordi /app /opt/opentelemetry /var/lib/geordi
+USER 10001
+EXPOSE 8080
+HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=6 CMD ["/bin/busybox", "wget", "-q", "--spider", "http://localhost:8080/actuator/health/readiness"]
+ENTRYPOINT ["sh", "-c", "export OTEL_RESOURCE_ATTRIBUTES=\"${OTEL_RESOURCE_ATTRIBUTES},service.instance.id=$(cat /proc/sys/kernel/random/uuid)\"; exec java -javaagent:/opt/opentelemetry/opentelemetry-javaagent.jar -jar /app/application.jar"]
+
+FROM runtime AS default-runtime

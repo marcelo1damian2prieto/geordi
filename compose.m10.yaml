@@ -1,0 +1,11 @@
+services:
+  backend:
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:h2:file:/var/lib/geordi/alerts-m10/lifecycle;DB_CLOSE_ON_EXIT=FALSE
+    volumes:
+      - ./deploy/slos/slos.yaml:/etc/geordi/slos.yaml:ro
+      - ./deploy/alerts/alert-policies.yaml:/etc/geordi/alert-policies.yaml:ro
+      - m10-alert-lifecycle-data:/var/lib/geordi/alerts-m10
+
+volumes:
+  m10-alert-lifecycle-data:

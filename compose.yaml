@@ -74,9 +74,12 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: ${GEORDI_BACKEND_DOCKER_TARGET:-runtime}
       args:
         OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.28.1}
         OTEL_JAVA_AGENT_SHA256: ${OTEL_JAVA_AGENT_SHA256:-faa89bdeebf9b1f52be4a4374689176717b02a59df2d8f8b6eb9aa39f9292589}
+        SOURCE_REVISION: ${GEORDI_SOURCE_REVISION:-}
+        VERIFIED_JAR_SHA256: ${GEORDI_VERIFIED_JAR_SHA256:-}
     image: geordi-backend:local
     depends_on:
       otel-collector:
@@ -98,6 +101,8 @@ services:
       SPRING_CONFIG_ADDITIONAL_LOCATION: file:/etc/geordi/slos.yaml,file:/etc/geordi/alert-policies.yaml
       SPRING_DATASOURCE_URL: jdbc:h2:file:/var/lib/geordi/alerts/lifecycle;DB_CLOSE_ON_EXIT=FALSE
       GEORDI_NOTIFICATION_ENABLED: "true"
+      GEORDI_SCHEDULING_ALERT_ENABLED: ${GEORDI_SCHEDULING_ALERT_ENABLED:-false}
+      GEORDI_SCHEDULING_ALERT_INTERVAL: ${GEORDI_SCHEDULING_ALERT_INTERVAL:-1m}
       GEORDI_NOTIFICATION_DESTINATION_ID: local-webhook
       GEORDI_NOTIFICATION_ENDPOINT: http://webhook-receiver:8080/hook
       GEORDI_NOTIFICATION_TOKEN: ${GEORDI_NOTIFICATION_TOKEN:-local-dev-only-token}
@@ -205,6 +210,30 @@ services:
       OTEL_TRACES_SAMPLER: always_on
     ports:
       - "127.0.0.1:8083:8081"
+    restart: unless-stopped
+
+  m12-burn-demo:
+    image: geordi-demo:local
+    depends_on:
+      otel-collector:
+        condition: service_healthy
+        restart: true
+    environment:
+      DEMO_DOWNSTREAM_URL: http://demo-downstream:8082/downstream/respond
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_LOGS_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_METRIC_EXPORT_INTERVAL: "5000"
+      OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE: cumulative
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=geordi-m12-scheduling,service.name=geordi-m12-scheduling-service,deployment.environment.name=development,geordi.telemetry.origin=monitored
+      OTEL_SEMCONV_STABILITY_OPT_IN: http
+      OTEL_INSTRUMENTATION_HTTP_URL_CONNECTION_ENABLED: "false"
+      OTEL_INSTRUMENTATION_LOGBACK_APPENDER_ENABLED: "true"
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_TRACES_SAMPLER: always_on
+    ports:
+      - "127.0.0.1:8084:8081"
     restart: unless-stopped
 
   demo-downstream:

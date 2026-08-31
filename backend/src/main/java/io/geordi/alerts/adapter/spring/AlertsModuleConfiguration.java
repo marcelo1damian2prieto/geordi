@@ -3,6 +3,8 @@ package io.geordi.alerts.adapter.spring;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.geordi.alerts.AlertsPlatformModule;
 import io.geordi.alerts.adapter.out.config.AlertPoliciesProperties;
+import io.geordi.alerts.adapter.out.config.AlertSchedulingProperties;
+import io.geordi.alerts.adapter.in.worker.AlertEvaluationScheduler;
 import io.geordi.alerts.adapter.out.config.ConfigurationAlertPolicyCatalog;
 import io.geordi.alerts.adapter.out.config.ConfigurationNotificationDestinationSelector;
 import io.geordi.alerts.adapter.out.config.WebhookNotificationProperties;
@@ -17,6 +19,8 @@ import io.geordi.alerts.application.AlertEvaluationUseCase;
 import io.geordi.alerts.application.AlertLifecycleEvaluationUseCase;
 import io.geordi.alerts.application.AlertLifecycleQueryService;
 import io.geordi.alerts.application.AlertLifecycleService;
+import io.geordi.alerts.application.AlertSchedulingSettings;
+import io.geordi.alerts.application.SingleFlightAlertLifecycleEvaluationUseCase;
 import io.geordi.alerts.application.AlertPolicyQueryService;
 import io.geordi.alerts.application.AlertPolicyReferenceValidator;
 import io.geordi.alerts.application.NotificationDeliveryWorkService;
@@ -64,7 +68,7 @@ public class AlertsModuleConfiguration {
     @ConditionalOnExpression(
             "${geordi.modules.alerts.enabled:true} && ${geordi.modules.slos.enabled:true}"
                     + " && ${geordi.modules.metrics.enabled:true}")
-    @EnableConfigurationProperties({AlertPoliciesProperties.class, WebhookNotificationProperties.class})
+    @EnableConfigurationProperties({AlertPoliciesProperties.class, WebhookNotificationProperties.class, AlertSchedulingProperties.class})
     static class EnabledAlertsConfiguration {
 
         @Bean
@@ -122,7 +126,18 @@ public class AlertsModuleConfiguration {
                 NotificationDestinationSelector destinations) {
             AlertLifecycleService delegate = new AlertLifecycleService(
                     catalog, evaluations, repository, sloBindings, sloClock, destinations);
-            return new ObservedAlertLifecycleEvaluationUseCase(delegate);
+            return new SingleFlightAlertLifecycleEvaluationUseCase(new ObservedAlertLifecycleEvaluationUseCase(delegate));
+        }
+
+        @Bean(destroyMethod = "close")
+        @ConditionalOnProperty(prefix = "geordi.scheduling.alert", name = "enabled", havingValue = "true")
+        AlertEvaluationScheduler alertEvaluationScheduler(AlertPolicyCatalog catalog,
+            AlertLifecycleEvaluationUseCase evaluations, AlertSchedulingProperties properties) {
+            AlertEvaluationScheduler scheduler = new AlertEvaluationScheduler(catalog, evaluations,
+                    new AlertSchedulingSettings(properties.interval(), properties.workerCount(), properties.queueCapacity(),
+                            properties.shutdownGracePeriod()));
+            scheduler.start();
+            return scheduler;
         }
 
         @Configuration(proxyBeanMethods = false)

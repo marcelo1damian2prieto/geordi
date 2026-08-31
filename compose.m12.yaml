@@ -1,0 +1,16 @@
+services:
+  victoriametrics:
+    volumes: !override
+      - m12-victoriametrics-data:/victoria-metrics-data
+
+  backend:
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:h2:file:/var/lib/geordi/alerts-m12/lifecycle;DB_CLOSE_ON_EXIT=FALSE
+    volumes:
+      - ./deploy/slos/slos.yaml:/etc/geordi/slos.yaml:ro
+      - ./deploy/alerts/alert-policies.yaml:/etc/geordi/alert-policies.yaml:ro
+      - m12-alert-lifecycle-data:/var/lib/geordi/alerts-m12
+
+volumes:
+  m12-alert-lifecycle-data:
+  m12-victoriametrics-data:

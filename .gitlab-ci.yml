@@ -34,6 +34,7 @@ backend:
     - cd backend
     - chmod +x ./mvnw
     - ./mvnw -B -ntp verify
+    - pwsh -NoProfile -Command '$jar = @(Get-ChildItem target/geordi-backend-*.jar | Where-Object { $_.Name -notlike "*.original" }); if ($jar.Count -ne 1) { throw "Expected exactly one verified backend JAR" }; $hash=(Get-FileHash $jar[0].FullName -Algorithm SHA256).Hash.ToLower(); "revision=$env:CI_COMMIT_SHA`njar=$($jar[0].Name)`nsha256=$hash" | Set-Content target/verified-artifact.properties -NoNewline'
   artifacts:
     when: always
     expire_in: 7 days
@@ -42,6 +43,8 @@ backend:
       - backend/target/failsafe-reports/
       - backend/target/pmd.xml
       - backend/target/spotbugsXml.xml
+      - backend/target/geordi-backend-0.1.0-SNAPSHOT.jar
+      - backend/target/verified-artifact.properties
     reports:
       junit:
         - backend/target/surefire-reports/TEST-*.xml
@@ -91,7 +94,7 @@ local_stack_smoke:
     - geordi-docker-pwsh
   needs:
     - job: backend
-      artifacts: false
+      artifacts: true
     - job: frontend
       artifacts: false
     - job: deployment_configuration
@@ -105,7 +108,8 @@ local_stack_smoke:
   script:
     - git ls-files --eol backend/mvnw
     - docker compose down --volumes --remove-orphans
-    - docker compose build --no-cache
+    - pwsh -NoProfile -Command '$p=ConvertFrom-StringData (Get-Content backend/target/verified-artifact.properties -Raw); if ($p.revision -ne $env:CI_COMMIT_SHA) { throw "Verified artifact revision mismatch" }; $jar=Join-Path backend/target $p.jar; if (!(Test-Path $jar) -or (Get-FileHash $jar -Algorithm SHA256).Hash.ToLower() -ne $p.sha256) { throw "Verified artifact digest mismatch" }; New-Item -ItemType Directory -Force backend/.ci-artifact | Out-Null; Copy-Item $jar backend/.ci-artifact/application.jar; $env:GEORDI_BACKEND_DOCKER_TARGET="ci-runtime"; $env:GEORDI_SOURCE_REVISION=$p.revision; $env:GEORDI_VERIFIED_JAR_SHA256=$p.sha256; docker compose build --no-cache backend; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; $labels=docker image inspect geordi-backend:local --format "{{json .Config.Labels}}" | ConvertFrom-Json; if ($labels."org.opencontainers.image.revision" -ne $p.revision -or $labels."io.geordi.verified-artifact.sha256" -ne $p.sha256) { throw "Runtime image provenance mismatch" }'
+    - docker compose build --no-cache tempo loki otel-collector demo burn-demo demo-downstream frontend
     - docker compose up -d --wait --wait-timeout 180
     - pwsh -File ./scripts/verify-otel.ps1 -TimeoutSeconds 120
     - pwsh -File ./scripts/verify-metrics.ps1 -TimeoutSeconds 150
@@ -117,6 +121,7 @@ local_stack_smoke:
     - pwsh -File ./scripts/verify-alert-evaluation.ps1 -TimeoutSeconds 150
     - pwsh -File ./scripts/verify-alert-lifecycle.ps1 -TimeoutSeconds 240
     - pwsh -File ./scripts/verify-notification-delivery.ps1 -TimeoutSeconds 300
+    - pwsh -File ./scripts/verify-alert-scheduling.ps1 -TimeoutSeconds 300
   after_script:
     - pwsh -NoProfile -Command '& docker compose logs --no-color; if ($LASTEXITCODE -ne 0) { Write-Warning "Could not collect Compose logs."; exit 0 }'
     - pwsh -NoProfile -Command '& docker compose down --volumes --remove-orphans; if ($LASTEXITCODE -ne 0) { Write-Warning "Could not clean up the Compose stack."; exit 0 }'

@@ -6,7 +6,9 @@ param(
     [string] $BackendBaseUrl = 'http://127.0.0.1:8080',
     [string] $BurnDemoBaseUrl = 'http://127.0.0.1:8083',
     [string] $VictoriaMetricsBaseUrl = 'http://127.0.0.1:8428',
-    [string] $FrontendBaseUrl = 'http://127.0.0.1:3000'
+    [string] $FrontendBaseUrl = 'http://127.0.0.1:3000',
+    [switch] $RunFixtureResetOnly,
+    [switch] $UsePreparedFixture
 )
 
 $ErrorActionPreference = 'Stop'
@@ -22,6 +24,39 @@ $Identity = [ordered]@{ name = 'geordi-burn-smoke-service'; namespace = 'geordi-
 $BaselineIdentity = [ordered]@{ name = 'geordi-demo-downstream-service'; namespace = 'geordi-demo'; environment = 'development' }
 $ProviderSyntaxPattern = 'promql|metricsql|victoriametrics|http\.server\.request|__name__|increase\s*\(|rate\s*\('
 $DeliverySyntaxPattern = 'smtp|slack|teams|pagerduty|opsgenie|alertmanager|webhook|notification|incident|page|acknowledg|silenc|escalat'
+
+function Set-M10ComposeContext([string] $Root) {
+    $env:COMPOSE_FILE = (Join-Path $Root 'compose.yaml') + [IO.Path]::PathSeparator + (Join-Path $Root 'compose.m10.yaml')
+}
+
+function Reset-M10FixtureVolume([string] $Root) {
+    $logicalName = 'm10-alert-lifecycle-data'
+    $expectedName = 'geordi_m10-alert-lifecycle-data'
+    $rendered = & docker compose --project-directory $Root config --format json | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to render the M10 Compose configuration for fixture reset.' }
+    $candidate = $rendered.volumes.$logicalName.name
+    if ([string]::IsNullOrWhiteSpace($candidate) -or $candidate -ne $expectedName) { throw "Refusing M10 fixture reset for unexpected volume '$candidate'." }
+
+    & docker compose --project-directory $Root rm -sf backend
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to detach the backend before M10 fixture reset.' }
+
+    $inspection = & docker volume inspect $candidate 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        $volume = @($inspection | ConvertFrom-Json)[0]
+        if ($volume.Name -ne $expectedName -or $volume.Labels.'com.docker.compose.project' -ne 'geordi' -or $volume.Labels.'com.docker.compose.volume' -ne $logicalName) {
+            throw "Refusing M10 fixture reset for non-M10 volume '$candidate'."
+        }
+        & docker volume rm $candidate | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Unable to remove dedicated M10 volume '$candidate'." }
+    }
+}
+
+function Prepare-M10Fixture([string] $Root) {
+    Set-M10ComposeContext $Root
+    Reset-M10FixtureVolume $Root
+    & docker compose --project-directory $Root up -d --force-recreate backend
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to start the dedicated M10 lifecycle fixture.' }
+}
 
 function Invoke-TextRequest {
     param([Parameter(Mandatory)][string] $Uri, [int] $RequestTimeoutSeconds = 15, [string] $Method = 'GET')
@@ -187,7 +222,18 @@ function Assert-LifecycleTelemetry {
     throw "Timed out waiting for bounded lifecycle self-observability: $lastFailure"
 }
 
+if ($RunFixtureResetOnly) {
+    $root = Split-Path -Parent $PSScriptRoot
+    Set-M10ComposeContext $root
+    Reset-M10FixtureVolume $root
+    Write-Output 'M10 fixture reset PASS.'
+    exit 0
+}
+
 try {
+    $root = Split-Path -Parent $PSScriptRoot
+    Set-M10ComposeContext $root
+    if (-not $UsePreparedFixture) { Prepare-M10Fixture $root }
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     Wait-ForHttp200 'backend readiness' "$BackendBaseUrl/actuator/health/readiness" $deadline
     Wait-ForHttp200 'VictoriaMetrics' "$VictoriaMetricsBaseUrl/health" $deadline
@@ -217,8 +263,7 @@ try {
     Assert-NoTransition $repeatedMet 'FIRING' 'Repeated CONDITION_MET'
     if ($repeatedMet.current.startedAt -ne $startedAt) { throw 'Repeated CONDITION_MET changed the active episode start time.' }
 
-    $root = Split-Path -Parent $PSScriptRoot; $compose = Join-Path $root 'compose.yaml'
-    & docker compose --project-directory $root --file $compose restart backend
+    & docker compose --project-directory $root restart backend
     if ($LASTEXITCODE -ne 0) { throw 'Could not restart backend for lifecycle durability verification.' }
     Wait-ForHttp200 'backend after lifecycle restart' "$BackendBaseUrl/actuator/health/readiness" $deadline
     $afterRestart = Get-State $PolicyId
@@ -228,7 +273,7 @@ try {
 
     $stopped = $false
     try {
-        & docker compose --project-directory $root --file $compose stop victoriametrics
+        & docker compose --project-directory $root stop victoriametrics
         if ($LASTEXITCODE -ne 0) { throw 'Could not stop VictoriaMetrics for lifecycle unavailable verification.' }
         $stopped = $true
         $unavailable = Apply-Lifecycle $PolicyId
@@ -237,7 +282,7 @@ try {
         if ($unavailable.current.startedAt -ne $startedAt) { throw 'FIRING + UNAVAILABLE changed lifecycle start time.' }
     } finally {
         if ($stopped) {
-            & docker compose --project-directory $root --file $compose start victoriametrics
+            & docker compose --project-directory $root start victoriametrics
             if ($LASTEXITCODE -ne 0) { throw 'Could not restart VictoriaMetrics after lifecycle unavailable verification.' }
             Wait-ForHttp200 'VictoriaMetrics after lifecycle unavailable verification' "$VictoriaMetricsBaseUrl/health" $deadline
         }

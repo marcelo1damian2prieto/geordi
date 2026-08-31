@@ -17,6 +17,22 @@ geordi:
         condition:
           type: BURN_RATE_ABOVE
           threshold: 1
+      - id: m12-scheduling-alert
+        name: M12 scheduling alert
+        description: Isolated policy for automatic scheduling verification.
+        enabled: true
+        slo-id: m12-scheduling-error-rate
+        condition:
+          type: BURN_RATE_ABOVE
+          threshold: 1
+      - id: m12-disabled-scheduling-alert
+        name: M12 disabled scheduling alert
+        description: Disabled policy for automatic scheduling suppression verification.
+        enabled: false
+        slo-id: m12-scheduling-error-rate
+        condition:
+          type: BURN_RATE_ABOVE
+          threshold: 1
       - id: no-traffic-burn-alert
         name: No-traffic burn alert
         description: Policy for deterministic no-traffic unavailable verification.

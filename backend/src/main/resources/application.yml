@@ -33,6 +33,13 @@ geordi:
     definitions: []
   alert:
     policies: []
+  scheduling:
+    alert:
+      enabled: false
+      interval: 1m
+      worker-count: 2
+      queue-capacity: 10
+      shutdown-grace-period: 5s
   notification:
     enabled: false
     destination-id: primary-webhook
