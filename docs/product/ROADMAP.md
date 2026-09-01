@@ -174,12 +174,15 @@ BLOCKER or HIGH finding.
 
 ## Milestone 12 — Automated alert evaluation scheduling
 
-READY FOR GITLAB REVALIDATION
+COMPLETE
 
 M12 introduces bounded single-node, deployment-managed automatic evaluation through the
-existing M9 evaluation, M10 lifecycle, and M11 delivery boundaries. It has no distributed
-coordination, leader election, missed-tick replay, policy reload, arbitrary cadence, or
-new API/UI. Final completion remains conditional on authoritative GitLab revalidation.
+existing M9 evaluation, M10 lifecycle, and M11 delivery boundaries. The authoritative
+GitLab pipeline passed backend, deployment configuration, frontend, verified-JAR and
+runtime-image provenance, and `local_stack_smoke`, including the M9 → M10 → M11 → M12
+semantic chain, automatic transitions, M11 delivery, and restart/recovery. It has no
+distributed coordination, leader election, scheduler persistence, missed-tick replay,
+policy reload, arbitrary cadence, or new API/UI.
 
 ## Later
 

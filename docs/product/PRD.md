@@ -1,6 +1,6 @@
 # Geordi Product Requirements Document
 
-Status: MILESTONES 1 THROUGH 11 COMPLETE; MILESTONE 12 READY FOR GITLAB REVALIDATION
+Status: MILESTONES 1 THROUGH 12 COMPLETE
 
 ## Vision
 
@@ -316,13 +316,15 @@ and the checked token/telemetry boundaries.
 
 ## Milestone 12 scope
 
-Status: READY FOR GITLAB REVALIDATION
+Status: COMPLETE
 
 M12 adds deployment-managed automatic evaluation for enabled alert policies. A bounded
 single-node scheduler triggers the existing M9 evaluation and M10 lifecycle path; M11
 continues to own durable webhook delivery. Scheduling is disabled by default, supports
 bounded workers and queue capacity (including direct hand-off capacity `0`), suppresses
 same-policy overlap, and has no leader election, distributed lock, or missed-tick
-replay. Local semantic evidence covers automatic transitions and delivery, outage
-isolation/recovery, restart recovery, disabled-policy suppression, bounded telemetry,
-and secret isolation. Authoritative GitLab revalidation is still required.
+replay. The authoritative GitLab pipeline passed backend quality gates, deployment
+configuration, frontend verification, verified-JAR and runtime-image provenance, and
+`local_stack_smoke`. The M9 → M10 → M11 → M12 chain verified automatic transitions,
+M11 delivery, outage isolation/recovery, restart recovery, disabled-policy suppression,
+bounded telemetry, and secret isolation.

@@ -1,6 +1,6 @@
 # Milestone 012 — Automated Alert Evaluation Scheduling Foundation
 
-Status: MILESTONE 12 READY FOR GITLAB REVALIDATION
+Status: MILESTONE 12 COMPLETE
 
 ## Build-contract implementation
 
@@ -166,8 +166,17 @@ evidence justifies them.
 
 ## Documentation updates
 
-After verified implementation, update the alert architecture/module and
-self-observability documentation, deployment instructions, roadmap/product status,
-README, technical debt, and GitLab/Compose documentation only to match delivered
-behavior. M12 remains `READY FOR GITLAB REVALIDATION` locally until authoritative CI
-is confirmed.
+The alert architecture/module and self-observability documentation, deployment
+instructions, roadmap/product status, README, technical debt, and GitLab/Compose
+documentation reflect delivered behavior. M12 is `COMPLETE` because the authoritative
+GitLab pipeline passed backend, deployment configuration, frontend, and
+`local_stack_smoke`.
+
+## Authoritative completion evidence
+
+The authoritative GitLab pipeline passed backend verification (including backend quality
+gates), deployment configuration, frontend verification, and `local_stack_smoke`. The
+same-pipeline verified-JAR and runtime-image provenance checks passed. The integration
+chain passed M9 Alert Evaluation, M10 Alert Lifecycle, M11 Notification Delivery, and
+M12 Alert Scheduling, including automatic scheduling, canonical lifecycle transitions,
+M11 delivery, and restart/recovery behavior.
