@@ -34,7 +34,32 @@ backend:
     - cd backend
     - chmod +x ./mvnw
     - ./mvnw -B -ntp verify
-    - pwsh -NoProfile -Command '$jar = @(Get-ChildItem target/geordi-backend-*.jar | Where-Object { $_.Name -notlike "*.original" }); if ($jar.Count -ne 1) { throw "Expected exactly one verified backend JAR" }; $hash=(Get-FileHash $jar[0].FullName -Algorithm SHA256).Hash.ToLower(); "revision=$env:CI_COMMIT_SHA`njar=$($jar[0].Name)`nsha256=$hash" | Set-Content target/verified-artifact.properties -NoNewline'
+    - |
+      set -eu
+      jar=''
+      count=0
+      for candidate in target/geordi-backend-*.jar; do
+        [ -f "$candidate" ] || continue
+        case "$candidate" in
+          *.original|*-sources.jar|*-javadoc.jar) continue ;;
+        esac
+        jar="$candidate"
+        count=$((count + 1))
+      done
+      if [ "$count" -ne 1 ]; then
+        echo "Expected exactly one verified backend JAR; found $count" >&2
+        exit 1
+      fi
+      if [ -z "${CI_COMMIT_SHA:-}" ]; then
+        echo "CI_COMMIT_SHA is required for verified artifact provenance" >&2
+        exit 1
+      fi
+      hash="$(sha256sum "$jar" | awk '{print tolower($1)}')"
+      if [ "${#hash}" -ne 64 ] || ! printf '%s' "$hash" | grep -Eq '^[0-9a-f]{64}$'; then
+        echo "Could not calculate a valid SHA-256 for verified backend JAR" >&2
+        exit 1
+      fi
+      printf 'revision=%s\njar=%s\nsha256=%s' "$CI_COMMIT_SHA" "$(basename "$jar")" "$hash" > target/verified-artifact.properties
   artifacts:
     when: always
     expire_in: 7 days
