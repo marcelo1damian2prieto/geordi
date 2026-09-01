@@ -1,0 +1,24 @@
+geordi:
+  alert-routing:
+    allow-insecure-local-http: true
+    destinations:
+      - id: m13-receiver-a
+        endpoint: http://webhook-receiver-a:8080/hook
+        token: ${GEORDI_M13_WEBHOOK_TOKEN_A}
+        token-header: X-Geordi-Token
+      - id: m13-receiver-b
+        endpoint: http://webhook-receiver-b:8080/hook
+        token: ${GEORDI_M13_WEBHOOK_TOKEN_B}
+        token-header: X-Geordi-Token
+    routes:
+      - id: m13-route-a
+        policy-id: m13-route-a-alert
+        action: DELIVER
+        destination-id: m13-receiver-a
+      - id: m13-route-b
+        policy-id: m13-route-b-alert
+        action: DELIVER
+        destination-id: m13-receiver-b
+      - id: m13-suppress
+        policy-id: m13-suppressed-alert
+        action: SUPPRESS

@@ -4,7 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
-import io.geordi.alerts.adapter.out.config.ConfigurationNotificationDestinationSelector;
+import io.geordi.alerts.adapter.out.config.AlertRoutingProperties;
+import io.geordi.alerts.adapter.out.config.ConfigurationAlertRoutingAdapter;
 import io.geordi.alerts.adapter.out.config.WebhookNotificationProperties;
 import io.geordi.alerts.application.port.out.NotificationDeliverySender;
 import io.geordi.alerts.domain.AlertCondition;
@@ -52,7 +53,7 @@ class HttpWebhookNotificationSenderTest {
         server.start();
         var properties = properties(server.getAddress().getPort());
         var delivery = delivery(properties);
-        var sender = new HttpWebhookNotificationSender(properties, new ObjectMapper().findAndRegisterModules());
+        var sender = sender(properties);
 
         assertThat(sender.send(delivery)).isEqualTo(NotificationDeliverySender.Result.DELIVERED);
         assertThat(idempotency).hasValue(delivery.id());
@@ -82,13 +83,13 @@ class HttpWebhookNotificationSenderTest {
                 URI.create("http://localhost:" + port + "/hook"), "test-token", "X-Geordi-Token",
                 List.of("ALERT_STARTED"), Duration.ofMillis(50), Duration.ofMillis(50),
                 Duration.ofSeconds(1), Duration.ofSeconds(1), 10, 3, true);
-        assertThat(new HttpWebhookNotificationSender(timeoutProperties, new ObjectMapper().findAndRegisterModules())
+        assertThat(sender(timeoutProperties)
                 .send(delivery(timeoutProperties))).isEqualTo(NotificationDeliverySender.Result.RETRYABLE_FAILURE);
 
         server.stop(0);
         server = null;
         var connectionProperties = properties(port);
-        assertThat(new HttpWebhookNotificationSender(connectionProperties, new ObjectMapper().findAndRegisterModules())
+        assertThat(sender(connectionProperties)
                 .send(delivery(connectionProperties))).isEqualTo(NotificationDeliverySender.Result.RETRYABLE_FAILURE);
     }
 
@@ -100,7 +101,7 @@ class HttpWebhookNotificationSenderTest {
                 original.transitions(), original.connectTimeout(), original.readTimeout(), original.pollInterval(),
                 original.leaseDuration(), original.batchSize(), original.maximumAttempts(), true);
 
-        assertThat(new HttpWebhookNotificationSender(changed, new ObjectMapper().findAndRegisterModules())
+        assertThat(sender(changed)
                 .send(delivery(original))).isEqualTo(NotificationDeliverySender.Result.TERMINAL_FAILURE);
     }
 
@@ -112,9 +113,25 @@ class HttpWebhookNotificationSenderTest {
         AlertEvaluation evaluation = new AlertEvaluation("policy", "Policy", "slo", condition,
                 AlertEvaluationStatus.CONDITION_MET, null, evidence);
         var transition = AlertLifecycleTransitions.apply(Optional.empty(), evaluation, null).transition();
-        var destination = new ConfigurationNotificationDestinationSelector(properties)
-                .selectFor(transition).orElseThrow();
+        var destination = ((io.geordi.alerts.domain.RoutingDecision.Matched) adapter(properties)
+                .route(transition)).destination();
         return NotificationDelivery.pending(transition, destination, now);
+    }
+
+    private static HttpWebhookNotificationSender sender(WebhookNotificationProperties properties) {
+        return new HttpWebhookNotificationSender(adapter(properties), properties, new ObjectMapper().findAndRegisterModules());
+    }
+
+    private static ConfigurationAlertRoutingAdapter adapter(WebhookNotificationProperties properties) {
+        var destination = new AlertRoutingProperties.DestinationSettings("primary", properties.endpoint(),
+                properties.token(), properties.tokenHeader());
+        var route = new AlertRoutingProperties.RouteSettings("default", null, null, null, null,
+                null, "DELIVER", "primary");
+        return new ConfigurationAlertRoutingAdapter(new AlertRoutingProperties(List.of(destination), List.of(route), true),
+                new io.geordi.alerts.application.port.out.AlertPolicyCatalog() {
+                    @Override public List<io.geordi.alerts.domain.AlertPolicy> findAll() { return List.of(); }
+                    @Override public Optional<io.geordi.alerts.domain.AlertPolicy> findById(String id) { return Optional.empty(); }
+                });
     }
 
     private static WebhookNotificationProperties properties(int port) {

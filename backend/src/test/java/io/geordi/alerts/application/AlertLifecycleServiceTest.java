@@ -127,8 +127,9 @@ class AlertLifecycleServiceTest {
         InMemoryRepository repository = new InMemoryRepository();
         AlertLifecycleService service = new AlertLifecycleService(
                 catalog(), id -> evaluation(AlertEvaluationStatus.CONDITION_MET, FIRST), repository, bindings(),
-                Clock.fixed(FIRST.plusSeconds(10), ZoneOffset.UTC), transition -> Optional.of(
-                        new NotificationDestination("operations-webhook", "fingerprint")));
+                Clock.fixed(FIRST.plusSeconds(10), ZoneOffset.UTC), transition ->
+                        io.geordi.alerts.domain.RoutingDecision.matched(
+                                new NotificationDestination("operations-webhook", "fingerprint")));
 
         service.evaluate(POLICY.id());
         service.evaluate(POLICY.id());

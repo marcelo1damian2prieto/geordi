@@ -1,0 +1,12 @@
+geordi:
+  alert-routing:
+    allow-insecure-local-http: true
+    destinations:
+      - id: local-webhook
+        endpoint: ${GEORDI_NOTIFICATION_ENDPOINT:http://webhook-receiver:8080/hook}
+        token: ${GEORDI_NOTIFICATION_TOKEN:local-dev-only-token}
+        token-header: ${GEORDI_NOTIFICATION_TOKEN_HEADER:X-Geordi-Token}
+    routes:
+      - id: local-default
+        action: DELIVER
+        destination-id: local-webhook

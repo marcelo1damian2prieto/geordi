@@ -6,7 +6,8 @@ import io.geordi.alerts.adapter.out.config.AlertPoliciesProperties;
 import io.geordi.alerts.adapter.out.config.AlertSchedulingProperties;
 import io.geordi.alerts.adapter.in.worker.AlertEvaluationScheduler;
 import io.geordi.alerts.adapter.out.config.ConfigurationAlertPolicyCatalog;
-import io.geordi.alerts.adapter.out.config.ConfigurationNotificationDestinationSelector;
+import io.geordi.alerts.adapter.out.config.AlertRoutingProperties;
+import io.geordi.alerts.adapter.out.config.ConfigurationAlertRoutingAdapter;
 import io.geordi.alerts.adapter.out.config.WebhookNotificationProperties;
 import io.geordi.alerts.adapter.in.worker.NotificationDeliveryWorker;
 import io.geordi.alerts.adapter.out.persistence.H2AlertLifecycleRepository;
@@ -14,6 +15,7 @@ import io.geordi.alerts.adapter.out.webhook.HttpWebhookNotificationSender;
 import io.geordi.alerts.adapter.out.slos.SlosReliabilityAdapter;
 import io.geordi.alerts.adapter.out.telemetry.ObservedAlertEvaluationUseCase;
 import io.geordi.alerts.adapter.out.telemetry.ObservedAlertLifecycleEvaluationUseCase;
+import io.geordi.alerts.adapter.out.telemetry.ObservedAlertRoutingPort;
 import io.geordi.alerts.application.AlertEvaluationService;
 import io.geordi.alerts.application.AlertEvaluationUseCase;
 import io.geordi.alerts.application.AlertLifecycleEvaluationUseCase;
@@ -28,7 +30,7 @@ import io.geordi.alerts.application.port.out.AlertLifecycleRepository;
 import io.geordi.alerts.application.port.out.AlertLifecyclePersistenceHealthProbe;
 import io.geordi.alerts.application.port.out.AlertPolicyCatalog;
 import io.geordi.alerts.application.port.out.BurnRateEvidencePort;
-import io.geordi.alerts.application.port.out.NotificationDestinationSelector;
+import io.geordi.alerts.application.port.out.AlertRoutingPort;
 import io.geordi.alerts.application.port.out.NotificationDeliverySender;
 import io.geordi.alerts.application.port.out.NotificationDeliveryWorkRepository;
 import io.geordi.alerts.application.port.out.SloLifecycleBindingPort;
@@ -68,7 +70,7 @@ public class AlertsModuleConfiguration {
     @ConditionalOnExpression(
             "${geordi.modules.alerts.enabled:true} && ${geordi.modules.slos.enabled:true}"
                     + " && ${geordi.modules.metrics.enabled:true}")
-    @EnableConfigurationProperties({AlertPoliciesProperties.class, WebhookNotificationProperties.class, AlertSchedulingProperties.class})
+    @EnableConfigurationProperties({AlertPoliciesProperties.class, AlertRoutingProperties.class, WebhookNotificationProperties.class, AlertSchedulingProperties.class})
     static class EnabledAlertsConfiguration {
 
         @Bean
@@ -97,8 +99,15 @@ public class AlertsModuleConfiguration {
         }
 
         @Bean
-        NotificationDestinationSelector notificationDestinationSelector(WebhookNotificationProperties properties) {
-            return new ConfigurationNotificationDestinationSelector(properties);
+        ConfigurationAlertRoutingAdapter alertRoutingAdapter(
+                AlertRoutingProperties properties, AlertPolicyCatalog catalog) {
+            return new ConfigurationAlertRoutingAdapter(properties, catalog);
+        }
+
+        @Bean
+        @Primary
+        AlertRoutingPort observedAlertRoutingPort(ConfigurationAlertRoutingAdapter routing) {
+            return new ObservedAlertRoutingPort(routing);
         }
 
         @Bean
@@ -123,9 +132,9 @@ public class AlertsModuleConfiguration {
                 AlertLifecycleRepository repository,
                 SloLifecycleBindingPort sloBindings,
                 Clock sloClock,
-                NotificationDestinationSelector destinations) {
+                AlertRoutingPort routing) {
             AlertLifecycleService delegate = new AlertLifecycleService(
-                    catalog, evaluations, repository, sloBindings, sloClock, destinations);
+                    catalog, evaluations, repository, sloBindings, sloClock, routing);
             return new SingleFlightAlertLifecycleEvaluationUseCase(new ObservedAlertLifecycleEvaluationUseCase(delegate));
         }
 
@@ -153,8 +162,9 @@ public class AlertsModuleConfiguration {
 
             @Bean
             NotificationDeliverySender notificationDeliverySender(
-                    WebhookNotificationProperties properties, ObjectMapper objectMapper) {
-                return new HttpWebhookNotificationSender(properties, objectMapper);
+                    ConfigurationAlertRoutingAdapter destinations, WebhookNotificationProperties properties,
+                    ObjectMapper objectMapper) {
+                return new HttpWebhookNotificationSender(destinations, properties, objectMapper);
             }
 
             @Bean

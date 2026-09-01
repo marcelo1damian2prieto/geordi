@@ -1,0 +1,56 @@
+services:
+  victoriametrics:
+    volumes: !override
+      - m13-victoriametrics-data:/victoria-metrics-data
+
+  backend:
+    depends_on:
+      webhook-receiver-a:
+        condition: service_healthy
+      webhook-receiver-b:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:h2:file:/var/lib/geordi/alerts/lifecycle;DB_CLOSE_ON_EXIT=FALSE
+      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/etc/geordi/slos.yaml,file:/etc/geordi/alert-policies.m13.yaml,file:/etc/geordi/alert-routing.m13.yaml
+      GEORDI_M13_WEBHOOK_TOKEN_A: ${GEORDI_M13_WEBHOOK_TOKEN_A:?GEORDI_M13_WEBHOOK_TOKEN_A is required for the isolated M13 fixture}
+      GEORDI_M13_WEBHOOK_TOKEN_B: ${GEORDI_M13_WEBHOOK_TOKEN_B:?GEORDI_M13_WEBHOOK_TOKEN_B is required for the isolated M13 fixture}
+    volumes:
+      - ./deploy/alerts/alert-policies.m13.yaml:/etc/geordi/alert-policies.m13.yaml:ro
+      - ./deploy/alerts/alert-routing.m13.yaml:/etc/geordi/alert-routing.m13.yaml:ro
+      - m13-alert-lifecycle-data:/var/lib/geordi/alerts
+
+  webhook-receiver-a:
+    image: python:3.13-alpine
+    command: ["python", "/fixture/server.py"]
+    environment:
+      WEBHOOK_TOKEN: ${GEORDI_M13_WEBHOOK_TOKEN_A:?GEORDI_M13_WEBHOOK_TOKEN_A is required for the isolated M13 fixture}
+    volumes:
+      - ./deploy/webhook-receiver/server.py:/fixture/server.py:ro
+    ports:
+      - "127.0.0.1:18081:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    restart: "no"
+
+  webhook-receiver-b:
+    image: python:3.13-alpine
+    command: ["python", "/fixture/server.py"]
+    environment:
+      WEBHOOK_TOKEN: ${GEORDI_M13_WEBHOOK_TOKEN_B:?GEORDI_M13_WEBHOOK_TOKEN_B is required for the isolated M13 fixture}
+    volumes:
+      - ./deploy/webhook-receiver/server.py:/fixture/server.py:ro
+    ports:
+      - "127.0.0.1:18082:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    restart: "no"
+
+volumes:
+  m13-alert-lifecycle-data:
+  m13-victoriametrics-data:

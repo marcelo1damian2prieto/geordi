@@ -1,0 +1,38 @@
+geordi:
+  alert:
+    policies:
+      # These policies intentionally share the isolated burn SLO.  Their thresholds
+      # let the smoke create route A before route B while exercising one canonical
+      # lifecycle source.
+      - id: m13-route-a-alert
+        name: M13 route A alert
+        description: Dedicated M13 lifecycle policy routed to receiver A.
+        enabled: true
+        slo-id: burn-smoke-error-rate
+        condition:
+          type: BURN_RATE_ABOVE
+          threshold: 1
+      - id: m13-route-b-alert
+        name: M13 route B alert
+        description: Dedicated M13 lifecycle policy routed to receiver B.
+        enabled: true
+        slo-id: burn-smoke-error-rate
+        condition:
+          type: BURN_RATE_ABOVE
+          threshold: 9
+      - id: m13-suppressed-alert
+        name: M13 suppressed alert
+        description: Dedicated M13 lifecycle policy that must create no delivery work.
+        enabled: true
+        slo-id: burn-smoke-error-rate
+        condition:
+          type: BURN_RATE_ABOVE
+          threshold: 1
+      - id: m13-unrouted-alert
+        name: M13 unrouted alert
+        description: Dedicated M13 lifecycle policy with no matching route.
+        enabled: true
+        slo-id: burn-smoke-error-rate
+        condition:
+          type: BURN_RATE_ABOVE
+          threshold: 1
