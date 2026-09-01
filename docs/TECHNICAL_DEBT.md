@@ -284,3 +284,28 @@ This debt is not a defect in Milestone 1.1. The milestone remains successfully c
 - **Follow-up:** Add HA coordination and operator inspection only when deployment
   evidence requires them.
 - **Priority:** Medium
+
+## Alert scheduling remains single-node and non-replaying
+
+- **Status:** Pending / Deliberate Milestone 12 limitation
+- **Detected in:** Milestone 12 local closure
+- **Description:** Automatic evaluation uses one in-process scheduler with bounded
+  workers and queue capacity. It has no leader election, distributed lock, schedule
+  persistence, missed-tick replay, or policy-specific cadence.
+- **Current impact:** A deployment restart resumes future evaluations through durable
+  M10/M11 state, but it does not replay ticks missed while unavailable.
+- **Follow-up:** Add distributed ownership or durable scheduling only with deployment
+  evidence and an explicit architecture decision.
+- **Priority:** Low
+
+## M10 fixture overlay retains an unused normal volume mount
+
+- **Status:** Pending / Milestone 12 test-fixture limitation
+- **Detected in:** Milestone 12 local closure
+- **Description:** Compose list merging keeps the normal lifecycle volume mounted in
+  the M10 overlay, although its datasource exclusively uses the dedicated M10 H2 store.
+- **Current impact:** The normal lifecycle store remains unmodified; semantic fixture
+  isolation and M10 evidence passed.
+- **Follow-up:** Use a future narrowly reviewed Compose override only if fixture
+  clarity warrants it.
+- **Priority:** Low

@@ -1,6 +1,6 @@
 # Geordi Product Requirements Document
 
-Status: MILESTONES 1 THROUGH 11 COMPLETE; MILESTONE 12 NOT STARTED
+Status: MILESTONES 1 THROUGH 11 COMPLETE; MILESTONE 12 READY FOR GITLAB REVALIDATION
 
 ## Vision
 
@@ -312,4 +312,17 @@ GitLab semantic revalidation on `main` at commit `f087da71` passed M9 Alert Eval
 M10 Alert Lifecycle, and M11 Notification Delivery. Repository tests cover atomic
 lifecycle/outbox persistence; the M11 smoke exercised STARTED/RESOLVED delivery, stable
 identity, bounded retry, restart recovery, no-transition suppression, terminal success,
-and the checked token/telemetry boundaries. M12 has not started.
+and the checked token/telemetry boundaries.
+
+## Milestone 12 scope
+
+Status: READY FOR GITLAB REVALIDATION
+
+M12 adds deployment-managed automatic evaluation for enabled alert policies. A bounded
+single-node scheduler triggers the existing M9 evaluation and M10 lifecycle path; M11
+continues to own durable webhook delivery. Scheduling is disabled by default, supports
+bounded workers and queue capacity (including direct hand-off capacity `0`), suppresses
+same-policy overlap, and has no leader election, distributed lock, or missed-tick
+replay. Local semantic evidence covers automatic transitions and delivery, outage
+isolation/recovery, restart recovery, disabled-policy suppression, bounded telemetry,
+and secret isolation. Authoritative GitLab revalidation is still required.

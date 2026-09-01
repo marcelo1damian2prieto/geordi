@@ -380,7 +380,9 @@ The M10 lifecycle smoke runs immediately after M9 and starts from the fresh name
 lifecycle volume created by the integration job. M11 Notification Delivery runs after
 M10 against the same durable state. The authoritative run passed all three smokes.
 
-Milestones 1 / 1.1 and 2 through 11 are complete; M12 has not started. Milestone 7
+Milestones 1 / 1.1 and 2 through 11 are complete. M12 is locally verified and
+**READY FOR GITLAB REVALIDATION**; it is not complete until the authoritative GitLab
+pipeline validates the committed source. Milestone 7
 passed complete local verification and independent review without a remaining BLOCKER
 or HIGH finding. Its
 SLO semantic smoke runs after the five existing regression smokes in the authoritative
@@ -410,7 +412,31 @@ scheduler was added.
 Independent review completed with no remaining BLOCKER or HIGH findings. Authoritative
 GitLab semantic revalidation on `main` at commit `f087da71` passed M9 Alert Evaluation,
 M10 Alert Lifecycle, and M11 Notification Delivery, including real backend restart and
-healthy recovery. **M12 has not started.**
+healthy recovery.
+
+## Milestone 12 — Automated Alert Evaluation Scheduling Foundation
+
+Status: **READY FOR GITLAB REVALIDATION**.
+
+M12 adds a deployment-managed, single-node scheduler that invokes the canonical
+M9 evaluation → M10 lifecycle → M11 transactional-outbox/delivery path. Scheduling is
+disabled by default (`geordi.scheduling.alert.enabled=false`) and enabled explicitly
+only for the M12 verification fixture. Workers and queue capacity are bounded;
+capacity `0` uses a direct hand-off queue. Per-policy overlap is suppressed by a
+shared single-flight lifecycle coordinator, including manual requests. There is no
+leader election, distributed lock, schedule persistence, or missed-tick replay.
+
+The local semantic evidence covers automatic STARTED/RESOLVED transitions and webhook
+delivery, duplicate suppression, disabled policies, provider `UNAVAILABLE` freeze and
+recovery, backend restart recovery, durable lifecycle/outbox behavior, bounded
+telemetry, and secret isolation. GitLab revalidation remains pending.
+
+The backend targets Java 21. Maven may run locally on Java 26; PMD 7.21.0 is explicitly
+used by Maven PMD Plugin 3.28.0 so type resolution understands that runtime's classfile
+format. GitLab's CI-only `ci-runtime` target consumes the same-pipeline verified
+application JAR after checking its commit, filename, and SHA-256; the default Docker
+runtime remains the developer-safe source-building target. This is application-JAR
+provenance, not a whole-image reproducibility claim.
 
 ## Documentation
 

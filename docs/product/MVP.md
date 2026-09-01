@@ -18,7 +18,9 @@ error-budget burn evidence to the same SLO snapshots; it does not add budget acc
 Milestone 9 is complete and adds stateless alert-condition evaluation, not alert
 delivery. Milestone 10 is complete and adds durable current lifecycle state and
 canonical start/resolution transitions. Milestone 11 is complete and adds bounded
-durable webhook delivery. Milestone 12 has not started. The broader MVP target remains
+durable webhook delivery. Milestone 12 is locally verified and pending authoritative
+GitLab revalidation. It adds bounded single-node automatic evaluation scheduling through
+the existing M9/M10/M11 path, not distributed scheduling. The broader MVP target remains
 planned because other P1 capabilities are still deferred.
 
 ## Goal

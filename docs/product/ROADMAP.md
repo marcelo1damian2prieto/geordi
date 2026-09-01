@@ -170,7 +170,16 @@ COMPLETE
 
 Authoritative GitLab semantic revalidation on `main` at commit `f087da71` passed M9
 Alert Evaluation, M10 Alert Lifecycle, and M11 Notification Delivery with no remaining
-BLOCKER or HIGH finding. Milestone 12 has not started.
+BLOCKER or HIGH finding.
+
+## Milestone 12 — Automated alert evaluation scheduling
+
+READY FOR GITLAB REVALIDATION
+
+M12 introduces bounded single-node, deployment-managed automatic evaluation through the
+existing M9 evaluation, M10 lifecycle, and M11 delivery boundaries. It has no distributed
+coordination, leader election, missed-tick replay, policy reload, arbitrary cadence, or
+new API/UI. Final completion remains conditional on authoritative GitLab revalidation.
 
 ## Later
 

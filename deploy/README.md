@@ -1,6 +1,6 @@
 # Local deployment
 
-The Milestone 11 local runtime runs the frontend, backend, two monitored demo
+The Milestone 12 local runtime runs the frontend, backend, two monitored demo
 applications, OpenTelemetry Collector, VictoriaMetrics, Grafana Tempo, and Grafana Loki
 single-node storage, plus a deterministic webhook receiver, with Docker Compose. The
 enabled SLO and Alerts modules provide deployment-managed definitions, on-demand Alert
@@ -71,6 +71,15 @@ persistence design; it makes no production multi-node, distributed-consensus, or
 exactly-once delivery guarantee. Unavailable lifecycle/outbox storage makes Alerts and
 platform readiness `DOWN`; a remote webhook failure remains a delivery outcome.
 
+M12 scheduling is disabled in the normal local stack by
+`GEORDI_SCHEDULING_ALERT_ENABLED=false`. The deployment-managed
+`geordi.scheduling.alert` configuration controls enablement, interval, bounded worker
+count, queue capacity (including `0` direct hand-off), and shutdown grace period. The
+M12 semantic harness enables it only in its isolated Compose overlay. That overlay uses
+dedicated lifecycle/outbox H2 and VictoriaMetrics volumes; its controlled restart of the
+shared Collector clears volatile retry/queue state for fixture isolation and is not
+product scheduler behavior.
+
 ## Verify
 
 ```powershell
@@ -105,6 +114,7 @@ Or run the automated end-to-end check:
 pwsh -File ./scripts/verify-alert-evaluation.ps1 -TimeoutSeconds 150
 pwsh -File ./scripts/verify-alert-lifecycle.ps1 -TimeoutSeconds 240
 pwsh -File ./scripts/verify-notification-delivery.ps1 -TimeoutSeconds 300
+pwsh -File ./scripts/run-alert-scheduling-smoke.ps1 -TimeoutSeconds 360
 ```
 
 The OpenTelemetry smoke check requires the Collector's backend `service.version` to

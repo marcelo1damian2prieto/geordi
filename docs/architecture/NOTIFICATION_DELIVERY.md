@@ -67,4 +67,12 @@ Evaluation, M10 Alert Lifecycle, and M11 Notification Delivery smokes. Repositor
 cover atomic lifecycle/outbox persistence. The M11 smoke observed STARTED/RESOLVED
 delivery, stable identity, retry and pending-work recovery after restart, no-transition
 suppression, terminal success, bounded result labels, and no configured token in the
-checked public API or backend/fixture logs. M12 has not started.
+checked public API or backend/fixture logs.
+
+## Milestone 12 scheduling handoff
+
+M12 schedules the canonical lifecycle use case only. A winning M10 transition still
+creates M11 outbox work atomically and this worker remains unchanged. Local M12 semantic
+evidence observed exactly one STARTED and one RESOLVED webhook across automatic
+evaluation, provider outage/recovery, and backend restart. This does not change the
+single-node, at-least-once delivery contract.

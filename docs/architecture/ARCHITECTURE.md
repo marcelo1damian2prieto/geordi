@@ -1,6 +1,6 @@
 # Architecture
 
-Status: MILESTONES 1 THROUGH 11 COMPLETE; MILESTONE 12 NOT STARTED
+Status: MILESTONES 1 THROUGH 11 COMPLETE; MILESTONE 12 READY FOR GITLAB REVALIDATION
 
 ## Initial style
 
@@ -164,6 +164,22 @@ persistence adapter atomically commits a lifecycle CAS mutation and immutable ou
 row. A separate bounded worker leases due work and invokes one HTTP adapter outside the
 transaction. Domain/application remain free of Spring, JDBC, HTTP, provider, and
 telemetry implementation types. Alert evaluation remains command-driven.
+
+## Milestone 12 Alert Scheduling flow
+
+```text
+single-node scheduler -> canonical M9 evaluation -> M10 lifecycle/CAS -> M11 outbox
+                                                                         |
+                                                                         v
+                                                                  delivery worker
+```
+
+The scheduler is an inbound orchestration adapter, not a second evaluation, lifecycle,
+or delivery implementation. It is enabled only through deployment configuration at
+`geordi.scheduling.alert`, defaults to disabled, and uses deterministic initial
+catalog-order staggering with bounded worker/queue resources. It has no leader election,
+distributed lock, missed-tick replay, schedule persistence, arbitrary cron, or runtime
+configuration API.
 
 ## Target logical view
 

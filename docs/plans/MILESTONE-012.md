@@ -1,8 +1,8 @@
 # Milestone 012 — Automated Alert Evaluation Scheduling Foundation
 
-Status: DESIGN REVIEW PENDING
+Status: MILESTONE 12 READY FOR GITLAB REVALIDATION
 
-## Build-contract design (implementation pending)
+## Build-contract implementation
 
 The current GitLab `backend` job runs the authoritative `./mvnw verify`, but
 `local_stack_smoke` subsequently runs `docker compose build --no-cache`; the current
@@ -10,7 +10,7 @@ backend Dockerfile runs `verify` again before exporting the runtime image. This
 duplicates the tests, ArchUnit, PMD, SpotBugs, and Find Security Bugs, and prevents
 runtime image export in the bounded local execution environment.
 
-The selected follow-up design is a CI-specific Docker target, selected explicitly
+The implemented CI-specific Docker target is selected explicitly
 by `local_stack_smoke` through a Compose build argument, not a new default
 developer workflow. The existing default Docker target remains source-based and runs
 its full safe build for `docker compose build backend` and `docker compose up --build`.
@@ -70,7 +70,7 @@ scheduler framework, API, or UI is justified.
 
 ## Configuration and scheduling semantics
 
-Use a separate deployment-managed `geordi.alert.scheduling` configuration rather
+Use the separate deployment-managed `geordi.scheduling.alert` configuration rather
 than extending policy semantics. It has `enabled` (default `false`), a global
 interval validated to 10 seconds through 15 minutes, worker count validated to 1–4,
 queue capacity validated to 0–50, and a shutdown grace period validated to 1–30
@@ -79,7 +79,7 @@ policies and makes old semantic smokes deterministic. The M12 Compose/smoke path
 enables it explicitly.
 
 On startup, the scheduler reconstructs work from the immutable catalog. Enabled
-policies receive deterministic initial offsets derived from their stable id within
+policies receive deterministic initial offsets from their catalog position within
 the global interval, then fixed-rate triggers. Disabled policies are never
 scheduled. The smallest permitted interval prevents accidental provider load; the
 catalog bound and deterministic spreading avoid a startup herd. Restart loses no
@@ -103,20 +103,19 @@ on later ticks. `UNAVAILABLE` remains the ordinary canonical M9/M10 result: M12
 does not convert it to a transition, retry it, or create notification work.
 
 Shutdown cancels future schedules before stopping the executor. The validated
-`geordi.alert.scheduling.shutdown-grace-period` property has a finite default and
+`geordi.scheduling.alert.shutdown-grace-period` property has a finite default and
 an explicit upper bound; it determines how long active canonical operations may
 complete before remaining work is interrupted. No new work is accepted during shutdown.
 
 ## Time, health, observability, and security
 
-The scheduler uses injected `Clock` only for scheduling/lag observations; M9/M10
-retain their canonical evidence timestamps and lifecycle processing time. Tests use
-a controllable scheduler/executor seam and never rely on long sleeps.
+The scheduler does not create M9/M10 evidence timestamps; those remain canonical
+lifecycle data. It records bounded process duration with a monotonic clock. Tests use
+bounded synchronization and do not use long sleeps as semantic correctness proof.
 
-Scheduler metrics are low-cardinality only: attempts, completed outcomes,
-failures, overlap skips, capacity rejections, active count, duration, and optional
-lag. Attributes are closed enums only—never policy/SLO identifiers, identity,
-exception text, or secrets. A policy/provider evaluation failure does not make the
+Scheduler metrics are low-cardinality only: attempts, completed outcomes, failures,
+overlap skips, capacity rejections, and duration. They carry no policy/SLO identifiers,
+identity, exception text, or secrets. A policy/provider evaluation failure does not make the
 scheduler or platform health down. Existing persistence health remains authoritative;
 an infrastructure-level inability to initialize scheduling is a startup failure.
 No new secrets, endpoint, API, or frontend surface is introduced.
@@ -135,11 +134,11 @@ scheduler cannot depend on providers, persistence, webhook delivery, or web APIs
 
 ## Semantic smoke and CI integration
 
-Add `scripts/verify-alert-scheduling.ps1`. It starts from deterministic local
+`scripts/verify-alert-scheduling.ps1` starts from deterministic local
 infrastructure and uses dedicated, never-before-used M12 policy ids so the preceding
 M9–M11 smokes cannot contaminate first-start assertions. It enables scheduling only
 for M12 by intentionally recreating the backend with
-`GEORDI_ALERT_SCHEDULING_ENABLED=true`, then polls bounded deadlines and proves
+`GEORDI_SCHEDULING_ALERT_ENABLED=true`, then polls bounded deadlines and proves
 automatic start, no duplicate start, automatic resolution, disabled suppression,
 provider-unavailable freeze/recovery, bounded telemetry, restart reconstruction,
 and durable M10/M11 state/outbox behavior. Append it after M11 in the checked-in
@@ -158,7 +157,7 @@ scheduling defaults to disabled in base Compose.
 
 ## Rollback, limitations, and technical debt
 
-Set `geordi.alert.scheduling.enabled=false` and redeploy to stop future automatic
+Set `geordi.scheduling.alert.enabled=false` and redeploy to stop future automatic
 evaluation; existing M10 state and M11 delivery work remain intact. M12 is
 single-node and provides neither leader election nor missed-tick replay, exactly-once
 scheduling, historical backfill, policy reload, or per-policy cadence. Multi-node

@@ -137,9 +137,12 @@ result, unavailable reason, and evidence. It preserves exact Investigation navig
 only from canonical evidence identity/range. It must not say a transition was delivered,
 or that an incident exists.
 
-There is no scheduler. Explicit POST requests are the only M10 lifecycle update path;
-automatic cadence, overlapping jobs, provider-load management, and job persistence are
-deferred. This keeps current semantics bounded and makes smoke evidence deterministic.
+M12 adds a single-node inbound scheduling adapter that invokes this same canonical
+lifecycle use case; the explicit POST remains available. The scheduler does not own
+evaluation, state transitions, outbox delivery, lifecycle persistence, or job
+persistence. It is deployment-managed, disabled by default, has bounded workers and
+queue capacity, suppresses per-policy overlap through the shared lifecycle single-flight
+coordinator, and has no leader election, distributed lock, or missed-tick replay.
 
 ## Observability and validation
 

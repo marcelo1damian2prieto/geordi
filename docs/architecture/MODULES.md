@@ -1,6 +1,6 @@
 # Module Architecture
 
-Status: MILESTONES 1 THROUGH 11 COMPLETE; MILESTONE 12 NOT STARTED
+Status: MILESTONES 1 THROUGH 11 COMPLETE; MILESTONE 12 READY FOR GITLAB REVALIDATION
 
 ## Initial modules
 
@@ -100,6 +100,13 @@ not supported.
 M11 extends Alerts with provider-neutral notification ports, a transactional H2 outbox
 adapter, one webhook adapter, and one bounded delivery worker. Scheduling is confined
 to consuming already-committed outbox work; lifecycle evaluation is not scheduled.
+
+M12 adds an inbound worker adapter for automatic lifecycle evaluation. It receives only
+the alert policy catalog and canonical lifecycle use case, while shared per-policy
+single-flight coordination covers manual and automatic entry points. The scheduler is
+single-node, deployment-managed, disabled by default, and bounded by worker and queue
+settings. It reuses M9 evaluation, M10 transition/persistence, and M11 outbox/delivery
+without provider, persistence, HTTP, or notification types leaking into the domain.
 
 ## Planned modules
 

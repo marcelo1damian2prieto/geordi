@@ -108,3 +108,12 @@ preservation, provider-neutral API, Investigation context, and bounded telemetry
 The Burn Rate gate owns the relevant VictoriaMetrics outage/recovery exercise. Alert
 Evaluation consumes that canonical boundary, so its smoke intentionally avoids a second
 expensive outage scenario.
+
+## Milestone 12 scheduling integration
+
+M12 does not change M9 evaluation semantics or make this read-only boundary stateful.
+Its inbound worker schedules the canonical lifecycle use case, which invokes this M9
+use case exactly once for each accepted policy evaluation. Scheduler configuration lives
+outside the strict policy namespace at `geordi.scheduling.alert`; it is disabled by
+default. Provider unavailability remains M9 `UNAVAILABLE` evidence and cannot itself
+manufacture a lifecycle transition or notification.

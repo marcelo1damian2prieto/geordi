@@ -229,6 +229,14 @@ M11 is **COMPLETE** after independent review found no remaining BLOCKER or HIGH 
 and authoritative GitLab semantic revalidation on `main` at commit `f087da71` passed
 the M9, M10, and M11 smokes, including backend restart and recovery.
 
+## Milestone 12 scheduling telemetry
+
+The scheduler records only low-cardinality `geordi.alert.scheduler` attempts,
+completed, failures, overlap skips, capacity rejections, and duration. It deliberately
+does not attach policy, SLO, service, provider, delivery, exception, trace, span, or
+secret values. Provider `UNAVAILABLE` remains canonical lifecycle evidence rather than
+a scheduler-health failure.
+
 ## Future health indicators
 
 - received telemetry;
