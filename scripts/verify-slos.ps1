@@ -22,6 +22,7 @@ $AvailabilitySloId = "demo-downstream-availability"
 $ErrorRateSloId = "demo-error-rate"
 $NoTrafficSloId = "no-traffic-availability"
 $BurnSmokeSloId = "burn-smoke-error-rate"
+$ExpectedM7SloIds = @($AvailabilitySloId, $ErrorRateSloId, $BurnSmokeSloId, $NoTrafficSloId)
 $DemoIdentity = [ordered]@{ name = "geordi-demo-service"; namespace = "geordi-demo"; environment = "development" }
 $DownstreamIdentity = [ordered]@{ name = "geordi-demo-downstream-service"; namespace = "geordi-demo"; environment = "development" }
 $NoTrafficIdentity = [ordered]@{ name = "geordi-slo-no-traffic"; namespace = "geordi-slo-smoke"; environment = "development" }
@@ -102,6 +103,27 @@ function Assert-Definition {
         throw "SLO '$Id' did not preserve its configured SLI, ratio target, PT5M window, and enabled state."
     }
     Assert-Identity -Actual $Definition.service -Expected $Identity -Context "SLO '$Id'"
+}
+
+function Get-DefinitionsById {
+    param(
+        [Parameter(Mandatory)][array] $Definitions,
+        [Parameter(Mandatory)][string] $Context
+    )
+
+    $byId = @{}
+    foreach ($definition in $Definitions) {
+        $id = [string] $definition.id
+        if ($byId.ContainsKey($id)) {
+            throw "$Context returned duplicate id '$id'."
+        }
+        $byId[$id] = $definition
+    }
+    $missing = @($ExpectedM7SloIds | Where-Object { -not $byId.ContainsKey($_) })
+    if ($missing.Count -gt 0) {
+        throw "$Context did not expose expected M7 SLO definitions: $($missing -join ', ')."
+    }
+    return $byId
 }
 
 function Get-Evaluation {
@@ -474,16 +496,7 @@ try {
 
     $catalog = Invoke-TextRequest -Uri "$BackendBaseUrl/api/slos" | ConvertFrom-Json
     $definitions = @($catalog.slos)
-    if ($definitions.Count -ne 4) {
-        throw "SLO catalog returned $($definitions.Count) definitions, expected exactly four deployment-managed definitions."
-    }
-    $byId = @{}
-    foreach ($definition in $definitions) {
-        if ($byId.ContainsKey([string] $definition.id)) {
-            throw "SLO catalog returned duplicate id '$($definition.id)'."
-        }
-        $byId[[string] $definition.id] = $definition
-    }
+    $byId = Get-DefinitionsById -Definitions $definitions -Context "SLO catalog"
     Assert-Definition -Definition $byId[$AvailabilitySloId] -Id $AvailabilitySloId -Identity $DownstreamIdentity -SliType "AVAILABILITY" -Target 0.99
     Assert-Definition -Definition $byId[$ErrorRateSloId] -Id $ErrorRateSloId -Identity $DemoIdentity -SliType "ERROR_RATE" -Target 0.0
     Assert-Definition -Definition $byId[$BurnSmokeSloId] -Id $BurnSmokeSloId -Identity $BurnSmokeIdentity -SliType "ERROR_RATE" -Target 0.10
@@ -522,9 +535,7 @@ try {
         throw "Frontend /slos route did not return the Geordi application document."
     }
     $proxiedCatalog = Invoke-TextRequest -Uri "$FrontendBaseUrl/api/slos" | ConvertFrom-Json
-    if (@($proxiedCatalog.slos).Count -ne 4) {
-        throw "Frontend proxy did not expose the complete SLO catalog."
-    }
+    [void] (Get-DefinitionsById -Definitions @($proxiedCatalog.slos) -Context "Frontend SLO proxy")
     $proxiedEvaluation = Invoke-TextRequest -Uri "$FrontendBaseUrl/api/slos/$ErrorRateSloId/evaluation" | ConvertFrom-Json
     if ($proxiedEvaluation.status -ne "BREACHED") {
         throw "Frontend proxy did not preserve the deterministic breached SLO result."
