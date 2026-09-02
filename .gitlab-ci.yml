@@ -3,6 +3,10 @@ stages:
   - integration
 
 variables:
+  # Synthetic credentials for the isolated M13 Compose fixture. They are not
+  # production credentials and must be available to both its smoke and teardown.
+  GEORDI_M13_WEBHOOK_TOKEN_A: "ci-m13-fixture-token-a"
+  GEORDI_M13_WEBHOOK_TOKEN_B: "ci-m13-fixture-token-b"
   # Geordi builds Linux containers even when the GitLab Runner is Windows.
   # Prevent Git for Windows from converting Unix scripts such as mvnw to CRLF.
   GIT_CONFIG_COUNT: "2"
@@ -111,7 +115,7 @@ deployment_configuration:
     - docker compose config --quiet
     - docker compose --file compose.yaml --file compose.m10.yaml config --quiet
     - docker compose --file compose.yaml --file compose.m12.yaml config --quiet
-    - pwsh -NoProfile -Command '$env:GEORDI_M13_WEBHOOK_TOKEN_A="configuration-placeholder-a"; $env:GEORDI_M13_WEBHOOK_TOKEN_B="configuration-placeholder-b"; docker compose --file compose.yaml --file compose.m13.yaml config --quiet; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'
+    - docker compose --file compose.yaml --file compose.m13.yaml config --quiet
     - docker run --rm -v "$CI_PROJECT_DIR/otel/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro" otel/opentelemetry-collector:0.157.0 validate --config=/etc/otelcol/config.yaml
     - docker run --rm -v "$CI_PROJECT_DIR/deploy/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro" grafana/tempo:2.7.2 "-config.file=/etc/tempo/tempo.yaml" "-config.verify=true"
     - docker run --rm -v "$CI_PROJECT_DIR/deploy/loki/loki.yaml:/etc/loki/local-config.yaml:ro" grafana/loki:3.7.2 --config.file=/etc/loki/local-config.yaml --verify-config=true
@@ -152,5 +156,5 @@ local_stack_smoke:
     - pwsh -File ./scripts/verify-alert-scheduling.ps1 -TimeoutSeconds 300
     - pwsh -File ./scripts/verify-alert-routing.ps1 -TimeoutSeconds 360
   after_script:
-    - pwsh -NoProfile -Command '$env:GEORDI_M13_WEBHOOK_TOKEN_A="configuration-placeholder-a"; $env:GEORDI_M13_WEBHOOK_TOKEN_B="configuration-placeholder-b"; & docker compose --file compose.yaml --file compose.m13.yaml logs --no-color; if ($LASTEXITCODE -ne 0) { Write-Warning "Could not collect Compose logs."; exit 0 }'
-    - pwsh -NoProfile -Command '$env:GEORDI_M13_WEBHOOK_TOKEN_A="configuration-placeholder-a"; $env:GEORDI_M13_WEBHOOK_TOKEN_B="configuration-placeholder-b"; & docker compose --file compose.yaml --file compose.m13.yaml down --volumes --remove-orphans; if ($LASTEXITCODE -ne 0) { Write-Warning "Could not clean up the Compose stack."; exit 0 }'
+    - pwsh -NoProfile -Command '& docker compose --file compose.yaml --file compose.m13.yaml logs --no-color; if ($LASTEXITCODE -ne 0) { Write-Warning "Could not collect Compose logs."; exit 0 }'
+    - pwsh -NoProfile -Command '& docker compose --file compose.yaml --file compose.m13.yaml down --volumes --remove-orphans; if ($LASTEXITCODE -ne 0) { Write-Warning "Could not clean up the Compose stack."; exit 0 }'
