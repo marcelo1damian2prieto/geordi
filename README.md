@@ -228,6 +228,12 @@ the notification-delivery foundation described below.
 - **Notification delivery (M11 complete):** eligible canonical lifecycle transitions
   commit atomically with durable webhook work; a bounded single-node worker provides
   restart-safe at-least-once attempts with stable receiver-deduplication identity.
+- **Alert scheduling (M12 complete):** deployment-managed single-node scheduling invokes
+  the existing M9 evaluation, M10 lifecycle, and M11 delivery path with bounded workers,
+  no leader election, and no missed-tick replay.
+- **Alert routing (M13 complete):** deployment-managed deterministic routing selects one
+  persisted destination, explicit suppression, or explicit unrouted outcome at the
+  M10/M11 transition boundary; there is no runtime route CRUD or fan-out.
 
 This is a bounded service-investigation foundation, not full APM.
 
@@ -380,9 +386,10 @@ The M10 lifecycle smoke runs immediately after M9 and starts from the fresh name
 lifecycle volume created by the integration job. M11 Notification Delivery runs after
 M10 against the same durable state. The authoritative run passed all three smokes.
 
-Milestones 1 / 1.1 and 2 through 12 are complete. The authoritative GitLab pipeline
-passed M12's backend, deployment configuration, frontend, and complete local-stack
-integration gate. Milestone 7
+Milestones 1 / 1.1 and 2 through 13 are complete. The authoritative GitLab pipeline
+passed M13's backend, deployment configuration, frontend, and complete local-stack
+integration gate, including the M9–M12 regression chain and isolated M13 routing smoke.
+Milestone 7
 passed complete local verification and independent review without a remaining BLOCKER
 or HIGH finding. Its
 SLO semantic smoke runs after the five existing regression smokes in the authoritative
@@ -440,6 +447,22 @@ format. GitLab's CI-only `ci-runtime` target consumes the same-pipeline verified
 application JAR after checking its commit, filename, and SHA-256; the default Docker
 runtime remains the developer-safe source-building target. This is application-JAR
 provenance, not a whole-image reproducibility claim.
+
+## Milestone 13 — Alert Routing & Suppression Foundation
+
+Status: **COMPLETE**.
+
+M13 adds deployment-managed, deterministic routing at the canonical M10/M11 transition
+boundary. A transition is `MATCHED(destination)`, `SUPPRESSED`, or `UNROUTED`; only a
+match creates durable delivery work. The M11 worker uses the persisted destination
+binding and does not reroute work during retry or restart.
+
+The authoritative GitLab pipeline passed backend verification, deployment configuration,
+frontend verification, and `local_stack_smoke`, including the M9–M12 regression chain.
+Its isolated M13 smoke verified route A/B isolation, explicit suppression and unrouted
+outcomes, the durable no-delivery boundary, persisted retry/restart binding,
+notification security isolation, and bounded routing telemetry. No known BLOCKER or
+HIGH issue prevents closure.
 
 ## Documentation
 

@@ -184,6 +184,21 @@ semantic chain, automatic transitions, M11 delivery, and restart/recovery. It ha
 distributed coordination, leader election, scheduler persistence, missed-tick replay,
 policy reload, arbitrary cadence, or new API/UI.
 
+## Milestone 13 — Alert Routing & Suppression Foundation
+
+COMPLETE
+
+M13 adds deployment-managed, deterministic routing at the existing M10/M11 transition
+boundary. A transition is handled as `MATCHED(destination)`, `SUPPRESSED`, or
+`UNROUTED`; only a match creates durable delivery work, and the worker dispatches the
+persisted destination binding without rerouting.
+
+The authoritative GitLab pipeline passed backend verification, deployment configuration,
+frontend verification, and `local_stack_smoke`, including the M9–M12 regression chain.
+The isolated M13 smoke verified route A/B isolation, explicit suppression and unrouted
+outcomes, the durable no-delivery boundary, retry/restart binding, notification security,
+and bounded routing telemetry. No known BLOCKER or HIGH issue prevents closure.
+
 ## Later
 
 DEFERRED

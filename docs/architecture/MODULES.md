@@ -1,6 +1,6 @@
 # Module Architecture
 
-Status: MILESTONES 1 THROUGH 12 COMPLETE
+Status: MILESTONES 1 THROUGH 13 COMPLETE
 
 ## Initial modules
 
@@ -107,6 +107,11 @@ single-flight coordination covers manual and automatic entry points. The schedul
 single-node, deployment-managed, disabled by default, and bounded by worker and queue
 settings. It reuses M9 evaluation, M10 transition/persistence, and M11 outbox/delivery
 without provider, persistence, HTTP, or notification types leaking into the domain.
+
+M13 adds a provider-neutral routing port and deployment-managed route/destination
+configuration at the M10/M11 transition boundary. Matching creates one immutable
+destination binding for M11 delivery; suppressed and unrouted transitions commit without
+delivery work. Routing is not recomputed by the M11 worker.
 
 ## Planned modules
 

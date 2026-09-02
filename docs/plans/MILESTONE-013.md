@@ -1,6 +1,6 @@
 # Milestone 013 — Alert Routing & Suppression Foundation
 
-Status: IMPLEMENTATION IN PROGRESS
+Status: COMPLETE
 
 ## Objective
 
@@ -26,16 +26,17 @@ Routes use only optional exact policy, namespace, service, environment and trans
 predicates. The first declared match is terminal. `DELIVER` requires a known
 destination and `SUPPRESS` forbids one. No match is explicitly `UNROUTED`.
 
-## Execution plan
+## Implemented scope
 
-1. Add ADR-018 and this plan before product edits.
-2. Replace the one-destination selection port with a routing decision port, domain
+1. ADR-018 and this plan were added before product edits.
+2. The one-destination selection port was replaced with a routing decision port, domain
    outcomes, bounded configuration validation, and focused unit tests.
-3. At the existing M10 CAS/outbox transaction seam, derive the transition, route it,
-   and persist one delivery only for a match. Instrument bounded routing outcomes.
-4. Replace the single webhook runtime configuration with a bounded destination map;
-   dispatch by persisted binding without routing. Update Compose and deployment docs.
-5. Add an isolated M13 smoke with independent local receivers, then run M9–M12
+3. At the existing M10 CAS/outbox transaction seam, the transition is derived, routed,
+   and persists one delivery only for a match. Bounded routing outcomes are instrumented.
+4. The single webhook runtime configuration was replaced with a bounded destination map;
+   dispatch uses the persisted binding without routing. Compose and deployment
+   documentation were updated.
+5. An isolated M13 smoke with independent local receivers was added, followed by M9–M12
    regressions, backend quality gates, configuration validation, diff checks and an
    independent review.
 
@@ -51,3 +52,14 @@ unrouted commits, atomic matched commits, CAS retry safety, immutable worker bin
 restart/retry stability, independent STARTED/RESOLVED routing, bounded telemetry and
 secret non-disclosure. The isolated smoke uses two receivers and checks those outcomes
 without depending on prior milestone fixtures.
+
+## Authoritative GitLab revalidation
+
+Milestone 13 is complete after the authoritative GitLab pipeline passed backend
+verification, deployment configuration, frontend verification, and `local_stack_smoke`.
+The integration chain included the M9–M12 regressions; M12 verified automatic
+M9/M10/M11 alert scheduling and restart recovery. The M13 isolated routing smoke passed
+route A/B isolation, explicit `SUPPRESS` and `UNROUTED` outcomes, the durable no-delivery
+boundary, persisted destination binding across retry/restart, notification security
+isolation, and bounded routing telemetry. No known BLOCKER or HIGH issue prevents
+closure.

@@ -1,6 +1,6 @@
 # Geordi Product Requirements Document
 
-Status: MILESTONES 1 THROUGH 12 COMPLETE
+Status: MILESTONES 1 THROUGH 13 COMPLETE
 
 ## Vision
 
@@ -328,3 +328,20 @@ configuration, frontend verification, verified-JAR and runtime-image provenance,
 `local_stack_smoke`. The M9 → M10 → M11 → M12 chain verified automatic transitions,
 M11 delivery, outage isolation/recovery, restart recovery, disabled-policy suppression,
 bounded telemetry, and secret isolation.
+
+## Milestone 13 scope
+
+Status: COMPLETE
+
+M13 adds deployment-managed, deterministic routing at the existing M10/M11 transition
+boundary. A canonical lifecycle transition is routed once as `MATCHED(destination)`,
+`SUPPRESSED`, or `UNROUTED`; only a matched destination creates durable delivery work.
+The M11 worker dispatches the persisted destination binding and does not reroute during
+retry or restart.
+
+The authoritative GitLab pipeline passed backend verification, deployment
+configuration, frontend verification, and `local_stack_smoke`, including the M9–M12
+regression chain. The isolated M13 semantic smoke verified route A/B isolation,
+explicit suppression and unrouted outcomes, the durable no-delivery boundary, persisted
+destination binding across retry/restart, notification security isolation, and bounded
+routing telemetry. No known BLOCKER or HIGH issue prevents closure.

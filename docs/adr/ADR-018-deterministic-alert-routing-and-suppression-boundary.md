@@ -5,7 +5,7 @@ Status: ACCEPTED
 ## Context
 
 M10 derives canonical lifecycle transitions and M11 atomically persists durable webhook
-delivery work. M13 needs deployment-managed routing while retaining this one winning
+delivery work. M13 adds deployment-managed routing while retaining this one winning
 transition boundary and preventing later configuration changes from altering work that
 is already durable.
 

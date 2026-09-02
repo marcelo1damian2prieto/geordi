@@ -21,8 +21,13 @@ canonical start/resolution transitions. Milestone 11 is complete and adds bounde
 durable webhook delivery. Milestone 12 is complete after the authoritative GitLab
 pipeline passed backend, deployment configuration, frontend, and the M9/M10/M11/M12
 local-stack semantic chain. It adds bounded single-node automatic evaluation scheduling
-through the existing M9/M10/M11 path, not distributed scheduling. The broader MVP target
-remains planned because other P1 capabilities are still deferred.
+through the existing M9/M10/M11 path, not distributed scheduling. Milestone 13 is
+complete after authoritative GitLab revalidation passed backend, deployment
+configuration, frontend, the M9–M12 regression chain, and the isolated M13 routing
+smoke. It adds deployment-managed deterministic routing and explicit
+suppression/unrouted outcomes at the M10/M11 boundary, not silences, fan-out, incident
+management, or runtime route CRUD.
+The broader MVP target remains planned because other P1 capabilities are still deferred.
 
 ## Goal
 
@@ -49,6 +54,8 @@ P1:
   delivery);
 - alert lifecycle foundation (M10 COMPLETE; durable current state and transitions,
   no scheduler, history, acknowledgement, silencing, incident, or delivery);
+- alert routing foundation (M13 COMPLETE; deterministic deployment-managed routes,
+  explicit suppression/unrouted outcomes, and no runtime route CRUD or fan-out);
 - basic infrastructure monitoring;
 - threshold alerts;
 - webhook notifications (M11 COMPLETE; email deferred).
