@@ -1,6 +1,6 @@
 # Milestone 014 — Alert Episode & Transition History Foundation
 
-Status: M14 READY FOR GITLAB REVALIDATION
+Status: M14 COMPLETE
 
 ## Objective
 
@@ -90,6 +90,25 @@ runtime image, including direct durable-row inspection, and then passed the orde
 M9–M13 regression chain. Legacy determinism, no fabricated start, subsequent normal
 identity, and corruption fail-closed behavior are covered by focused
 persistence/domain tests in addition to the isolated normal-lifecycle smoke.
+
+### Authoritative closure evidence
+
+The authoritative GitLab pipeline checked out implementation commit
+`ed766a46b7c51ee1c54b844bbf6de5a79fab1efb` from `main` and passed all jobs. Its
+Windows `local_stack_smoke` verified that the backend artifact revision matched
+`CI_COMMIT_SHA`, verified the artifact SHA-256 before constructing the runtime image,
+passed the existing M9–M13 semantic regression chain, and passed
+`pwsh -File ./scripts/verify-alert-history.ps1 -TimeoutSeconds 480`. Cleanup completed
+and the job succeeded.
+
+### Historical investigation
+
+During pre-closure local validation, one direct H2 inspection reported zero normal
+episode rows after an otherwise successful smoke. This remains recorded as a historical,
+non-reproducible **LOW harness false-negative**, not an active blocker. Controlled
+forensic reproduction proved API and direct-H2 durability, repeated clean local M14
+smoke runs passed, and the authoritative GitLab M14 smoke passed. No product data-loss
+defect was reproduced.
 
 ## Implementation sequence and regression gates
 

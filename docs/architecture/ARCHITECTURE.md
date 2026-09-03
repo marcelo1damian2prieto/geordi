@@ -1,6 +1,6 @@
 # Architecture
 
-Status: MILESTONES 1 THROUGH 13 COMPLETE
+Status: MILESTONES 1 THROUGH 14 COMPLETE
 
 ## Initial style
 
@@ -200,7 +200,7 @@ Geordi Platform
     +-- Traces (implemented)
     +-- Service Map (implemented; Milestone 6 complete; trace-derived, no storage)
     +-- SLOs (Milestones 7–8 complete; Metrics-derived)
-    +-- Alerts (M9 evaluation, M10 lifecycle, M11 webhook delivery, M12 scheduling, M13 routing complete; M14 durable episode/history implemented, GitLab revalidation pending)
+    +-- Alerts (M9 evaluation, M10 lifecycle, M11 webhook delivery, M12 scheduling, M13 routing, and M14 durable episode/history complete)
     +-- APM (planned)
     +-- Compatibility (planned)
 ```

@@ -201,14 +201,16 @@ and bounded routing telemetry. No known BLOCKER or HIGH issue prevents closure.
 
 ## Milestone 14 — Alert Episode & Transition History Foundation
 
-READY FOR GITLAB REVALIDATION
+COMPLETE
 
 M14 adds durable alert episodes and immutable canonical transition history inside the
 existing Alerts boundary. History is a bounded read-only API projection committed with
 the winning lifecycle transaction; M10 remains the authoritative current-state model.
 It adds no UI, retention deletion, acknowledgements, silences, incidents, or routing
 redesign. Local closure validation passed the rebuilt runtime, exact M14 semantic
-smoke, and ordered M9–M13 regression chain; authoritative GitLab evidence is pending.
+smoke, and ordered M9–M13 regression chain. The authoritative GitLab pipeline for
+commit `ed766a46b7c51ee1c54b844bbf6de5a79fab1efb` passed all jobs, including backend
+artifact revision and SHA-256 provenance checks and the M9–M14 semantic smoke chain.
 
 ## Later
 

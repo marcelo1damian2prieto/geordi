@@ -1,6 +1,6 @@
 # Module Architecture
 
-Status: MILESTONES 1 THROUGH 13 COMPLETE
+Status: MILESTONES 1 THROUGH 14 COMPLETE
 
 ## Initial modules
 

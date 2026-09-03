@@ -234,7 +234,7 @@ the notification-delivery foundation described below.
 - **Alert routing (M13 complete):** deployment-managed deterministic routing selects one
   persisted destination, explicit suppression, or explicit unrouted outcome at the
   M10/M11 transition boundary; there is no runtime route CRUD or fan-out.
-- **Alert episode and transition history (M14 implemented; GitLab revalidation pending):**
+- **Alert episode and transition history (M14 complete):**
   durable, bounded read-only episodes and canonical transition history are committed with
   lifecycle state. It adds no UI, retention automation, incident management, or routing changes.
 
@@ -389,9 +389,10 @@ The M10 lifecycle smoke runs immediately after M9 and starts from the fresh name
 lifecycle volume created by the integration job. M11 Notification Delivery runs after
 M10 against the same durable state. The authoritative run passed all three smokes.
 
-Milestones 1 / 1.1 and 2 through 13 are complete. The authoritative GitLab pipeline
-passed M13's backend, deployment configuration, frontend, and complete local-stack
-integration gate, including the M9–M12 regression chain and isolated M13 routing smoke.
+Milestones 1 / 1.1 and 2 through 14 are complete. The authoritative GitLab pipeline
+for commit `ed766a46b7c51ee1c54b844bbf6de5a79fab1efb` passed all jobs. Its Windows
+`local_stack_smoke` verified artifact revision and SHA-256 provenance, passed the
+M9–M13 semantic regression chain, and passed the isolated M14 history smoke.
 Milestone 7
 passed complete local verification and independent review without a remaining BLOCKER
 or HIGH finding. Its
@@ -469,13 +470,15 @@ HIGH issue prevents closure.
 
 ## Milestone 14 — Alert Episode & Transition History Foundation
 
-Status: **READY FOR GITLAB REVALIDATION**.
+Status: **COMPLETE**.
 
 M14 adds durable alert episodes and immutable canonical transition history within the
 existing Alerts boundary, plus bounded read-only episode and transition APIs. Local
 closure validation passed the clean rebuilt backend runtime, the exact isolated M14
-history smoke, and the ordered M9–M13 regression chain. Authoritative GitLab
-revalidation is still pending.
+history smoke, and the ordered M9–M13 regression chain. The authoritative GitLab
+pipeline for commit `ed766a46b7c51ee1c54b844bbf6de5a79fab1efb` passed all jobs;
+its Windows `local_stack_smoke` verified artifact revision and SHA-256 provenance and
+passed the M9–M13 plus M14 semantic chain.
 
 ## Documentation
 

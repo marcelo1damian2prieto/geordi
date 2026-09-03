@@ -1,6 +1,6 @@
 # Alert Lifecycle Architecture
 
-Status: MILESTONE 10 COMPLETE
+Status: MILESTONES 10 AND 14 COMPLETE
 
 ## Scope
 
@@ -87,6 +87,11 @@ M10 itself has no alert history collection or episode identity; M14 adds a separ
 durable, read-only episode and canonical transition-history projection committed with
 the winning lifecycle CAS. M10 remains authoritative for current state. There is still
 no acknowledgement, silencing, or incident state in this lifecycle model.
+
+M14 completed on authoritative commit
+`ed766a46b7c51ee1c54b844bbf6de5a79fab1efb`. The authoritative GitLab Windows
+`local_stack_smoke` verified backend artifact revision and SHA-256 provenance, then
+passed the M9–M13 regression chain and the M14 history smoke.
 
 Enabled M9 evidence carries exact policy/SLO/service context, window, half-open
 `[from,to)` range, and canonical `evaluatedAt`. Lifecycle start/resolve `occurredAt`

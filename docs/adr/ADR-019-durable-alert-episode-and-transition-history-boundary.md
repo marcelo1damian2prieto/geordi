@@ -1,6 +1,6 @@
 # ADR-019: Durable Alert Episode and Transition History Boundary
 
-Status: ACCEPTED — implemented in M14; ready for GitLab revalidation
+Status: ACCEPTED — implemented and authoritatively validated in M14
 
 ## Context
 
