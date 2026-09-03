@@ -83,8 +83,10 @@ must issue a new identifier.
 
 The record also holds current state, state version, latest M9 evaluation metadata, and
 at most the latest canonical transition metadata needed to explain the current record.
-There is no alert history collection, transition feed, episode identity,
-acknowledgement, silencing, incident state, or notification outbox in M10.
+M10 itself has no alert history collection or episode identity; M14 adds a separate
+durable, read-only episode and canonical transition-history projection committed with
+the winning lifecycle CAS. M10 remains authoritative for current state. There is still
+no acknowledgement, silencing, or incident state in this lifecycle model.
 
 Enabled M9 evidence carries exact policy/SLO/service context, window, half-open
 `[from,to)` range, and canonical `evaluatedAt`. Lifecycle start/resolve `occurredAt`

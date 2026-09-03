@@ -199,6 +199,17 @@ The isolated M13 smoke verified route A/B isolation, explicit suppression and un
 outcomes, the durable no-delivery boundary, retry/restart binding, notification security,
 and bounded routing telemetry. No known BLOCKER or HIGH issue prevents closure.
 
+## Milestone 14 — Alert Episode & Transition History Foundation
+
+READY FOR GITLAB REVALIDATION
+
+M14 adds durable alert episodes and immutable canonical transition history inside the
+existing Alerts boundary. History is a bounded read-only API projection committed with
+the winning lifecycle transaction; M10 remains the authoritative current-state model.
+It adds no UI, retention deletion, acknowledgements, silences, incidents, or routing
+redesign. Local closure validation passed the rebuilt runtime, exact M14 semantic
+smoke, and ordered M9–M13 regression chain; authoritative GitLab evidence is pending.
+
 ## Later
 
 DEFERRED

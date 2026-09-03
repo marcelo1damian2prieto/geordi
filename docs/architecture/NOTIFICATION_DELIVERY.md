@@ -10,10 +10,13 @@ query SLO or Metrics evidence, or schedule lifecycle evaluation.
 
 ## Reliability boundary
 
-The lifecycle persistence adapter atomically commits a winning lifecycle CAS update and
-an immutable delivery record. The worker dispatches that record only after commit. A
-crash before the transaction commits persists neither; a crash after it commits leaves
-the work recoverable. HTTP delivery is outside the database transaction.
+The lifecycle persistence adapter atomically commits a winning lifecycle CAS update,
+the M14 episode/immutable transition-history mutation, and an immutable delivery record
+when M13 returns `MATCHED`. `SUPPRESSED` and `UNROUTED` transitions commit lifecycle and
+history without creating delivery work. The worker dispatches a matched delivery record
+only after commit. A crash before the transaction commits persists none of these
+changes; a crash after it commits leaves the work recoverable. HTTP delivery is outside
+the database transaction.
 
 Delivery is at-least-once from Geordi's perspective. A response can be lost after a
 receiver processes a request, so a stable delivery ID is supplied for receiver-side

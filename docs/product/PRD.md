@@ -345,3 +345,15 @@ regression chain. The isolated M13 semantic smoke verified route A/B isolation,
 explicit suppression and unrouted outcomes, the durable no-delivery boundary, persisted
 destination binding across retry/restart, notification security isolation, and bounded
 routing telemetry. No known BLOCKER or HIGH issue prevents closure.
+
+## Milestone 14 scope
+
+Status: READY FOR GITLAB REVALIDATION
+
+M14 adds durable alert episodes and immutable canonical transition history. The bounded
+read-only history API is committed with the winning M10 lifecycle update; M10 remains
+authoritative for current `INACTIVE`/`FIRING` state. M14 adds no UI, retention automation,
+acknowledgements, silences, maintenance windows, incidents, or routing changes.
+Local closure validation passed the rebuilt runtime, exact M14 semantic smoke, and
+ordered M9–M13 regression chain. GitLab revalidation remains required before milestone
+completion.

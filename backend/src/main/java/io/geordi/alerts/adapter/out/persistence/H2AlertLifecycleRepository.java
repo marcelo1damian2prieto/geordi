@@ -2,15 +2,28 @@ package io.geordi.alerts.adapter.out.persistence;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.geordi.alerts.application.AlertHistoryPersistenceException;
+import io.geordi.alerts.application.AlertHistoryPersistenceException.Kind;
 import io.geordi.alerts.application.AlertLifecyclePersistenceException;
+import io.geordi.alerts.application.port.out.AlertEpisodeHistoryQuery;
+import io.geordi.alerts.application.port.out.AlertEpisodeState;
+import io.geordi.alerts.application.port.out.AlertHistoryRepository;
 import io.geordi.alerts.application.port.out.AlertLifecyclePersistenceHealthProbe;
 import io.geordi.alerts.application.port.out.AlertLifecycleRepository;
+import io.geordi.alerts.application.port.out.AlertTransitionHistoryQuery;
 import io.geordi.alerts.application.port.out.NotificationDeliveryWorkRepository;
 import io.geordi.alerts.application.port.out.VersionedAlertLifecycle;
+import io.geordi.alerts.domain.AlertEpisode;
+import io.geordi.alerts.domain.AlertEpisodeId;
+import io.geordi.alerts.domain.AlertEpisodeOrigin;
+import io.geordi.alerts.domain.AlertHistoryMutation;
 import io.geordi.alerts.domain.AlertLifecycle;
 import io.geordi.alerts.domain.NotificationDelivery;
 import io.geordi.alerts.domain.NotificationDeliveryState;
 import io.geordi.alerts.domain.NotificationDestination;
+import io.geordi.alerts.domain.AlertTransition;
+import io.geordi.alerts.domain.AlertTransitionRecord;
+import io.geordi.alerts.domain.AlertTransitionId;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.sql.ResultSet;
@@ -26,12 +39,15 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 public final class H2AlertLifecycleRepository
-        implements AlertLifecycleRepository, AlertLifecyclePersistenceHealthProbe, NotificationDeliveryWorkRepository {
+        implements AlertLifecycleRepository, AlertLifecyclePersistenceHealthProbe, NotificationDeliveryWorkRepository,
+                AlertHistoryRepository {
 
     private static final String AVAILABILITY_CHECK = """
             SELECT
                 (SELECT COUNT(*) FROM alert_lifecycle_state WHERE 1 = 0)
               + (SELECT COUNT(*) FROM alert_notification_outbox WHERE 1 = 0)
+              + (SELECT COUNT(*) FROM alert_episode WHERE 1 = 0)
+              + (SELECT COUNT(*) FROM alert_transition_history WHERE 1 = 0)
             """;
 
     private static final String SELECT_BY_POLICY = """
@@ -51,6 +67,41 @@ public final class H2AlertLifecycleRepository
             UPDATE alert_lifecycle_state
             SET version = version + 1, aggregate_json = ?
             WHERE policy_id = ? AND version = ?
+            """;
+    private static final String INSERT_EPISODE = """
+            INSERT INTO alert_episode (episode_id, policy_id, opened_at, closed_at, origin)
+            VALUES (?, ?, ?, ?, ?)
+            """;
+    private static final String SELECT_OPEN_EPISODE = """
+            SELECT episode_id, policy_id, opened_at, closed_at, origin
+            FROM alert_episode
+            WHERE policy_id = ? AND closed_at IS NULL
+            """;
+    private static final String COUNT_STARTED_HISTORY = """
+            SELECT COUNT(*)
+            FROM alert_transition_history
+            WHERE policy_id = ? AND transition_type = 'ALERT_STARTED'
+            """;
+    private static final String SELECT_EPISODE_BY_ID = """
+            SELECT episode_id, policy_id, opened_at, closed_at, origin
+            FROM alert_episode
+            WHERE episode_id = ?
+            """;
+    private static final String CLOSE_EPISODE = """
+            UPDATE alert_episode
+            SET closed_at = ?
+            WHERE episode_id = ? AND closed_at IS NULL
+            """;
+    private static final String INSERT_TRANSITION_HISTORY = """
+            INSERT INTO alert_transition_history (
+                transition_id, episode_id, policy_id, transition_type, occurred_at,
+                previous_state, current_state, transition_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """;
+    private static final String SELECT_TRANSITION_HISTORY = """
+            SELECT transition_id, episode_id, policy_id, transition_type, occurred_at,
+                   previous_state, current_state, transition_json
+            FROM alert_transition_history
             """;
     private static final String INSERT_NOTIFICATION = """
             INSERT INTO alert_notification_outbox (
@@ -168,10 +219,20 @@ public final class H2AlertLifecycleRepository
     @Override
     public boolean commit(
             AlertLifecycle lifecycle, Optional<Long> expectedVersion, Optional<NotificationDelivery> delivery) {
+        return commit(lifecycle, expectedVersion, delivery, Optional.empty());
+    }
+
+    @Override
+    public boolean commit(
+            AlertLifecycle lifecycle,
+            Optional<Long> expectedVersion,
+            Optional<NotificationDelivery> delivery,
+            Optional<AlertHistoryMutation> historyMutation) {
         Objects.requireNonNull(lifecycle, "alert lifecycle must not be null");
         Objects.requireNonNull(expectedVersion, "expected lifecycle version must not be null");
         Objects.requireNonNull(delivery, "notification delivery must not be null");
-        if (delivery.isEmpty()) {
+        Objects.requireNonNull(historyMutation, "alert history mutation must not be null");
+        if (delivery.isEmpty() && historyMutation.isEmpty()) {
             return expectedVersion.map(version -> replaceIfVersionMatches(lifecycle, version))
                     .orElseGet(() -> insertIfAbsent(lifecycle));
         }
@@ -179,17 +240,84 @@ public final class H2AlertLifecycleRepository
             throw new AlertLifecyclePersistenceException(
                     "transactional notification persistence is not configured", new IllegalStateException());
         }
-        Boolean committed = transactions.execute(status -> {
-            boolean stateSaved = expectedVersion.map(version -> replaceIfVersionMatches(lifecycle, version))
-                    .orElseGet(() -> insertIfAbsent(lifecycle));
-            if (!stateSaved) {
-                status.setRollbackOnly();
-                return false;
-            }
-            insertNotification(delivery.orElseThrow());
-            return true;
-        });
-        return Boolean.TRUE.equals(committed);
+        try {
+            Boolean committed = transactions.execute(status -> {
+                boolean stateSaved = expectedVersion.map(version -> replaceIfVersionMatches(lifecycle, version))
+                        .orElseGet(() -> insertIfAbsent(lifecycle));
+                if (!stateSaved) {
+                    status.setRollbackOnly();
+                    return false;
+                }
+                historyMutation.ifPresent(this::applyHistoryMutation);
+                delivery.ifPresent(this::insertNotification);
+                return true;
+            });
+            return Boolean.TRUE.equals(committed);
+        } catch (AlertLifecyclePersistenceException exception) {
+            throw exception;
+        } catch (DataAccessException exception) {
+            throw persistenceFailure(exception);
+        }
+    }
+
+    @Override
+    public Optional<AlertEpisode> findEpisodeById(AlertEpisodeId episodeId) {
+        Objects.requireNonNull(episodeId, "alert episode id must not be null");
+        try {
+            return jdbc.query(SELECT_EPISODE_BY_ID, (result, rowNumber) -> readEpisode(result), episodeId.value())
+                    .stream()
+                    .findFirst();
+        } catch (DataAccessException exception) {
+            throw historyPersistenceFailure(exception);
+        }
+    }
+
+    @Override
+    public List<AlertEpisode> findEpisodes(AlertEpisodeHistoryQuery query) {
+        Objects.requireNonNull(query, "alert episode history query must not be null");
+        StringBuilder statement = new StringBuilder("""
+                SELECT episode_id, policy_id, opened_at, closed_at, origin
+                FROM alert_episode
+                WHERE 1 = 1
+                """);
+        List<Object> arguments = new ArrayList<>();
+        appendEpisodeFilters(statement, arguments, query);
+        statement.append(" ORDER BY COALESCE(opened_at, closed_at) DESC, episode_id DESC LIMIT ?");
+        arguments.add(query.limit());
+        try {
+            return jdbc.query(statement.toString(), (result, rowNumber) -> readEpisode(result), arguments.toArray());
+        } catch (DataAccessException exception) {
+            throw historyPersistenceFailure(exception);
+        }
+    }
+
+    @Override
+    public List<AlertTransitionRecord> findTransitions(AlertTransitionHistoryQuery query) {
+        Objects.requireNonNull(query, "alert transition history query must not be null");
+        StringBuilder statement = new StringBuilder(SELECT_TRANSITION_HISTORY);
+        statement.append(" WHERE 1 = 1");
+        List<Object> arguments = new ArrayList<>();
+        if (query.policyId() != null) {
+            statement.append(" AND policy_id = ?");
+            arguments.add(query.policyId());
+        }
+        if (query.episodeId() != null) {
+            statement.append(" AND episode_id = ?");
+            arguments.add(query.episodeId().value());
+        }
+        if (query.from() != null) {
+            statement.append(" AND occurred_at >= ? AND occurred_at < ?");
+            arguments.add(Timestamp.from(query.from()));
+            arguments.add(Timestamp.from(query.to()));
+        }
+        statement.append(" ORDER BY occurred_at DESC, transition_id DESC LIMIT ?");
+        arguments.add(query.limit());
+        try {
+            return jdbc.query(
+                    statement.toString(), (result, rowNumber) -> readTransitionRecord(result), arguments.toArray());
+        } catch (DataAccessException exception) {
+            throw historyPersistenceFailure(exception);
+        }
     }
 
     @Override
@@ -258,6 +386,143 @@ public final class H2AlertLifecycleRepository
         }
     }
 
+    private AlertEpisode readEpisode(ResultSet result) throws SQLException {
+        try {
+            return new AlertEpisode(
+                    new AlertEpisodeId(result.getString("episode_id")),
+                    result.getString("policy_id"),
+                    instant(result, "opened_at"),
+                    instant(result, "closed_at"),
+                    AlertEpisodeOrigin.valueOf(result.getString("origin")));
+        } catch (IllegalArgumentException | NullPointerException exception) {
+            throw new AlertHistoryPersistenceException(Kind.INVARIANT, "stored alert episode is invalid", exception);
+        }
+    }
+
+    private AlertTransitionRecord readTransitionRecord(ResultSet result) throws SQLException {
+        try {
+            AlertTransition transition = objectMapper.readValue(result.getString("transition_json"), AlertTransition.class);
+            requireCanonicalTransitionColumns(result, transition);
+            return new AlertTransitionRecord(
+                    new AlertTransitionId(result.getString("transition_id")),
+                    new AlertEpisodeId(result.getString("episode_id")), transition);
+        } catch (JsonProcessingException | IllegalArgumentException | NullPointerException exception) {
+            throw new AlertHistoryPersistenceException(
+                    Kind.INVARIANT, "stored alert transition history is invalid", exception);
+        }
+    }
+
+    private static void requireCanonicalTransitionColumns(ResultSet result, AlertTransition transition)
+            throws SQLException {
+        boolean matches = transition.policyId().equals(result.getString("policy_id"))
+                && transition.type().name().equals(result.getString("transition_type"))
+                && transition.occurredAt().equals(instant(result, "occurred_at"))
+                && transition.previousState().name().equals(result.getString("previous_state"))
+                && transition.currentState().name().equals(result.getString("current_state"));
+        if (!matches) {
+            throw new IllegalArgumentException("stored alert transition columns do not match canonical JSON");
+        }
+    }
+
+    private void applyHistoryMutation(AlertHistoryMutation mutation) {
+        try {
+            if (mutation instanceof AlertHistoryMutation.Opened opened) {
+                insertEpisode(opened.episode());
+                insertTransitionRecord(opened.record());
+            } else if (mutation instanceof AlertHistoryMutation.Resolved resolved) {
+                AlertEpisode episode = findOpenEpisode(resolved.transition().policyId())
+                        .map(value -> closeOpenEpisode(value, resolved.transition().occurredAt()))
+                        .orElseGet(() -> legacyEpisodeOrFail(resolved));
+                insertTransitionRecord(resolved.recordFor(episode));
+            } else {
+                throw historyInvariantFailure("unsupported alert history mutation");
+            }
+        } catch (AlertHistoryPersistenceException exception) {
+            throw exception;
+        } catch (DataAccessException exception) {
+            throw historyPersistenceFailure(exception);
+        }
+    }
+
+    private AlertEpisode legacyEpisodeOrFail(AlertHistoryMutation.Resolved resolved) {
+        Integer starts = jdbc.queryForObject(
+                COUNT_STARTED_HISTORY, Integer.class, resolved.transition().policyId());
+        if (starts == null || starts > 0) {
+            throw historyInvariantFailure("normal alert resolution has no open episode");
+        }
+        return createLegacyEpisode(resolved.legacyEpisode());
+    }
+
+    private Optional<AlertEpisode> findOpenEpisode(String policyId) {
+        List<AlertEpisode> matches = jdbc.query(SELECT_OPEN_EPISODE, (result, rowNumber) -> readEpisode(result), policyId);
+        if (matches.size() > 1) {
+            throw historyInvariantFailure("multiple open alert episodes violate persistence invariants");
+        }
+        return matches.stream().findFirst();
+    }
+
+    private AlertEpisode closeOpenEpisode(AlertEpisode episode, Instant resolvedAt) {
+        AlertEpisode closed = episode.resolve(resolvedAt);
+        if (jdbc.update(CLOSE_EPISODE, Timestamp.from(resolvedAt), episode.id().value()) != 1) {
+            throw historyInvariantFailure("open alert episode could not be closed");
+        }
+        return closed;
+    }
+
+    private AlertEpisode createLegacyEpisode(AlertEpisode legacyEpisode) {
+        insertEpisode(legacyEpisode);
+        return legacyEpisode;
+    }
+
+    private void insertEpisode(AlertEpisode episode) {
+        jdbc.update(
+                INSERT_EPISODE,
+                episode.id().value(),
+                episode.policyId(),
+                timestamp(episode.openedAt()),
+                timestamp(episode.closedAt()),
+                episode.origin().name());
+    }
+
+    private void insertTransitionRecord(AlertTransitionRecord record) {
+        try {
+            AlertTransition transition = record.transition();
+            jdbc.update(
+                    INSERT_TRANSITION_HISTORY,
+                    record.id().value(),
+                    record.episodeId().value(),
+                    transition.policyId(),
+                    transition.type().name(),
+                    Timestamp.from(transition.occurredAt()),
+                    transition.previousState().name(),
+                    transition.currentState().name(),
+                    objectMapper.writeValueAsString(transition));
+        } catch (JsonProcessingException exception) {
+            throw new AlertHistoryPersistenceException(
+                    Kind.PERSISTENCE, "alert transition history could not be serialized", exception);
+        }
+    }
+
+    private static void appendEpisodeFilters(
+            StringBuilder statement, List<Object> arguments, AlertEpisodeHistoryQuery query) {
+        if (query.policyId() != null) {
+            statement.append(" AND policy_id = ?");
+            arguments.add(query.policyId());
+        } else {
+            statement.append(" AND opened_at IS NOT NULL");
+        }
+        if (query.state() == AlertEpisodeState.OPEN) {
+            statement.append(" AND closed_at IS NULL");
+        } else if (query.state() == AlertEpisodeState.CLOSED) {
+            statement.append(" AND closed_at IS NOT NULL");
+        }
+        if (query.from() != null) {
+            statement.append(" AND opened_at >= ? AND opened_at < ?");
+            arguments.add(Timestamp.from(query.from()));
+            arguments.add(Timestamp.from(query.to()));
+        }
+    }
+
     private String write(AlertLifecycle lifecycle) {
         try {
             return objectMapper.writeValueAsString(lifecycle);
@@ -306,7 +571,7 @@ public final class H2AlertLifecycleRepository
         try {
             return new NotificationDelivery(
                     result.getString("delivery_id"),
-                    objectMapper.readValue(result.getString("payload_json"), io.geordi.alerts.domain.AlertTransition.class),
+                    objectMapper.readValue(result.getString("payload_json"), AlertTransition.class),
                     new NotificationDestination(
                             result.getString("destination_id"), result.getString("destination_fingerprint")),
                     NotificationDeliveryState.valueOf(result.getString("state")),
@@ -349,5 +614,14 @@ public final class H2AlertLifecycleRepository
 
     private static AlertLifecyclePersistenceException persistenceFailure(DataAccessException exception) {
         return new AlertLifecyclePersistenceException("alert lifecycle persistence operation failed", exception);
+    }
+
+    private static AlertHistoryPersistenceException historyPersistenceFailure(DataAccessException exception) {
+        return new AlertHistoryPersistenceException(
+                Kind.PERSISTENCE, "alert history persistence operation failed", exception);
+    }
+
+    private static AlertHistoryPersistenceException historyInvariantFailure(String message) {
+        return new AlertHistoryPersistenceException(Kind.INVARIANT, message, new IllegalStateException());
     }
 }

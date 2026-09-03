@@ -8,6 +8,7 @@ import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.common.AttributesBuilder;
 import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.opentelemetry.api.metrics.LongCounter;
+import io.opentelemetry.api.metrics.Meter;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -32,8 +33,12 @@ public final class ObservedAlertLifecycleEvaluationUseCase implements AlertLifec
     private final DoubleHistogram duration;
 
     public ObservedAlertLifecycleEvaluationUseCase(AlertLifecycleEvaluationUseCase delegate) {
+        this(delegate, GlobalOpenTelemetry.getMeter("io.geordi.alerts"));
+    }
+
+    ObservedAlertLifecycleEvaluationUseCase(AlertLifecycleEvaluationUseCase delegate, Meter meter) {
         this.delegate = Objects.requireNonNull(delegate, "alert lifecycle delegate must not be null");
-        var meter = GlobalOpenTelemetry.getMeter("io.geordi.alerts");
+        Objects.requireNonNull(meter, "alert lifecycle meter must not be null");
         attempts = meter.counterBuilder("geordi.alert.lifecycle.evaluations").build();
         results = meter.counterBuilder("geordi.alert.lifecycle.results").build();
         transitions = meter.counterBuilder("geordi.alert.lifecycle.transitions").build();

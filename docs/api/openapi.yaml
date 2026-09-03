@@ -504,6 +504,127 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+  /api/alert-episodes:
+    get:
+      operationId: listAlertEpisodes
+      summary: List bounded durable alert episodes.
+      description: >-
+        Reads only the durable M14 history projection; it never evaluates telemetry or
+        changes lifecycle state. Results are newest-first. A policy-scoped query may
+        omit the range; all other queries require a paired, half-open [from,to) UTC
+        range no longer than 31 days. Legacy episodes with an unknown start are only
+        returned for policy-scoped queries.
+      parameters:
+        - name: policyId
+          in: query
+          required: false
+          schema: {type: string, minLength: 1}
+        - name: state
+          in: query
+          required: false
+          schema: {$ref: '#/components/schemas/AlertEpisodeState'}
+        - name: from
+          in: query
+          required: false
+          schema: {type: string, format: date-time}
+        - name: to
+          in: query
+          required: false
+          schema: {type: string, format: date-time}
+        - name: limit
+          in: query
+          required: false
+          schema: {type: integer, default: 50, minimum: 1, maximum: 100}
+      responses:
+        '200':
+          description: At most 100 episodes in deterministic newest-first order.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AlertEpisodes'}
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/AlertEvaluationDisabled'
+        '503':
+          description: Durable alert history could not be read.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+  /api/alert-episodes/{episodeId}:
+    get:
+      operationId: getAlertEpisode
+      summary: Get one durable alert episode and its transitions.
+      description: >-
+        A detail lookup is not range-filtered and returns the episode's at-most-two
+        canonical transition records (one for a legacy resolution-only episode).
+      parameters:
+        - name: episodeId
+          in: path
+          required: true
+          schema: {type: string, pattern: '^[0-9a-f]{64}$'}
+      responses:
+        '200':
+          description: Durable episode detail.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AlertEpisodeDetail'}
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: The episode does not exist, or the capability is disabled and its route is absent.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '503':
+          description: Durable alert history could not be read.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+  /api/alert-transitions:
+    get:
+      operationId: listAlertTransitions
+      summary: List bounded immutable alert transitions.
+      description: >-
+        Reads only durable M14 transition history in newest-first occurredAt then
+        transitionId order. A policy- or episode-scoped query may omit the range;
+        otherwise from and to are required paired UTC instants for a half-open range
+        no longer than 31 days.
+      parameters:
+        - name: policyId
+          in: query
+          required: false
+          schema: {type: string, minLength: 1}
+        - name: episodeId
+          in: query
+          required: false
+          schema: {type: string, pattern: '^[0-9a-f]{64}$'}
+        - name: from
+          in: query
+          required: false
+          schema: {type: string, format: date-time}
+        - name: to
+          in: query
+          required: false
+          schema: {type: string, format: date-time}
+        - name: limit
+          in: query
+          required: false
+          schema: {type: integer, default: 100, minimum: 1, maximum: 200}
+      responses:
+        '200':
+          description: At most 200 immutable transition records in deterministic newest-first order.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AlertTransitions'}
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/AlertEvaluationDisabled'
+        '503':
+          description: Durable alert history could not be read.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
 components:
   parameters:
     AlertPolicyId:
@@ -985,6 +1106,91 @@ components:
           format: date-time
         evaluation:
           $ref: '#/components/schemas/AlertEvaluation'
+    AlertEpisodeOrigin:
+      type: string
+      enum: [M14, PRE_M14_UNKNOWN_START]
+    AlertEpisodeState:
+      type: string
+      enum: [OPEN, CLOSED]
+    AlertEpisode:
+      type: object
+      additionalProperties: false
+      required: [id, policyId, openedAt, closedAt, origin, durationSeconds]
+      properties:
+        id:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        policyId:
+          type: string
+          minLength: 1
+        openedAt:
+          type: [string, 'null']
+          format: date-time
+          description: Null only for explicit PRE_M14_UNKNOWN_START origin.
+        closedAt:
+          type: [string, 'null']
+          format: date-time
+        origin:
+          $ref: '#/components/schemas/AlertEpisodeOrigin'
+        durationSeconds:
+          type: [integer, 'null']
+          format: int64
+          minimum: 0
+          description: Derived from canonical openedAt and closedAt; null when the episode is open or has an unknown legacy start.
+    AlertEpisodes:
+      type: object
+      additionalProperties: false
+      required: [alertEpisodes]
+      properties:
+        alertEpisodes:
+          type: array
+          maxItems: 100
+          items: {$ref: '#/components/schemas/AlertEpisode'}
+    AlertTransitionHistory:
+      type: object
+      additionalProperties: false
+      required: [id, episodeId, policyId, type, previousState, currentState, occurredAt, evaluation]
+      properties:
+        id:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        episodeId:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        policyId:
+          type: string
+          minLength: 1
+        type:
+          $ref: '#/components/schemas/AlertTransitionType'
+        previousState:
+          $ref: '#/components/schemas/AlertLifecycleState'
+        currentState:
+          $ref: '#/components/schemas/AlertLifecycleState'
+        occurredAt:
+          type: string
+          format: date-time
+        evaluation:
+          $ref: '#/components/schemas/AlertEvaluation'
+    AlertTransitions:
+      type: object
+      additionalProperties: false
+      required: [alertTransitions]
+      properties:
+        alertTransitions:
+          type: array
+          maxItems: 200
+          items: {$ref: '#/components/schemas/AlertTransitionHistory'}
+    AlertEpisodeDetail:
+      type: object
+      additionalProperties: false
+      required: [episode, transitions]
+      properties:
+        episode:
+          $ref: '#/components/schemas/AlertEpisode'
+        transitions:
+          type: array
+          maxItems: 2
+          items: {$ref: '#/components/schemas/AlertTransitionHistory'}
     AlertLifecycleSnapshot:
       type: object
       additionalProperties: false

@@ -14,12 +14,14 @@ import io.geordi.alerts.adapter.out.persistence.H2AlertLifecycleRepository;
 import io.geordi.alerts.adapter.out.webhook.HttpWebhookNotificationSender;
 import io.geordi.alerts.adapter.out.slos.SlosReliabilityAdapter;
 import io.geordi.alerts.adapter.out.telemetry.ObservedAlertEvaluationUseCase;
+import io.geordi.alerts.adapter.out.telemetry.ObservedAlertHistoryRepository;
 import io.geordi.alerts.adapter.out.telemetry.ObservedAlertLifecycleEvaluationUseCase;
 import io.geordi.alerts.adapter.out.telemetry.ObservedAlertRoutingPort;
 import io.geordi.alerts.application.AlertEvaluationService;
 import io.geordi.alerts.application.AlertEvaluationUseCase;
 import io.geordi.alerts.application.AlertLifecycleEvaluationUseCase;
 import io.geordi.alerts.application.AlertLifecycleQueryService;
+import io.geordi.alerts.application.AlertHistoryQueryService;
 import io.geordi.alerts.application.AlertLifecycleService;
 import io.geordi.alerts.application.AlertSchedulingSettings;
 import io.geordi.alerts.application.SingleFlightAlertLifecycleEvaluationUseCase;
@@ -27,6 +29,7 @@ import io.geordi.alerts.application.AlertPolicyQueryService;
 import io.geordi.alerts.application.AlertPolicyReferenceValidator;
 import io.geordi.alerts.application.NotificationDeliveryWorkService;
 import io.geordi.alerts.application.port.out.AlertLifecycleRepository;
+import io.geordi.alerts.application.port.out.AlertHistoryRepository;
 import io.geordi.alerts.application.port.out.AlertLifecyclePersistenceHealthProbe;
 import io.geordi.alerts.application.port.out.AlertPolicyCatalog;
 import io.geordi.alerts.application.port.out.BurnRateEvidencePort;
@@ -99,6 +102,12 @@ public class AlertsModuleConfiguration {
         }
 
         @Bean
+        @Primary
+        ObservedAlertHistoryRepository observedAlertHistoryRepository(H2AlertLifecycleRepository repository) {
+            return new ObservedAlertHistoryRepository(repository, repository);
+        }
+
+        @Bean
         ConfigurationAlertRoutingAdapter alertRoutingAdapter(
                 AlertRoutingProperties properties, AlertPolicyCatalog catalog) {
             return new ConfigurationAlertRoutingAdapter(properties, catalog);
@@ -116,6 +125,11 @@ public class AlertsModuleConfiguration {
                 AlertLifecycleRepository repository,
                 SloLifecycleBindingPort sloBindings) {
             return new AlertLifecycleQueryService(catalog, repository, sloBindings);
+        }
+
+        @Bean
+        AlertHistoryQueryService alertHistoryQueryService(AlertHistoryRepository repository) {
+            return new AlertHistoryQueryService(repository);
         }
 
         @Bean

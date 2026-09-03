@@ -7,6 +7,7 @@ import io.geordi.alerts.application.port.out.SloLifecycleBindingPort;
 import io.geordi.alerts.application.port.out.VersionedAlertLifecycle;
 import io.geordi.alerts.domain.AlertEvaluation;
 import io.geordi.alerts.domain.AlertLifecycleDecision;
+import io.geordi.alerts.domain.AlertHistoryMutation;
 import io.geordi.alerts.domain.AlertLifecycleTransitions;
 import io.geordi.alerts.domain.AlertTransition;
 import io.geordi.alerts.domain.NotificationDelivery;
@@ -86,7 +87,10 @@ public final class AlertLifecycleService implements AlertLifecycleEvaluationUseC
     private boolean commit(
             Optional<VersionedAlertLifecycle> stored, AlertLifecycleDecision decision) {
         return repository.commit(
-                decision.current(), stored.map(VersionedAlertLifecycle::version), notification(decision.transition()));
+                decision.current(),
+                stored.map(VersionedAlertLifecycle::version),
+                notification(decision.transition()),
+                Optional.ofNullable(decision.transition()).map(AlertHistoryMutation::from));
     }
 
     private Optional<NotificationDelivery> notification(AlertTransition transition) {

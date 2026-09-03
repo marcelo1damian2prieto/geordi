@@ -4,10 +4,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 import io.geordi.alerts.application.AlertLifecyclePersistenceException;
+import io.geordi.alerts.application.port.out.AlertEpisodeHistoryQuery;
+import io.geordi.alerts.application.port.out.AlertHistoryRepository;
 import io.geordi.alerts.application.port.out.AlertLifecyclePersistenceHealthProbe;
 import io.geordi.alerts.application.port.out.AlertLifecycleRepository;
+import io.geordi.alerts.application.port.out.AlertTransitionHistoryQuery;
 import io.geordi.alerts.application.port.out.VersionedAlertLifecycle;
+import io.geordi.alerts.domain.AlertEpisode;
+import io.geordi.alerts.domain.AlertEpisodeId;
 import io.geordi.alerts.domain.AlertLifecycle;
+import io.geordi.alerts.domain.AlertTransitionRecord;
 import io.geordi.bootstrap.GeordiApplication;
 import io.geordi.metrics.adapter.out.telemetry.ObservedMetricsQueryAdapter;
 import java.util.List;
@@ -34,7 +40,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
         properties = {
             "geordi.modules.traces.enabled=false",
             "geordi.modules.logs.enabled=false",
-            "geordi.modules.service-map.enabled=false"
+            "geordi.modules.service-map.enabled=false",
+            "spring.main.allow-bean-definition-overriding=true"
         },
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class AlertLifecyclePersistenceHealthIntegrationTest {
@@ -96,13 +103,13 @@ class AlertLifecyclePersistenceHealthIntegrationTest {
 
         @Bean
         @Primary
-        MutableLifecyclePersistence mutableLifecyclePersistence() {
+        MutableLifecyclePersistence observedAlertHistoryRepository() {
             return new MutableLifecyclePersistence();
         }
     }
 
     static final class MutableLifecyclePersistence
-            implements AlertLifecycleRepository, AlertLifecyclePersistenceHealthProbe {
+            implements AlertLifecycleRepository, AlertHistoryRepository, AlertLifecyclePersistenceHealthProbe {
 
         private final AtomicBoolean available = new AtomicBoolean(true);
 
@@ -137,6 +144,24 @@ class AlertLifecyclePersistenceHealthIntegrationTest {
         public boolean replaceIfVersionMatches(AlertLifecycle lifecycle, long expectedVersion) {
             requireAvailable();
             return true;
+        }
+
+        @Override
+        public Optional<AlertEpisode> findEpisodeById(AlertEpisodeId episodeId) {
+            requireAvailable();
+            return Optional.empty();
+        }
+
+        @Override
+        public List<AlertEpisode> findEpisodes(AlertEpisodeHistoryQuery query) {
+            requireAvailable();
+            return List.of();
+        }
+
+        @Override
+        public List<AlertTransitionRecord> findTransitions(AlertTransitionHistoryQuery query) {
+            requireAvailable();
+            return List.of();
         }
 
         private void requireAvailable() {

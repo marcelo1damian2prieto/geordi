@@ -234,6 +234,9 @@ the notification-delivery foundation described below.
 - **Alert routing (M13 complete):** deployment-managed deterministic routing selects one
   persisted destination, explicit suppression, or explicit unrouted outcome at the
   M10/M11 transition boundary; there is no runtime route CRUD or fan-out.
+- **Alert episode and transition history (M14 implemented; GitLab revalidation pending):**
+  durable, bounded read-only episodes and canonical transition history are committed with
+  lifecycle state. It adds no UI, retention automation, incident management, or routing changes.
 
 This is a bounded service-investigation foundation, not full APM.
 
@@ -463,6 +466,16 @@ Its isolated M13 smoke verified route A/B isolation, explicit suppression and un
 outcomes, the durable no-delivery boundary, persisted retry/restart binding,
 notification security isolation, and bounded routing telemetry. No known BLOCKER or
 HIGH issue prevents closure.
+
+## Milestone 14 — Alert Episode & Transition History Foundation
+
+Status: **READY FOR GITLAB REVALIDATION**.
+
+M14 adds durable alert episodes and immutable canonical transition history within the
+existing Alerts boundary, plus bounded read-only episode and transition APIs. Local
+closure validation passed the clean rebuilt backend runtime, the exact isolated M14
+history smoke, and the ordered M9–M13 regression chain. Authoritative GitLab
+revalidation is still pending.
 
 ## Documentation
 

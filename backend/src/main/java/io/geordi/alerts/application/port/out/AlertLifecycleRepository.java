@@ -1,6 +1,7 @@
 package io.geordi.alerts.application.port.out;
 
 import io.geordi.alerts.domain.AlertLifecycle;
+import io.geordi.alerts.domain.AlertHistoryMutation;
 import io.geordi.alerts.domain.NotificationDelivery;
 import java.util.List;
 import java.util.Optional;
@@ -22,5 +23,16 @@ public interface AlertLifecycleRepository {
         }
         return expectedVersion.map(version -> replaceIfVersionMatches(lifecycle, version))
                 .orElseGet(() -> insertIfAbsent(lifecycle));
+    }
+
+    default boolean commit(
+            AlertLifecycle lifecycle,
+            Optional<Long> expectedVersion,
+            Optional<NotificationDelivery> delivery,
+            Optional<AlertHistoryMutation> historyMutation) {
+        if (historyMutation.isPresent()) {
+            throw new UnsupportedOperationException("alert history commit is not supported");
+        }
+        return commit(lifecycle, expectedVersion, delivery);
     }
 }

@@ -267,5 +267,14 @@ class AlertLifecycleServiceTest {
             }
             return committed;
         }
+
+        @Override
+        public boolean commit(
+                AlertLifecycle lifecycle,
+                Optional<Long> expectedVersion,
+                Optional<NotificationDelivery> delivery,
+                Optional<io.geordi.alerts.domain.AlertHistoryMutation> historyMutation) {
+            return commit(lifecycle, expectedVersion, delivery);
+        }
     }
 }
