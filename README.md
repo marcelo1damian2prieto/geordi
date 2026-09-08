@@ -480,7 +480,48 @@ pipeline for commit `ed766a46b7c51ee1c54b844bbf6de5a79fab1efb` passed all jobs;
 its Windows `local_stack_smoke` verified artifact revision and SHA-256 provenance and
 passed the M9–M13 plus M14 semantic chain.
 
-## Documentation
+## Milestone 15 — Alert History Investigation UI
+
+Status: **M15 IMPLEMENTED — READY FOR GITLAB REVALIDATION**. Local closure gates and
+independent review passed; authoritative GitLab revalidation remains pending and is
+tracked in `docs/plans/MILESTONE-015.md`.
+
+The bounded, read-only `/alert-history` workflow consumes M14 episode list/detail APIs.
+It describes **episodes opened in this window**; `/alert-evaluations` remains authoritative
+for current lifecycle state. An OPEN filter means unresolved episodes opened in that
+window, not every currently firing alert. No history action evaluates or mutates alerts.
+
+The URL anchors one absolute UTC 24-hour range on initial entry. Refresh and reload keep
+those exact bounds; Last 24 hours explicitly moves the range. Filters support an exact
+policy ID, OPEN/CLOSED state and a 1–100 limit (default 50), with ranges at most 31 days.
+Invalid bookmarks show validation rather than issuing requests. Selected episode detail
+is bookmarkable and independent of list membership. Legacy episodes with unknown start
+cannot be discovered by the ranged list; they are accessible only with a known episode ID.
+
+Each usable persisted STARTED/RESOLVED evidence snapshot links to `/investigate` with
+its exact service identity and timestamp strings. The existing six-hour Investigation
+limit remains unchanged. History can outlive source metrics, traces and logs; the detail
+notice keeps this retention limitation visible without claiming telemetry was deleted.
+
+For local startup, create `.env` from `.env.example` if needed and run
+`docker compose up -d --build` from the repository root. Open
+`http://127.0.0.1:3000/alert-history`. The existing nginx proxy serves `/api/` and SPA
+fallback supports bookmarks. History requires the existing enabled Alerts module and
+persisted episodes; an empty list is valid until lifecycle transitions occur.
+
+The M15 integration extension reuses the isolated M14 fixture and command:
+
+```powershell
+pwsh -File ./scripts/verify-alert-history.ps1 -TimeoutSeconds 480
+```
+
+Its frontend proxy checks use real M14 episode/evidence data. Component tests cover UI
+semantics; the deployed smoke covers nginx/API integration; backend tests and the M14
+smoke cover durable history semantics. An HTTP SPA fallback check proves HTML
+availability only, not rendered browser behavior. These layers do not imply a passed
+M15 gate until results are recorded in the execution plan.
+
+## Documentation links
 
 See:
 - `docs/product/`

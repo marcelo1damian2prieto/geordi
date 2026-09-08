@@ -184,3 +184,16 @@ adds only the notification-delivery foundation.
 The authoritative GitLab semantic chain passed the M9 Alert Evaluation and M10 Alert
 Lifecycle smokes after checking out commit `4a81d9f8`, including the persistence-health
 fix. No BLOCKER or HIGH finding remained at the M10 boundary.
+
+## M15 History navigation
+
+Each lifecycle policy links to `/alert-history` with its exact policy ID. This does not
+change Evaluate now, lifecycle state, transition semantics, scheduling, routing or
+delivery. The history route is a GET-only consumer of the existing M14 episode API.
+Its anchored range selects episodes opened in that window, including unresolved ones;
+it is not a substitute for the current FIRING-state view on this page.
+
+History detail is selected independently by episode ID in the URL. Since every list
+request includes bounds, unknown-start legacy episodes are accessible only through a
+known-ID bookmark. Their real resolution time remains visible; start and duration stay
+unavailable. No extra unbounded query, synthetic start or retention deletion is added.

@@ -185,6 +185,12 @@ dd { margin: 0; font-weight: 650; }
 .alert-lifecycle-section h3, .alert-lifecycle-section h4 { margin: 0; }
 .alert-lifecycle-transition, .alert-lifecycle-command-result { margin: 18px 0 0; color: #c7d2e2; }
 .alert-lifecycle-evaluate { margin-top: 20px; }
+.alert-history table { width: 100%; table-layout: fixed; border-collapse: collapse; margin: 20px 0; }
+.alert-history th, .alert-history td { text-align: left; vertical-align: top; padding: 12px 8px; border-bottom: 1px solid #26364e; overflow-wrap: anywhere; }
+.alert-history caption { text-align: left; padding: 8px; }
+.alert-history .metrics-controls { flex-wrap: wrap; }
+.alert-history input { max-width: 100%; }
+.alert-history h2:focus { outline: 2px solid #60a5fa; outline-offset: 4px; }
 .alert-evaluation-not-evaluated, .alert-evaluation-reason { margin: 20px 0 0; color: #aab7c9; }
 .alert-evaluation-disabled { opacity: .7; }
 .alert-evidence { margin-top: 24px; padding-top: 20px; border-top: 1px solid #26364e; }

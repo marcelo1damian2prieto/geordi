@@ -3,6 +3,10 @@ import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { App } from './App'
 
+vi.mock('./features/alert-history/AlertHistoryPage', () => ({
+  AlertHistoryPage: () => <main>Alert history route</main>,
+}))
+
 vi.mock('./features/platform-overview/PlatformOverview', () => ({
   PlatformOverview: () => <main>Platform overview route</main>,
 }))
@@ -40,6 +44,11 @@ vi.mock('./features/alert-lifecycle/AlertLifecyclePage', () => ({
 }))
 
 describe('application routes', () => {
+  it('renders the history bookmark and shell navigation', () => {
+    render(<MemoryRouter initialEntries={['/alert-history?episodeId=' + 'a'.repeat(64)]}><App /></MemoryRouter>)
+    expect(screen.getByText('Alert history route')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Alert history' })).toHaveAttribute('href', '/alert-history')
+  })
   it('renders service metrics at its public route', () => {
     render(<MemoryRouter initialEntries={['/metrics']}><App /></MemoryRouter>)
 

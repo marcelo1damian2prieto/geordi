@@ -212,6 +212,21 @@ smoke, and ordered M9–M13 regression chain. The authoritative GitLab pipeline 
 commit `ed766a46b7c51ee1c54b844bbf6de5a79fab1efb` passed all jobs, including backend
 artifact revision and SHA-256 provenance checks and the M9–M14 semantic smoke chain.
 
+## Milestone 15 — Alert History Investigation UI
+
+M15 IMPLEMENTED — READY FOR GITLAB REVALIDATION
+
+The read-only `/alert-history` route consumes M14 episode list/detail with absolute
+UTC URL filters, a 24-hour default and a maximum 31-day opened-at window. Policy ID,
+OPEN/CLOSED and bounded limit filters are bookmarkable alongside independent episode
+selection. Current FIRING state remains authoritative in Alert Lifecycle. Unknown-start
+legacy detail requires a known episode ID; the bounded list cannot discover those rows.
+Persisted transition evidence links preserve the existing Investigation context and
+carry a non-blocking source-telemetry retention notice. No backend production, API,
+lifecycle, routing, delivery or scheduling change is included. Local verification and
+fresh implementation review are recorded in `docs/plans/MILESTONE-015.md`; M15 is not
+COMPLETE until authoritative GitLab revalidation passes. No M16 work is included.
+
 ## Later
 
 DEFERRED

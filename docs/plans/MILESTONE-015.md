@@ -1,9 +1,62 @@
 # Milestone 015 — Alert History Investigation UI
 
-Status: M15 PLANNED — READY FOR IMPLEMENTATION
+Status: M15 IMPLEMENTED — READY FOR GITLAB REVALIDATION
 
 Planning baseline: 2026-09-07. This document authorizes no implementation by itself.
-M14 is complete; M15 has not been implemented or runtime-validated by this planning task.
+M14 is complete. M15 implementation was authorized on 2026-09-07; closure evidence is
+recorded below as checks finish. The approved scope remains unchanged.
+
+## Implementation execution record
+
+- Reconfirmed existing frontend client/types/context, routing, query-provider and nginx
+  seams against the M14 OpenAPI contract. No production backend or API change needed.
+- Ownership: frontend feature/navigation and RED-first tests; independent page-test
+  worker; existing M14 smoke extension in its script only; documentation and closure
+  gates coordinated separately. A fresh read-only reviewer follows local verification.
+- Backend `./mvnw.cmd -B -ntp verify`: PASS, 289 tests, no failures/errors/skips,
+  including ArchUnit, PMD, SpotBugs and Find Security Bugs.
+- Base and M10/M12/M13/M14 Compose configuration checks: PASS.
+- Frontend `npm ci`, full tests (210 tests across 26 files), typecheck, lint and
+  production build: PASS. New history coverage: 5 API, 35 URL, 5 presentation and
+  31 page cases, plus App and Lifecycle navigation regressions. Production build
+  retains the existing large-chunk advisory; no dependency/bundle redesign is included.
+- OTel Collector, Tempo and Loki configuration validation: PASS. Verified backend
+  runtime image, supporting images and frontend image built without cache; fresh
+  Compose startup passed. The exact semantic chain and independent review passed.
+- Local baseline revision: `481685111da7746a524390576b1c4014a673198d` plus the M15
+  working diff. Backend is unchanged. Verified JAR SHA-256:
+  `800ffd92ce022803c0ac00d4406b79d6a832ee1550ec8cb46f7aa1aac5c8c20d`;
+  runtime image labels match the revision and digest. This is local provenance,
+  not a claim of a GitLab-tested implementation commit.
+- Toolchain: Node 24.15.0, npm 11.12.1, Java 26.0.1 (Java 21 target),
+  PowerShell 7.6.5, Docker Engine 29.7.2. Local logs are in `backend/target/m15-*`.
+- Observed RED runs preceded API, page, presentation and navigation implementation;
+  focused GREEN runs and the complete suite followed. The page race tests resolve B
+  before A with abort-ignoring fetch doubles for list and detail, and show B only.
+  Calendar/range tests prove exact 31 days valid and +1 ns invalid; API/context tests
+  and exact `<time>` text preserve canonical timestamp strings and nulls.
+- Accessibility coverage proves labeled/described controls, invalid/error summaries,
+  semantic caption/column headers, keyboard selection and `aria-current`, one-time
+  detail-heading focus, close focus restoration/fallback and Back/Forward without
+  focus stealing. Whitelisted rendering and GET-only endpoint assertions exclude
+  writes, evaluation calls, transition searches and arbitrary private payload fields.
+- Applied skills: `investigate-first`, `surgical-patch` principles, `verify-and-stop`,
+  `caveman-review` for the upcoming independent review. Subagent implementation work
+  was interrupted by an account usage limit; primary agent completed the remaining
+  implementation and verification. No implementation agent will serve as reviewer.
+- The ordered OTel → Metrics → Traces → Logs → Service Map → SLO → Burn Rate
+  (provider failure/recovery) → Alert Evaluation → Lifecycle → Notification Delivery
+  → Scheduling → Routing semantic gates passed. Initial History proxy validation
+  exposed PowerShell byte-array Content for a charset-free Problem response. A focused
+  RED reproduced the conversion error; decoding UTF-8 before string-date parsing
+  passed GREEN for both string and byte JSON, preserving nine fractional digits.
+  The corrected History smoke passed with explicit transition-ID parity. The correction
+  is confined to the approved smoke script.
+- Fresh read-only final review: **BLOCKER 0 · HIGH 0 · MEDIUM 0 · LOW 0**. It checked
+  the full tracked/untracked implementation against the authoritative plan, including
+  scope, precision, URL validation, query-key isolation, current/history and legacy
+  semantics, investigation context, privacy, accessibility, smoke evidence and M16
+  exclusion. The reviewer accepted the supplied gate evidence and did not rerun tests.
 
 ## Objective and boundary
 

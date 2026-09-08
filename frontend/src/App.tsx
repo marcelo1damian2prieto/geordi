@@ -9,6 +9,7 @@ import { ServiceInvestigationPage } from './features/service-investigation/Servi
 import { LogsPage } from './features/logs/LogsPage'
 import { SloPage } from './features/slos/SloPage'
 import { AlertLifecyclePage } from './features/alert-lifecycle/AlertLifecyclePage'
+import { AlertHistoryPage } from './features/alert-history/AlertHistoryPage'
 
 const ServiceMapPage = lazy(async () => {
   const module = await import('./features/service-map/ServiceMapPage')
@@ -28,6 +29,7 @@ export function App() {
         <Route path="/service-map" element={<Suspense fallback={<main className="state-panel" aria-busy="true">Loading Service Map…</main>}><ServiceMapPage /></Suspense>} />
         <Route path="/slos" element={<SloPage />} />
         <Route path="/alert-evaluations" element={<AlertLifecyclePage />} />
+        <Route path="/alert-history" element={<AlertHistoryPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AppShell>

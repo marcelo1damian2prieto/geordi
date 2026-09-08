@@ -44,9 +44,47 @@ acknowledgement, silencing, or related management UI. M11 webhook delivery remai
 backend/operational capability. A transition is not presented as a delivered
 notification or incident event.
 
-## Local development
+## M15 Alert History
 
-Prerequisites: Node.js 22 and a backend listening on `http://localhost:8080`.
+Status: **M15 IMPLEMENTED — READY FOR GITLAB REVALIDATION**. Local closure evidence is
+recorded in `../docs/plans/MILESTONE-015.md`; authoritative GitLab revalidation remains
+pending.
+
+`/alert-history` is a read-only M14 episode consumer, reachable from the shell and
+Alert Lifecycle. It lists episodes opened in an anchored absolute UTC range: initially
+24 hours, at most 31 days. Reload and Refresh preserve that URL interval; Last 24 hours
+explicitly creates another. Exact policy ID, OPEN/CLOSED and limit (1–100, default 50)
+are URL filters. Invalid or incomplete URLs block requests and expose editable validation.
+OPEN describes unresolved episodes opened in the window; `/alert-evaluations` remains
+the current-state authority.
+
+Episode selection is stored in the URL and detail remains independent of list filters.
+The API's unknown-start legacy episodes are accessible through a known-ID bookmark,
+not discoverable by this ranged list. API ordering, exact timestamp strings and
+server-derived completed duration are preserved. Ongoing and legacy unknown duration
+remain explicitly unavailable.
+
+Per-transition Investigation links use persisted service identity and evidence bounds,
+validated against the unchanged six-hour canonical context limit. Missing/incompatible
+evidence disables only its link. A retention notice explains that source telemetry may
+have expired while durable history remains readable. History sends GETs only and adds
+no evaluation, delivery or routing actions.
+
+History uses the existing API client, React Router and TanStack Query provider. List
+keys contain all applied filters; detail keys contain the selected ID. Abort signals,
+independent loading/error/retry states, explicit cached-refresh failure labels and no
+previous-selection placeholders protect the active URL context. No polling or new store
+is introduced.
+
+Colocated API/parser/presentation/page tests use Vitest, jsdom and Testing Library for
+URL precision, navigation, stale responses, keyboard/focus behavior and safe errors.
+These are component tests, not browser E2E. The existing M14 smoke extension validates
+real episode/evidence responses through nginx; SPA HTML availability alone does not
+prove React rendering.
+
+## Development startup
+
+Prerequisites: Node.js >=22.12 and a backend listening on `http://localhost:8080`.
 
 ```powershell
 npm ci
@@ -55,6 +93,9 @@ npm run dev
 
 Open `http://localhost:5173`. Vite proxies `/api` to `http://localhost:8080` by
 default. Set `GEORDI_BACKEND_URL` when the backend uses a different development URL.
+Open `/alert-history` on that origin for the History workflow. For the full local stack,
+follow the root README's `.env` prerequisites and run `docker compose up -d --build`
+from the repository root, then open `http://127.0.0.1:3000/alert-history`.
 
 For a production build, `VITE_API_BASE_URL` can prefix API requests. Its default is
 empty, so requests remain same-origin and the included nginx configuration proxies

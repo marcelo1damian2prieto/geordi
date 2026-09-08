@@ -109,6 +109,13 @@ function requestPath(input: RequestInfo | URL) {
 
 afterEach(() => vi.restoreAllMocks())
 
+it('links to read-only alert history with the exact policy ID', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ alertStates: [snapshot()] }))
+  renderPage()
+  const link = await screen.findByRole('link', { name: 'View policy alert history' })
+  expect(link).toHaveAttribute('href', '/alert-history?policyId=checkout-burn')
+})
+
 describe('Alert lifecycle', () => {
   it('loads state without causing an evaluation and explains an uninitialized inactive policy', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((_input, init) => {

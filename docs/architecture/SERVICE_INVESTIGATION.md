@@ -139,3 +139,19 @@ Composition consumes public vendor-neutral contracts, so VictoriaMetrics, Tempo,
 Loki remain replaceable behind their adapters. Logs consumes the same signal-neutral
 context and fails independently; it adds no shared Java identity, generic query
 abstraction, or cross-signal domain dependency.
+
+## M15 persisted alert-history evidence
+
+History links each STARTED/RESOLVED transition independently using persisted evaluation
+evidence. `contextSearchParams` receives the verbatim service name, nullable namespace,
+environment and from/to strings, including nanoseconds. The generated context must be
+accepted by `parseTelemetryContext` without changing identity. The existing six-hour
+destination limit is unchanged; incompatible/missing evidence shows an unavailable-link
+message while leaving history readable. History's default 24-hour range and the current
+clock never replace persisted evidence, and no current evaluation is requested.
+
+Detail always explains that alert history can outlive source telemetry retention, so
+metrics, traces or logs may be unavailable for the evidence window. Valid links remain
+enabled: there is no authoritative retention metadata or provider probe that justifies
+claiming expiration or deletion. Source telemetry availability does not determine the
+canonical historical lifecycle state.

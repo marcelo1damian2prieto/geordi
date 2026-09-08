@@ -137,6 +137,7 @@ function AlertLifecycleCard({ snapshot }: { snapshot: AlertLifecycleSnapshot }) 
         <LifecycleStatus state={snapshot.state} />
       </div>
       <PolicyFacts policy={snapshot.policy} />
+      <p><Link to={`/alert-history?${new URLSearchParams({ policyId: snapshot.policy.id })}`}>View policy alert history</Link></p>
 
       <section className="alert-lifecycle-section" aria-labelledby={`${headingId}-state`}>
         <h3 id={`${headingId}-state`}>Lifecycle state</h3>

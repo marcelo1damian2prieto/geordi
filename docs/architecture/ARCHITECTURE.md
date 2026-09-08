@@ -241,3 +241,24 @@ is canonical. The current-window burn calculation is derived inside that same SL
 boundary; it is not long-period error-budget accounting.
 
 The final storage architecture is intentionally not locked in during milestone 1.
+
+## M15 frontend history composition
+
+`/alert-history` composes the existing M14 episode list/detail GET APIs in the frontend.
+It reuses the HTTP client, canonical evaluation types, Router and Query provider; no new
+runtime component, backend adapter, domain dependency or datastore is added. Existing
+health and telemetry remain applicable. History requests always carry an absolute UTC
+opened-at range of at most 31 days, with an anchored 24-hour default.
+
+The URL is applied state. List query keys contain exact from/to, policy ID, OPEN/CLOSED
+and limit; detail keys contain only the selected episode ID and are enabled only for a
+valid URL. Signals are forwarded for cancellation, while key identity prevents late
+responses from replacing the active selection even if abort is ignored. There is no
+polling, previous-key placeholder or copied response state. Errors are bounded and
+independent; failed same-key refreshes label retained data as cached.
+
+Alert Lifecycle remains authoritative for current FIRING state. History lists episodes
+opened within its window, so OPEN is not all currently firing alerts. Known-ID detail
+is independent of the list and supports legacy unknown-start episodes without inventing
+their start/duration; the ranged list cannot discover them. Persisted transition links
+reuse the existing Investigation contract and explain source-telemetry retention.

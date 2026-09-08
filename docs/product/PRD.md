@@ -358,3 +358,27 @@ Local closure validation passed the rebuilt runtime, exact M14 semantic smoke, a
 ordered M9–M13 regression chain. The authoritative GitLab pipeline for commit
 `ed766a46b7c51ee1c54b844bbf6de5a79fab1efb` passed all jobs, including artifact
 revision and SHA-256 verification and the M9–M14 semantic smoke chain.
+
+## Milestone 15 scope
+
+Status: M15 IMPLEMENTED — READY FOR GITLAB REVALIDATION
+
+Alert History at `/alert-history` is a bounded, read-only investigation workflow over
+durable M14 episodes. The URL applies exact UTC from/to timestamps, optional policy ID
+and OPEN/CLOSED state, limit 1–100, and optional selected episode ID. A single initial
+clock sample anchors the last 24 hours; ranges must be positive and at most 31 days.
+Refresh/reload preserve those strings; reset explicitly changes the range. Invalid
+bookmarks remain visible and block requests until corrected.
+
+History means episodes opened in the window. Alert Lifecycle remains the authoritative
+current FIRING view. Selected detail is independent of list filters; unknown-start legacy
+episodes require a known-ID bookmark and display unavailable start/duration honestly.
+Each usable persisted transition links to Investigation with its own verbatim evidence
+identity/range, preserving the destination's existing six-hour bound. A retention notice
+explains that source telemetry may no longer be available while history remains valid.
+
+The existing M14 semantic smoke is extended through the frontend proxy, without a new
+fixture or CI job. Component tests cover UI behavior; proxy smoke covers deployed API
+integration. No write action, acknowledgement, silence, incident, backend production
+change, API change, or M16 capability is introduced. Closure evidence and staged status
+remain in `docs/plans/MILESTONE-015.md`.
