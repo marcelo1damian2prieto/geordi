@@ -482,9 +482,11 @@ passed the M9–M13 plus M14 semantic chain.
 
 ## Milestone 15 — Alert History Investigation UI
 
-Status: **M15 IMPLEMENTED — READY FOR GITLAB REVALIDATION**. Local closure gates and
-independent review passed; authoritative GitLab revalidation remains pending and is
-tracked in `docs/plans/MILESTONE-015.md`.
+Status: **COMPLETE**. The authoritative GitLab pipeline for commit
+`1971fa1c35a4b661e13d793bf3a3962e99160005` passed `backend`,
+`deployment_configuration`, `frontend`, and `local_stack_smoke`. The smoke verified
+the backend artifact revision and SHA-256 provenance, current frontend, the M9–M14
+semantic chain, and the extended Alert History flow.
 
 The bounded, read-only `/alert-history` workflow consumes M14 episode list/detail APIs.
 It describes **episodes opened in this window**; `/alert-evaluations` remains authoritative
@@ -518,8 +520,8 @@ pwsh -File ./scripts/verify-alert-history.ps1 -TimeoutSeconds 480
 Its frontend proxy checks use real M14 episode/evidence data. Component tests cover UI
 semantics; the deployed smoke covers nginx/API integration; backend tests and the M14
 smoke cover durable history semantics. An HTTP SPA fallback check proves HTML
-availability only, not rendered browser behavior. These layers do not imply a passed
-M15 gate until results are recorded in the execution plan.
+availability only, not rendered browser behavior. Authoritative GitLab validation of
+these layers is recorded in the execution plan.
 
 ## Documentation links
 

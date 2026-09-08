@@ -1,10 +1,30 @@
 # Milestone 015 — Alert History Investigation UI
 
-Status: M15 IMPLEMENTED — READY FOR GITLAB REVALIDATION
+Status: M15 COMPLETE
 
-Planning baseline: 2026-09-07. This document authorizes no implementation by itself.
-M14 is complete. M15 implementation was authorized on 2026-09-07; closure evidence is
-recorded below as checks finish. The approved scope remains unchanged.
+Planning baseline: 2026-09-07. M15 is complete. The approved scope remains unchanged.
+
+## Authoritative GitLab closure
+
+M15 closed on the authoritative implementation commit
+`1971fa1c35a4b661e13d793bf3a3962e99160005` (`feat(alerts): add alert history
+investigation UI`). All authoritative GitLab pipeline jobs were green:
+`backend`, `deployment_configuration`, `frontend`, and `local_stack_smoke`.
+
+`local_stack_smoke` checked out that commit from `main`; verified that the backend
+artifact revision equalled `CI_COMMIT_SHA` and verified its SHA-256 provenance; built
+and exercised the current frontend; passed the existing semantic regression chain;
+executed the extended Alert History smoke; and verified real M14 episode list/detail
+behavior through the deployed frontend/API proxy. It verified exact canonical evidence
+and timestamp preservation, schema/privacy restrictions, RFC9457 invalid-range
+responses, and the M14 durability/restart/routing-independence assertions. Cleanup
+completed and the job ended `Job succeeded`.
+
+This closure confirms the actual M15 scope only: the read-only `/alert-history` UI,
+bounded URL-anchored history investigation, episode detail/bookmarks, and
+persisted-evidence Investigation links. Alert Lifecycle remains authoritative for
+current FIRING state. M15 introduces no backend domain/schema/write-path change and no
+M16 scope.
 
 ## Implementation execution record
 
@@ -360,7 +380,7 @@ Implementation documentation updates:
 
 - `README.md`: route, anchored semantics, read-only workflow, startup and extended smoke.
 - `frontend/README.md`: feature/test conventions and navigation.
-- `docs/plans/MILESTONE-015.md`: checked implementation evidence and staged status.
+- `docs/plans/MILESTONE-015.md`: implementation evidence and authoritative closure.
 - `docs/product/PRD.md`, `docs/product/ROADMAP.md`: bounded capability and actual status.
 - `docs/architecture/ARCHITECTURE.md`, `docs/architecture/ALERT_LIFECYCLE.md`:
   frontend composition and current-state/history distinction, legacy access limitation.
@@ -388,9 +408,11 @@ Implementation documentation updates:
 | 13 | Run full local closure gates below against final code/artifacts. |
 | 14 | Fresh independent review; fix BLOCKER/HIGH, rerun affected gates, verify final diff, then GitLab revalidation. |
 
-## Closure gates and evidence recording
+## Closure gates and evidence record
 
-These are future implementation gates, not claimed results of this planning task.
+The following gates define the closure evidence. The authoritative GitLab result above
+confirms the applicable final implementation/artifact validation; this retained list
+documents the reproducible gate design rather than pending work.
 
 1. Frontend directory: `npm ci`, `npm test`, `npm run typecheck`, `npm run lint`,
    `npm run build` with supported Node >=22.12.
@@ -416,9 +438,9 @@ These are future implementation gates, not claimed results of this planning task
    reproducible startup (`docker compose up -d --build`, existing configuration prerequisites,
    then frontend port 3000 `/alert-history`) and do not substitute mock tests for proxy proof.
 
-Before authoritative GitLab: **M15 IMPLEMENTED — READY FOR GITLAB REVALIDATION** only
-after the local gates and review pass. After authoritative green GitLab against the
-same final implementation/artifacts: **M15 COMPLETE**. Compilation alone is not closure.
+The authoritative GitLab pipeline passed against the final implementation commit
+`1971fa1c35a4b661e13d793bf3a3962e99160005`; therefore **M15 COMPLETE**. Compilation
+alone would not have been closure.
 
 ## Explicit non-goals
 

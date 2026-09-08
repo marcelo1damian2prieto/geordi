@@ -46,9 +46,10 @@ notification or incident event.
 
 ## M15 Alert History
 
-Status: **M15 IMPLEMENTED — READY FOR GITLAB REVALIDATION**. Local closure evidence is
-recorded in `../docs/plans/MILESTONE-015.md`; authoritative GitLab revalidation remains
-pending.
+Status: **COMPLETE**. The authoritative GitLab pipeline validated commit
+`1971fa1c35a4b661e13d793bf3a3962e99160005`, including the extended Alert History
+smoke through the deployed frontend/API proxy. Closure evidence is recorded in
+`../docs/plans/MILESTONE-015.md`.
 
 `/alert-history` is a read-only M14 episode consumer, reachable from the shell and
 Alert Lifecycle. It lists episodes opened in an anchored absolute UTC range: initially

@@ -1,6 +1,6 @@
 # Alert Lifecycle Architecture
 
-Status: MILESTONES 10 AND 14 COMPLETE
+Status: MILESTONES 10, 14, AND 15 COMPLETE
 
 ## Scope
 

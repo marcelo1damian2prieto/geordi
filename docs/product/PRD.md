@@ -1,6 +1,6 @@
 # Geordi Product Requirements Document
 
-Status: MILESTONES 1 THROUGH 14 COMPLETE
+Status: MILESTONES 1 THROUGH 15 COMPLETE
 
 ## Vision
 
@@ -361,7 +361,7 @@ revision and SHA-256 verification and the M9–M14 semantic smoke chain.
 
 ## Milestone 15 scope
 
-Status: M15 IMPLEMENTED — READY FOR GITLAB REVALIDATION
+Status: COMPLETE
 
 Alert History at `/alert-history` is a bounded, read-only investigation workflow over
 durable M14 episodes. The URL applies exact UTC from/to timestamps, optional policy ID
@@ -380,5 +380,11 @@ explains that source telemetry may no longer be available while history remains 
 The existing M14 semantic smoke is extended through the frontend proxy, without a new
 fixture or CI job. Component tests cover UI behavior; proxy smoke covers deployed API
 integration. No write action, acknowledgement, silence, incident, backend production
-change, API change, or M16 capability is introduced. Closure evidence and staged status
-remain in `docs/plans/MILESTONE-015.md`.
+change, API change, or M16 capability is introduced. The authoritative GitLab pipeline
+for commit `1971fa1c35a4b661e13d793bf3a3962e99160005` passed `backend`,
+`deployment_configuration`, `frontend`, and `local_stack_smoke`; the latter verified
+artifact revision/SHA-256 provenance, the M9–M14 regression chain, deployed
+frontend/API-proxy history behavior, canonical evidence/timestamp preservation,
+schema/privacy restrictions, RFC9457 invalid-range responses, and M14 durability,
+restart, and routing-independence assertions. Closure evidence remains in
+`docs/plans/MILESTONE-015.md`.

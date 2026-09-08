@@ -1,6 +1,6 @@
 # Roadmap
 
-Status: PLANNED
+Status: MILESTONES 1 THROUGH 15 COMPLETE
 
 ## v0.1 — Platform Core + Self-Observability
 
@@ -214,7 +214,7 @@ artifact revision and SHA-256 provenance checks and the M9–M14 semantic smoke 
 
 ## Milestone 15 — Alert History Investigation UI
 
-M15 IMPLEMENTED — READY FOR GITLAB REVALIDATION
+COMPLETE
 
 The read-only `/alert-history` route consumes M14 episode list/detail with absolute
 UTC URL filters, a 24-hour default and a maximum 31-day opened-at window. Policy ID,
@@ -223,9 +223,11 @@ selection. Current FIRING state remains authoritative in Alert Lifecycle. Unknow
 legacy detail requires a known episode ID; the bounded list cannot discover those rows.
 Persisted transition evidence links preserve the existing Investigation context and
 carry a non-blocking source-telemetry retention notice. No backend production, API,
-lifecycle, routing, delivery or scheduling change is included. Local verification and
-fresh implementation review are recorded in `docs/plans/MILESTONE-015.md`; M15 is not
-COMPLETE until authoritative GitLab revalidation passes. No M16 work is included.
+lifecycle, routing, delivery or scheduling change is included. The authoritative GitLab
+pipeline for commit `1971fa1c35a4b661e13d793bf3a3962e99160005` passed `backend`,
+`deployment_configuration`, `frontend`, and `local_stack_smoke`, completing M15.
+The detailed authoritative validation record is in `docs/plans/MILESTONE-015.md`. No
+M16 work is included.
 
 ## Later
 
