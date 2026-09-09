@@ -1,6 +1,6 @@
 # Module Architecture
 
-Status: MILESTONES 1 THROUGH 15 COMPLETE
+Status: MILESTONES 1 THROUGH 16 COMPLETE
 
 ## Initial modules
 
@@ -78,7 +78,7 @@ alerting, notification, incident, or long-period-accounting responsibility.
 
 ### alerts
 
-Milestones 9 and 10 are complete. The `alerts` compile-time
+Milestones 9 through 16 are complete. The `alerts` compile-time
 module provides a read-only, deployment-managed policy catalog, on-demand stateless
 condition evaluation, and an explicit durable lifecycle command.
 It depends on the enabled `slos` module and consumes M8 burn evidence only through an
@@ -112,6 +112,11 @@ M13 adds a provider-neutral routing port and deployment-managed route/destinatio
 configuration at the M10/M11 transition boundary. Matching creates one immutable
 destination binding for M11 delivery; suppressed and unrouted transitions commit without
 delivery work. Routing is not recomputed by the M11 worker.
+
+M14 adds durable alert episodes and canonical transition history. M15 adds the
+read-only Alert History investigation UI. M16 adds one immutable episode-scoped
+acknowledgement fact for open M14 episodes only; it does not change lifecycle state,
+canonical history, routing, scheduling, delivery, silencing, or incidents.
 
 ## Planned modules
 

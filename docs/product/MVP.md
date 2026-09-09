@@ -56,6 +56,9 @@ P1:
   no scheduler, history, acknowledgement, silencing, incident, or delivery);
 - alert routing foundation (M13 COMPLETE; deterministic deployment-managed routes,
   explicit suppression/unrouted outcomes, and no runtime route CRUD or fan-out);
+- alert history acknowledgement foundation (M16 COMPLETE; one immutable
+  caller-asserted acknowledgement per open M14 episode, with no delivery or incident
+  side effect);
 - basic infrastructure monitoring;
 - threshold alerts;
 - webhook notifications (M11 COMPLETE; email deferred).

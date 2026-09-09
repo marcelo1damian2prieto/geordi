@@ -1,6 +1,45 @@
 # Milestone 016 — Episode-Scoped Alert Acknowledgement Foundation
 
-Status: M16 IMPLEMENTED — LOCAL VALIDATION IN PROGRESS
+Status: COMPLETE
+
+## Authoritative closure
+
+Implementation commit: `526b19b31e2e7e7bc7c1a933211aaf4006efc50f`.
+
+The authoritative GitLab pipeline is green: `backend`, `deployment_configuration`,
+`frontend`, and `local_stack_smoke` all passed. Independent final review found
+`BLOCKER 0 / HIGH 0 / MEDIUM 0 / LOW 0`.
+
+Validation evidence:
+
+- backend full gate: 315 tests passed;
+- backend focused M16 suite: up to 60 tests passed;
+- latest repository/controller focused slice: 45 tests passed;
+- PMD, SpotBugs, and Find Security Bugs: green;
+- frontend full gate: 219 tests passed;
+- frontend focused M16 suite: 45 tests passed;
+- TypeScript typecheck, ESLint, and production build: green;
+- OpenAPI validation: green;
+- Docker Compose config validation: green for base, M10, M12, M13, and M14 overlays;
+- `git diff --check`: green;
+- V1–V4 migrations unchanged;
+- M16 semantic smoke: green.
+
+Authoritative semantic-smoke evidence:
+
+```text
+PASS: M16 episode acknowledgement creation, replay, restart durability,
+post-close conflict, and isolation verified.
+```
+
+Concurrency proofs:
+
+- ACK wins RESOLVE: PASS;
+- RESOLVE wins ACK: PASS;
+- identical concurrent ACK: PASS;
+- conflicting concurrent ACK: PASS.
+
+There is no M16-blocking debt.
 
 ## Owner-approved scope
 
@@ -129,8 +168,8 @@ V5__create_alert_episode_acknowledgement.sql
 ```text
 alert_episode_acknowledgement
 - episode_id       VARCHAR(64) PRIMARY KEY REFERENCES alert_episode(episode_id)
-- actor            VARCHAR(128) NOT NULL
-- reason           VARCHAR(512)
+- actor            VARCHAR(256) NOT NULL
+- reason           VARCHAR(1024)
 - acknowledged_at  TIMESTAMP(9) WITH TIME ZONE NOT NULL
 ```
 
@@ -198,20 +237,19 @@ investigated again. Acknowledgement-aware delivery remains only a candidate.
 
 ## Independent review
 
-The configured fresh reviewer dispatch was attempted twice and rejected by the
-Codex task-creation capability before a reviewer task started. Consequently no
-independent reviewer result is claimed here. A local read-only audit found no
-known BLOCKER/HIGH, but this is not a substitute for the required independent
-review. Implementation planning must remain gated on a successful fresh review
-covering locking/order, both race outcomes, duplicate ACK, migration constraints,
-nullable detail contract, actor spoofability, leakage, M11/M13 isolation, and
-scope drift.
+Final independent review passed with `BLOCKER 0 / HIGH 0 / MEDIUM 0 / LOW 0`.
+Earlier implementation-review findings were resolved before closure, including
+409 refresh truthfulness, Unicode/code-point persistence, OpenAPI 3.1 nullability,
+Java whitespace parity, bounded transaction failures, and page-level refresh
+recovery.
 
 ## Verification status
 
-This reconciliation is documentation-only. Production code was not modified.
-The implementation gates remain pending: backend/frontend tests, migration
-upgrade tests, semantic smoke, full quality gates, and independent review.
+M16 is complete. The authoritative implementation commit is
+`526b19b31e2e7e7bc7c1a933211aaf4006efc50f`; the authoritative GitLab pipeline is
+green, semantic smoke is green, local backend/frontend gates and static/security
+checks are green, OpenAPI and Compose validation are green, and no M16-blocking
+debt remains.
 
 ## Implementation plan
 
@@ -226,7 +264,7 @@ Add:
 - `domain/AlertEpisodeAcknowledgement` with constructor validation and normalized values;
 - `application/AcknowledgeAlertEpisodeUseCase`;
 - `application/AcknowledgeAlertEpisodeService`;
-- `application/AcknowledgeAlertEpisodeResult` with `CREATED`, `REPLAYED`, and `CONFLICT`;
+- `application/AcknowledgeAlertEpisodeResult` with `CREATED` and `REPLAYED`;
 - bounded application exceptions for missing, closed, conflicting, invalid, and persistence outcomes;
 - an output-port acknowledgement command/result DTO as repository conventions dictate.
 
@@ -251,9 +289,9 @@ Add a narrow operation to the persistence boundary, conceptually:
 acknowledgeEpisode(episodeId, normalizedActor, normalizedReason, acknowledgedAt)
 ```
 
-It returns a bounded result containing `CREATED`, `REPLAYED`, or `CONFLICT` and the
-existing fact where applicable. The application must not compose find/inspect/insert
-calls.
+It returns a bounded result containing `CREATED` or `REPLAYED` and the existing
+fact where applicable. Conflicts are reported through bounded acknowledgement
+exceptions. The application must not compose find/inspect/insert calls.
 
 Add a private persistence seam used only inside `AlertLifecycleRepository.commit(...)`
 for canonical resolution to lock the open episode row. Do not expose a public
@@ -321,8 +359,8 @@ Create `backend/src/main/resources/db/migration/V5__create_alert_episode_acknowl
 ```sql
 CREATE TABLE alert_episode_acknowledgement (
     episode_id VARCHAR(64) PRIMARY KEY,
-    actor VARCHAR(128) NOT NULL,
-    reason VARCHAR(512),
+    actor VARCHAR(256) NOT NULL,
+    reason VARCHAR(1024),
     acknowledged_at TIMESTAMP(9) WITH TIME ZONE NOT NULL,
     CONSTRAINT alert_episode_acknowledgement_episode_fk
         FOREIGN KEY (episode_id) REFERENCES alert_episode (episode_id)

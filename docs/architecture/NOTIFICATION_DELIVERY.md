@@ -35,6 +35,12 @@ Only 2xx succeeds. 429, 5xx, connection failures and timeouts retry with bounded
 durable backoff; other 4xx responses are terminal. Delivery never changes the alert's
 M10 `FIRING` or `INACTIVE` state.
 
+M16 episode acknowledgement is outside notification delivery. Creating or replaying
+an acknowledgement does not create outbox work, cancel pending delivery, prevent
+delivery, reroute an existing delivery, re-drive failed work, modify retry, suppress
+dispatch, or alter the persisted destination binding. M11/M13 delivery semantics remain
+unchanged.
+
 ## Webhook safety
 
 One deployment-managed webhook destination is supported. Production requires HTTPS;

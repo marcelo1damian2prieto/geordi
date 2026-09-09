@@ -1,6 +1,6 @@
 # Alert Lifecycle Architecture
 
-Status: MILESTONES 10, 14, AND 15 COMPLETE
+Status: MILESTONES 10, 14, 15, AND 16 COMPLETE
 
 ## Scope
 
@@ -85,8 +85,10 @@ The record also holds current state, state version, latest M9 evaluation metadat
 at most the latest canonical transition metadata needed to explain the current record.
 M10 itself has no alert history collection or episode identity; M14 adds a separate
 durable, read-only episode and canonical transition-history projection committed with
-the winning lifecycle CAS. M10 remains authoritative for current state. There is still
-no acknowledgement, silencing, or incident state in this lifecycle model.
+the winning lifecycle CAS. M10 remains authoritative for current state. M16 adds a
+separate episode-scoped acknowledgement fact, but M10 still has no acknowledgement
+state and acknowledgement does not become part of the `INACTIVE`/`FIRING` state
+machine. There is still no silencing or incident state in this lifecycle model.
 
 M14 completed on authoritative commit
 `ed766a46b7c51ee1c54b844bbf6de5a79fab1efb`. The authoritative GitLab Windows
@@ -180,6 +182,25 @@ the stack with Compose `down --volumes`. The smoke runs after the M9 smoke in
 authoritative GitLab CI, and existing smokes remain mandatory. Notification delivery,
 incident management, and scheduler coverage were intentionally absent from M10; M11
 adds only the notification-delivery foundation.
+
+## M16 Episode acknowledgement
+
+M16 adds one immutable acknowledgement fact for one concrete open M14 episode. The
+acknowledgement belongs to the M14 episode identity and stores a caller-asserted actor,
+optional reason, and server-owned `acknowledgedAt`. At most one acknowledgement row can
+exist per episode.
+
+ACK and canonical M14 RESOLVE share the `alert_episode` row serialization boundary in
+the H2 adapter. ACK selects the episode row `FOR UPDATE`; canonical RESOLVE uses the
+same boundary before closing an open episode. If ACK commits first, the acknowledgement
+persists and RESOLVE later closes the episode normally. If RESOLVE commits first, ACK
+observes the closed episode and returns conflict without inserting an acknowledgement.
+Concurrent identical ACKs replay the original fact; conflicting ACKs return conflict.
+
+Acknowledgement is not a canonical M14 transition and no acknowledgement state enum
+exists. M16 does not move ownership from M9 evaluation, M10 lifecycle, M11 delivery,
+M12 scheduling, or M13 routing, and it does not affect routing, scheduling, delivery,
+silencing, maintenance windows, or incidents.
 
 The authoritative GitLab semantic chain passed the M9 Alert Evaluation and M10 Alert
 Lifecycle smokes after checking out commit `4a81d9f8`, including the persistence-health

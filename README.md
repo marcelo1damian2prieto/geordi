@@ -237,6 +237,20 @@ the notification-delivery foundation described below.
 - **Alert episode and transition history (M14 complete):**
   durable, bounded read-only episodes and canonical transition history are committed with
   lifecycle state. It adds no UI, retention automation, incident management, or routing changes.
+- **Alert history UI and acknowledgement foundation (M15/M16 complete):**
+  `/alert-history` reads bounded episode history and detail. Open M14 episodes can receive one
+  immutable caller-asserted acknowledgement with server-owned time; exact replay returns the
+  original fact, closed episodes return conflict, and acknowledgement does not change lifecycle,
+  routing, scheduling, delivery, or incident state.
+
+### Milestone 16 — Episode Acknowledgement
+
+M16 adds one immutable acknowledgement fact to one durable open M14 episode from the
+episode-detail workflow. The actor is caller-supplied, unauthenticated, and not
+audit-grade; `acknowledgedAt` is server-owned. Exact replay returns the original fact,
+while closed episodes or different actor/reason replay attempts return conflict. ACK
+does not change lifecycle state, canonical history, routing, scheduling, notification
+delivery, silencing, or incident state.
 
 This is a bounded service-investigation foundation, not full APM.
 

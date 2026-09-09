@@ -1,6 +1,6 @@
 # Roadmap
 
-Status: MILESTONES 1 THROUGH 15 COMPLETE
+Status: MILESTONES 1 THROUGH 16 COMPLETE
 
 ## v0.1 — Platform Core + Self-Observability
 
@@ -228,6 +228,23 @@ pipeline for commit `1971fa1c35a4b661e13d793bf3a3962e99160005` passed `backend`,
 `deployment_configuration`, `frontend`, and `local_stack_smoke`, completing M15.
 The detailed authoritative validation record is in `docs/plans/MILESTONE-015.md`. No
 M16 work is included.
+
+## Milestone 16 — Episode-Scoped Alert Acknowledgement Foundation
+
+COMPLETE
+
+M16 adds one immutable acknowledgement for one concrete open M14 episode, visible on
+episode detail only. The actor is caller-asserted and not authenticated or audit-grade;
+`acknowledgedAt` is server-generated. Exact normalized replay returns the original
+fact, while closed or conflicting acknowledgement attempts return conflict. ACK and
+RESOLVE use deterministic episode-row serialization, so ACK-first, RESOLVE-first,
+identical concurrent ACK, and conflicting concurrent ACK outcomes are bounded and
+tested. The capability emits bounded acknowledgement telemetry and has no effect on
+lifecycle, routing, scheduling, delivery, silencing, incidents, or transition history.
+
+The authoritative GitLab pipeline for commit
+`526b19b31e2e7e7bc7c1a933211aaf4006efc50f` passed `backend`,
+`deployment_configuration`, `frontend`, and `local_stack_smoke`.
 
 ## Later
 

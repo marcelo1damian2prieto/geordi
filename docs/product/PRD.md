@@ -1,6 +1,6 @@
 # Geordi Product Requirements Document
 
-Status: MILESTONES 1 THROUGH 15 COMPLETE
+Status: MILESTONES 1 THROUGH 16 COMPLETE
 
 ## Vision
 
@@ -388,3 +388,34 @@ frontend/API-proxy history behavior, canonical evidence/timestamp preservation,
 schema/privacy restrictions, RFC9457 invalid-range responses, and M14 durability,
 restart, and routing-independence assertions. Closure evidence remains in
 `docs/plans/MILESTONE-015.md`.
+
+## Milestone 16 scope
+
+Status: COMPLETE
+
+M16 adds one immutable acknowledgement fact to one durable M14 alert episode. The
+operator supplies an opaque, caller-asserted actor and optional reason; Geordi trims
+and bounds them server-side and owns the `acknowledgedAt` timestamp. Exact replay of
+the normalized actor/reason returns the original fact and time. Missing episodes
+return not found; closed episodes and conflicting replay return conflict.
+
+Acknowledgement is episode-scoped only. It does not change M9 evaluation semantics,
+M10 lifecycle authority, M11 delivery behavior, M12 scheduling, M13 routing, M14
+canonical transition identity/history, or start M17. It adds no authentication,
+RBAC, SSO, acknowledgement-aware delivery, unacknowledge, assignment, silence,
+maintenance window, incident workflow, or operator-action ledger.
+
+The public command is `POST /api/alert-episodes/{episodeId}/acknowledgements`.
+First creation returns `201`; exact replay returns `200`; invalid actor/reason
+returns `400`; a missing episode returns `404`; closed or conflicting acknowledgement
+returns `409`; persistence unavailability returns `503`. Episode detail includes a
+nullable `acknowledgement`; episode lists do not expose acknowledgement state.
+
+Actor is required after Java-whitespace stripping and bounded to 1–128 Unicode code
+points. Reason is optional, blank-after-strip becomes null, and the nonblank value is
+bounded to 512 Unicode code points. The timestamp is server-owned.
+
+Authoritative validation is complete: backend/frontend gates, static/security checks,
+OpenAPI validation, Compose validation, semantic smoke, and final independent review
+all passed. The authoritative GitLab pipeline for commit
+`526b19b31e2e7e7bc7c1a933211aaf4006efc50f` is green.
