@@ -2,6 +2,7 @@ package io.geordi.alerts.adapter.in.web;
 
 import io.geordi.alerts.application.AlertEpisodeDetail;
 import io.geordi.alerts.application.AlertHistoryQueryService;
+import io.geordi.alerts.application.AcknowledgeAlertEpisodeUseCase;
 import io.geordi.alerts.application.port.out.AlertEpisodeHistoryQuery;
 import io.geordi.alerts.application.port.out.AlertEpisodeState;
 import io.geordi.alerts.application.port.out.AlertTransitionHistoryQuery;
@@ -16,10 +17,15 @@ import java.time.Instant;
 import java.util.List;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /** HTTP adapter for the bounded, read-only durable alert-history projection. */
 @RestController
@@ -30,9 +36,16 @@ import org.springframework.web.bind.annotation.RestController;
 public class AlertHistoryController {
 
     private final AlertHistoryQueryService queries;
+    private final AcknowledgeAlertEpisodeUseCase acknowledgements;
+
+    @Autowired
+    public AlertHistoryController(AlertHistoryQueryService queries, AcknowledgeAlertEpisodeUseCase acknowledgements) {
+        this.queries = queries;
+        this.acknowledgements = acknowledgements;
+    }
 
     public AlertHistoryController(AlertHistoryQueryService queries) {
-        this.queries = queries;
+        this(queries, (episodeId, actor, reason) -> { throw new UnsupportedOperationException(); });
     }
 
     @GetMapping("/alert-episodes")
@@ -55,6 +68,23 @@ public class AlertHistoryController {
         return AlertEpisodeDetailResponse.from(queries.findEpisode(new AlertEpisodeId(episodeId)));
     }
 
+    @PostMapping("/alert-episodes/{episodeId}/acknowledgements")
+    public ResponseEntity<AlertAcknowledgementResponse> acknowledge(
+            @PathVariable String episodeId, @RequestBody AlertAcknowledgementRequest request) {
+        var result = acknowledgements.acknowledge(new AlertEpisodeId(episodeId), request.actor(), request.reason());
+        HttpStatus status = result.status() == AcknowledgeAlertEpisodeUseCase.AcknowledgementResult.Status.CREATED
+                ? HttpStatus.CREATED : HttpStatus.OK;
+        return ResponseEntity.status(status).body(AlertAcknowledgementResponse.from(result.acknowledgement()));
+    }
+
+    public record AlertAcknowledgementRequest(String actor, String reason) { }
+
+    public record AlertAcknowledgementResponse(String actor, String reason, String acknowledgedAt) {
+        static AlertAcknowledgementResponse from(io.geordi.alerts.domain.AlertEpisodeAcknowledgement value) {
+            return new AlertAcknowledgementResponse(value.actor(), value.reason(), value.acknowledgedAt().toString());
+        }
+    }
+
     @GetMapping("/alert-transitions")
     public AlertTransitionsResponse listTransitions(
             @RequestParam(required = false) String policyId,
@@ -75,11 +105,12 @@ public class AlertHistoryController {
     }
 
     public record AlertEpisodeDetailResponse(
-            AlertEpisodeResponse episode, List<AlertTransitionHistoryResponse> transitions) {
+            AlertEpisodeResponse episode, AlertAcknowledgementResponse acknowledgement,
+            List<AlertTransitionHistoryResponse> transitions) {
 
         static AlertEpisodeDetailResponse from(AlertEpisodeDetail detail) {
             return new AlertEpisodeDetailResponse(
-                    AlertEpisodeResponse.from(detail.episode()),
+                    AlertEpisodeResponse.from(detail.episode()), detail.acknowledgement() == null ? null : AlertAcknowledgementResponse.from(detail.acknowledgement()),
                     detail.transitions().stream().map(AlertTransitionHistoryResponse::from).toList());
         }
     }

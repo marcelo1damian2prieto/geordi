@@ -18,6 +18,8 @@ import io.geordi.alerts.adapter.out.telemetry.ObservedAlertHistoryRepository;
 import io.geordi.alerts.adapter.out.telemetry.ObservedAlertLifecycleEvaluationUseCase;
 import io.geordi.alerts.adapter.out.telemetry.ObservedAlertRoutingPort;
 import io.geordi.alerts.application.AlertEvaluationService;
+import io.geordi.alerts.application.AcknowledgeAlertEpisodeService;
+import io.geordi.alerts.application.AcknowledgeAlertEpisodeUseCase;
 import io.geordi.alerts.application.AlertEvaluationUseCase;
 import io.geordi.alerts.application.AlertLifecycleEvaluationUseCase;
 import io.geordi.alerts.application.AlertLifecycleQueryService;
@@ -30,6 +32,7 @@ import io.geordi.alerts.application.AlertPolicyReferenceValidator;
 import io.geordi.alerts.application.NotificationDeliveryWorkService;
 import io.geordi.alerts.application.port.out.AlertLifecycleRepository;
 import io.geordi.alerts.application.port.out.AlertHistoryRepository;
+import io.geordi.alerts.application.port.out.AlertEpisodeAcknowledgementRepository;
 import io.geordi.alerts.application.port.out.AlertLifecyclePersistenceHealthProbe;
 import io.geordi.alerts.application.port.out.AlertPolicyCatalog;
 import io.geordi.alerts.application.port.out.BurnRateEvidencePort;
@@ -128,8 +131,17 @@ public class AlertsModuleConfiguration {
         }
 
         @Bean
-        AlertHistoryQueryService alertHistoryQueryService(AlertHistoryRepository repository) {
-            return new AlertHistoryQueryService(repository);
+        AlertHistoryQueryService alertHistoryQueryService(
+                AlertHistoryRepository repository, ObjectProvider<AlertEpisodeAcknowledgementRepository> acknowledgements) {
+            AlertEpisodeAcknowledgementRepository value = acknowledgements.getIfAvailable(
+                    () -> repository instanceof AlertEpisodeAcknowledgementRepository a ? a : null);
+            return value == null ? new AlertHistoryQueryService(repository) : new AlertHistoryQueryService(repository, value);
+        }
+
+        @Bean
+        AcknowledgeAlertEpisodeUseCase acknowledgeAlertEpisodeUseCase(
+                AlertEpisodeAcknowledgementRepository repository, Clock sloClock) {
+            return new AcknowledgeAlertEpisodeService(repository, sloClock);
         }
 
         @Bean

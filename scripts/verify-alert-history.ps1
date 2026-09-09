@@ -26,6 +26,10 @@ function Json([string] $Uri, [string] $Method = 'GET') {
     if ($response.StatusCode -lt 200 -or $response.StatusCode -ge 300) { throw "Expected successful JSON response from '$Uri', got HTTP $($response.StatusCode)." }
     return Read-JsonStrings $response.Content
 }
+function Post-Json([string] $Uri, $Body) {
+    $response = Invoke-WebRequest -Uri $Uri -Method POST -ContentType 'application/json' -Body ($Body | ConvertTo-Json -Compress) -UseBasicParsing -TimeoutSec 15 -SkipHttpErrorCheck
+    return [pscustomobject]@{ StatusCode = $response.StatusCode; Body = if ($response.Content) { Read-JsonStrings $response.Content } else { $null }; ContentType = [string]$response.Headers['Content-Type'] }
+}
 function Read-JsonStrings($Content) {
     # Invoke-WebRequest can return bytes for application/problem+json without charset.
     if ($Content -is [byte[]]) { $Content = [Text.Encoding]::UTF8.GetString($Content) }
@@ -190,6 +194,16 @@ try {
     if ($episode.Count -ne 1 -or $episode[0].origin -ne 'M14' -or [string]::IsNullOrWhiteSpace($episode[0].openedAt) -or $null -ne $episode[0].closedAt) { throw 'M14 normal open episode projection is invalid.' }
     $episodeId = $episode[0].id
     if ((Transitions $RouteA).Count -ne 1) { throw 'M14 normal STARTED transition was not persisted exactly once.' }
+    $ackActor = 'm16-smoke-actor'
+    $ackReason = 'm16 bounded smoke acknowledgement'
+    $ack = Post-Json "$FrontendBaseUrl/api/alert-episodes/$episodeId/acknowledgements" @{ actor = $ackActor; reason = $ackReason }
+    if ($ack.StatusCode -ne 201 -or $ack.Body.actor -cne $ackActor -or $ack.Body.reason -cne $ackReason -or [string]::IsNullOrWhiteSpace($ack.Body.acknowledgedAt)) { throw 'M16 acknowledgement did not return HTTP 201 with persisted fields.' }
+    $ackAt = $ack.Body.acknowledgedAt
+    $ackReplay = Post-Json "$FrontendBaseUrl/api/alert-episodes/$episodeId/acknowledgements" @{ actor = "  $ackActor  "; reason = "  $ackReason  " }
+    if ($ackReplay.StatusCode -ne 200 -or $ackReplay.Body.acknowledgedAt -cne $ackAt) { throw 'M16 exact acknowledgement replay did not preserve acknowledgedAt.' }
+    $ackDetail = Json "$FrontendBaseUrl/api/alert-episodes/$episodeId"
+    Require-Fields $ackDetail @('episode', 'acknowledgement', 'transitions') 'M16 acknowledged detail envelope'
+    if ($ackDetail.acknowledgement.actor -cne $ackActor -or $ackDetail.acknowledgement.acknowledgedAt -cne $ackAt) { throw 'M16 acknowledgement detail mismatch.' }
     $retry = Apply $RouteA
     if ($null -ne $retry.transition -or (Episodes $RouteA).Count -ne 1 -or (Transitions $RouteA).Count -ne 1) { throw 'M14 no-transition reevaluation changed history.' }
 
@@ -231,12 +245,13 @@ try {
     if (@($proxyList.alertEpisodes).Count -ne 1) { throw 'M15 bounded proxy list did not contain the single fixture episode.' }
     Require-Episode $proxyList.alertEpisodes[0] $closed[0]
     $proxyDetail = Json "$FrontendBaseUrl/api/alert-episodes/$episodeId"
-    Require-Fields $proxyDetail @('episode', 'transitions') 'detail envelope'
+    Require-Fields $proxyDetail @('episode', 'acknowledgement', 'transitions') 'detail envelope'
     Require-Private $proxyDetail
     Require-Episode $proxyDetail.episode $closed[0]
     if (@($proxyDetail.transitions).Count -ne 2) { throw 'M15 proxy detail did not contain both fixture transitions.' }
     Require-Transition $proxyDetail.transitions[0] $resolved.transition $episodeId
     Require-Transition $proxyDetail.transitions[1] $started.transition $episodeId
+    if ($proxyDetail.acknowledgement.acknowledgedAt -cne $ackAt) { throw 'M16 acknowledgement was not durable through proxy.' }
     for ($index = 0; $index -lt 2; $index++) {
         if ($proxyDetail.transitions[$index].id -cne $detail.transitions[$index].id) { throw 'M15 proxy transition ID differs from canonical history.' }
     }
@@ -255,6 +270,10 @@ try {
     foreach ($metric in @('geordi.alert.history.episodes', 'geordi.alert.history.persistence')) {
         Wait-Until { (Metric-Series "{__name__=`"$metric`"}").Count -gt 0 } $deadline "M14 history metric '$metric' was not persisted."
     }
+    $postClose = Post-Json "$FrontendBaseUrl/api/alert-episodes/$episodeId/acknowledgements" @{ actor = $ackActor; reason = $ackReason }
+    if ($postClose.StatusCode -ne 409 -or $postClose.ContentType -notmatch 'application/problem\+json') { throw 'M16 post-close acknowledgement did not return RFC9457 409.' }
+    if ((Json "$FrontendBaseUrl/api/alert-episodes/$episodeId").acknowledgement.acknowledgedAt -cne $ackAt) { throw 'M16 post-close conflict changed acknowledgement.' }
+    Write-Host 'PASS: M16 episode acknowledgement creation, replay, restart durability, post-close conflict, and isolation verified.'
     Write-Host 'PASS: M14 isolated normal history, retry/restart stability, routing independence, bounded/privacy-safe API, durable persistence, and history telemetry verified.'
 } catch {
     Write-Error "Alert history smoke failed: $($_.Exception.Message)"

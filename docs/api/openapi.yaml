@@ -575,6 +575,42 @@ paths:
           content:
             application/problem+json:
               schema: {$ref: '#/components/schemas/Problem'}
+    post:
+      operationId: acknowledgeAlertEpisode
+      summary: Acknowledge one open alert episode.
+      description: >-
+        Creates one immutable acknowledgement for the concrete M14 episode. The
+        actor is caller-supplied, not authenticated, and not an audit-grade identity.
+        Exact replay of the normalized actor and reason returns the original fact.
+        Acknowledgement does not change lifecycle, routing, scheduling, delivery,
+        or canonical transition history.
+      parameters:
+        - name: episodeId
+          in: path
+          required: true
+          schema: {type: string, pattern: '^[0-9a-f]{64}$'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AlertAcknowledgementRequest'}
+      responses:
+        '201':
+          description: Acknowledgement created.
+          content: {application/json: {schema: {$ref: '#/components/schemas/AlertAcknowledgement'}}}
+        '200':
+          description: Exact idempotent replay; original acknowledgedAt is returned.
+          content: {application/json: {schema: {$ref: '#/components/schemas/AlertAcknowledgement'}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404':
+          description: Episode not found.
+          content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}
+        '409':
+          description: Episode is closed or acknowledgement conflicts with the existing fact.
+          content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}
+        '503':
+          description: Acknowledgement persistence is unavailable.
+          content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}
         '503':
           description: Durable alert history could not be read.
           content:
@@ -1183,14 +1219,33 @@ components:
     AlertEpisodeDetail:
       type: object
       additionalProperties: false
-      required: [episode, transitions]
+      required: [episode, acknowledgement, transitions]
       properties:
         episode:
           $ref: '#/components/schemas/AlertEpisode'
+        acknowledgement:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/AlertAcknowledgement'
         transitions:
           type: array
           maxItems: 2
           items: {$ref: '#/components/schemas/AlertTransitionHistory'}
+    AlertAcknowledgementRequest:
+      type: object
+      additionalProperties: false
+      required: [actor]
+      properties:
+        actor: {type: string, minLength: 1, maxLength: 128, description: Caller-asserted and not authenticated or audit-grade identity.}
+        reason: {type: string, nullable: true, maxLength: 512}
+    AlertAcknowledgement:
+      type: object
+      additionalProperties: false
+      required: [actor, reason, acknowledgedAt]
+      properties:
+        actor: {type: string}
+        reason: {type: string, nullable: true}
+        acknowledgedAt: {type: string, format: date-time}
     AlertLifecycleSnapshot:
       type: object
       additionalProperties: false

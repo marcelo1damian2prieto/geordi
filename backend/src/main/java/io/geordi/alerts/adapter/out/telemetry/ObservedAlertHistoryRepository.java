@@ -3,6 +3,7 @@ package io.geordi.alerts.adapter.out.telemetry;
 import io.geordi.alerts.application.AlertHistoryPersistenceException;
 import io.geordi.alerts.application.port.out.AlertEpisodeHistoryQuery;
 import io.geordi.alerts.application.port.out.AlertHistoryRepository;
+import io.geordi.alerts.application.port.out.AlertEpisodeAcknowledgementRepository;
 import io.geordi.alerts.application.port.out.AlertLifecycleRepository;
 import io.geordi.alerts.application.port.out.AlertTransitionHistoryQuery;
 import io.geordi.alerts.application.port.out.VersionedAlertLifecycle;
@@ -24,7 +25,7 @@ import java.util.Optional;
 import java.util.function.Supplier;
 
 /** Observes durable history only at the repository boundary that knows an M14 operation occurred. */
-public final class ObservedAlertHistoryRepository implements AlertLifecycleRepository, AlertHistoryRepository {
+public final class ObservedAlertHistoryRepository implements AlertLifecycleRepository, AlertHistoryRepository, AlertEpisodeAcknowledgementRepository {
 
     private static final AttributeKey<String> OUTCOME =
             AttributeKey.stringKey("geordi.alert.history.outcome");
@@ -38,6 +39,7 @@ public final class ObservedAlertHistoryRepository implements AlertLifecycleRepos
     private final LongCounter episodes;
     private final LongCounter persistence;
     private final LongCounter queries;
+    private final LongCounter acknowledgements;
 
     public ObservedAlertHistoryRepository(
             AlertLifecycleRepository lifecycleDelegate, AlertHistoryRepository historyDelegate) {
@@ -54,6 +56,7 @@ public final class ObservedAlertHistoryRepository implements AlertLifecycleRepos
         episodes = meter.counterBuilder("geordi.alert.history.episodes").build();
         persistence = meter.counterBuilder("geordi.alert.history.persistence").build();
         queries = meter.counterBuilder("geordi.alert.history.queries").build();
+        acknowledgements = meter.counterBuilder("geordi.alert.acknowledgements").build();
     }
 
     @Override
@@ -124,6 +127,24 @@ public final class ObservedAlertHistoryRepository implements AlertLifecycleRepos
     @Override
     public List<AlertTransitionRecord> findTransitions(AlertTransitionHistoryQuery query) {
         return observeQuery("transitions", () -> historyDelegate.findTransitions(query));
+    }
+
+    @Override
+    public Result acknowledge(AlertEpisodeId episodeId, String actor, String reason, java.time.Instant acknowledgedAt) {
+        try {
+            Result result = ((AlertEpisodeAcknowledgementRepository) lifecycleDelegate)
+                    .acknowledge(episodeId, actor, reason, acknowledgedAt);
+            acknowledgements.add(1, Attributes.of(OUTCOME, result.status().name().toLowerCase(Locale.ROOT)));
+            return result;
+        } catch (RuntimeException exception) {
+            acknowledgements.add(1, Attributes.of(OUTCOME, "failure"));
+            throw exception;
+        }
+    }
+
+    @Override
+    public Optional<io.geordi.alerts.domain.AlertEpisodeAcknowledgement> findByEpisodeId(AlertEpisodeId episodeId) {
+        return ((AlertEpisodeAcknowledgementRepository) historyDelegate).findByEpisodeId(episodeId);
     }
 
     private <T> T observeQuery(String operation, Supplier<T> query) {

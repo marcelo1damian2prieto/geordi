@@ -3,9 +3,12 @@ package io.geordi.alerts.adapter.out.persistence;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.geordi.alerts.application.AlertHistoryPersistenceException;
+import io.geordi.alerts.application.AlertEpisodeNotFoundException;
+import io.geordi.alerts.application.AlertEpisodeAcknowledgementConflictException;
 import io.geordi.alerts.application.AlertHistoryPersistenceException.Kind;
 import io.geordi.alerts.application.AlertLifecyclePersistenceException;
 import io.geordi.alerts.application.port.out.AlertEpisodeHistoryQuery;
+import io.geordi.alerts.application.port.out.AlertEpisodeAcknowledgementRepository;
 import io.geordi.alerts.application.port.out.AlertEpisodeState;
 import io.geordi.alerts.application.port.out.AlertHistoryRepository;
 import io.geordi.alerts.application.port.out.AlertLifecyclePersistenceHealthProbe;
@@ -14,6 +17,7 @@ import io.geordi.alerts.application.port.out.AlertTransitionHistoryQuery;
 import io.geordi.alerts.application.port.out.NotificationDeliveryWorkRepository;
 import io.geordi.alerts.application.port.out.VersionedAlertLifecycle;
 import io.geordi.alerts.domain.AlertEpisode;
+import io.geordi.alerts.domain.AlertEpisodeAcknowledgement;
 import io.geordi.alerts.domain.AlertEpisodeId;
 import io.geordi.alerts.domain.AlertEpisodeOrigin;
 import io.geordi.alerts.domain.AlertHistoryMutation;
@@ -40,7 +44,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 public final class H2AlertLifecycleRepository
         implements AlertLifecycleRepository, AlertLifecyclePersistenceHealthProbe, NotificationDeliveryWorkRepository,
-                AlertHistoryRepository {
+                AlertHistoryRepository, AlertEpisodeAcknowledgementRepository {
 
     private static final String AVAILABILITY_CHECK = """
             SELECT
@@ -48,6 +52,7 @@ public final class H2AlertLifecycleRepository
               + (SELECT COUNT(*) FROM alert_notification_outbox WHERE 1 = 0)
               + (SELECT COUNT(*) FROM alert_episode WHERE 1 = 0)
               + (SELECT COUNT(*) FROM alert_transition_history WHERE 1 = 0)
+              + (SELECT COUNT(*) FROM alert_episode_acknowledgement WHERE 1 = 0)
             """;
 
     private static final String SELECT_BY_POLICY = """
@@ -77,6 +82,14 @@ public final class H2AlertLifecycleRepository
             FROM alert_episode
             WHERE policy_id = ? AND closed_at IS NULL
             """;
+    private static final String SELECT_OPEN_EPISODE_FOR_UPDATE = SELECT_OPEN_EPISODE.replace(
+            "WHERE policy_id = ? AND closed_at IS NULL", "WHERE policy_id = ? AND closed_at IS NULL FOR UPDATE");
+    private static final String SELECT_EPISODE_FOR_ACK = """
+            SELECT episode_id, policy_id, opened_at, closed_at, origin
+            FROM alert_episode WHERE episode_id = ? FOR UPDATE
+            """;
+    private static final String SELECT_ACK = "SELECT episode_id, actor, reason, acknowledged_at FROM alert_episode_acknowledgement WHERE episode_id = ?";
+    private static final String INSERT_ACK = "INSERT INTO alert_episode_acknowledgement (episode_id, actor, reason, acknowledged_at) VALUES (?, ?, ?, ?)";
     private static final String COUNT_STARTED_HISTORY = """
             SELECT COUNT(*)
             FROM alert_transition_history
@@ -155,6 +168,7 @@ public final class H2AlertLifecycleRepository
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactions;
+    private final EpisodeLockObserver episodeLockObserver;
 
     public H2AlertLifecycleRepository(JdbcTemplate jdbc, ObjectMapper objectMapper) {
         this(jdbc, objectMapper, null);
@@ -162,9 +176,16 @@ public final class H2AlertLifecycleRepository
 
     public H2AlertLifecycleRepository(
             JdbcTemplate jdbc, ObjectMapper objectMapper, TransactionTemplate transactions) {
+        this(jdbc, objectMapper, transactions, EpisodeLockObserver.NO_OP);
+    }
+
+    H2AlertLifecycleRepository(
+            JdbcTemplate jdbc, ObjectMapper objectMapper, TransactionTemplate transactions,
+            EpisodeLockObserver episodeLockObserver) {
         this.jdbc = Objects.requireNonNull(jdbc, "JDBC template must not be null");
         this.objectMapper = Objects.requireNonNull(objectMapper, "object mapper must not be null");
         this.transactions = transactions;
+        this.episodeLockObserver = Objects.requireNonNull(episodeLockObserver, "episode lock observer must not be null");
     }
 
     @Override
@@ -454,11 +475,67 @@ public final class H2AlertLifecycleRepository
     }
 
     private Optional<AlertEpisode> findOpenEpisode(String policyId) {
-        List<AlertEpisode> matches = jdbc.query(SELECT_OPEN_EPISODE, (result, rowNumber) -> readEpisode(result), policyId);
+        episodeLockObserver.beforeLock(EpisodeLockObserver.Operation.RESOLVE);
+        List<AlertEpisode> matches = jdbc.query(SELECT_OPEN_EPISODE_FOR_UPDATE, (result, rowNumber) -> readEpisode(result), policyId);
+        episodeLockObserver.afterLock(EpisodeLockObserver.Operation.RESOLVE);
         if (matches.size() > 1) {
             throw historyInvariantFailure("multiple open alert episodes violate persistence invariants");
         }
         return matches.stream().findFirst();
+    }
+
+    @Override
+    public AlertEpisodeAcknowledgementRepository.Result acknowledge(
+            AlertEpisodeId episodeId, String actor, String reason, Instant acknowledgedAt) {
+        if (transactions == null) {
+            throw new AlertHistoryPersistenceException(Kind.PERSISTENCE,
+                    "transactional acknowledgement persistence is not configured", new IllegalStateException());
+        }
+        try {
+            return transactions.execute(status -> {
+                episodeLockObserver.beforeLock(EpisodeLockObserver.Operation.ACKNOWLEDGE);
+                List<AlertEpisode> episodes = jdbc.query(
+                        SELECT_EPISODE_FOR_ACK, (result, rowNumber) -> readEpisode(result), episodeId.value());
+                episodeLockObserver.afterLock(EpisodeLockObserver.Operation.ACKNOWLEDGE);
+                if (episodes.isEmpty()) {
+                    throw new AlertEpisodeNotFoundException();
+                }
+                AlertEpisode episode = episodes.getFirst();
+                if (!episode.open()) {
+                    throw new AlertEpisodeAcknowledgementConflictException();
+                }
+                Optional<AlertEpisodeAcknowledgement> existing = findByEpisodeId(episodeId);
+                if (existing.isPresent()) {
+                    AlertEpisodeAcknowledgement value = existing.get();
+                    if (value.actor().equals(actor) && Objects.equals(value.reason(), reason)) {
+                        return new AlertEpisodeAcknowledgementRepository.Result(
+                                AlertEpisodeAcknowledgementRepository.Result.Status.REPLAYED, value);
+                    }
+                    throw new AlertEpisodeAcknowledgementConflictException();
+                }
+                AlertEpisodeAcknowledgement created = new AlertEpisodeAcknowledgement(
+                        episodeId, actor, reason, acknowledgedAt);
+                jdbc.update(INSERT_ACK, episodeId.value(), actor, reason, Timestamp.from(acknowledgedAt));
+                return new AlertEpisodeAcknowledgementRepository.Result(
+                        AlertEpisodeAcknowledgementRepository.Result.Status.CREATED, created);
+            });
+        } catch (AlertEpisodeNotFoundException | AlertEpisodeAcknowledgementConflictException exception) {
+            throw exception;
+        } catch (DataAccessException exception) {
+            throw historyPersistenceFailure(exception);
+        }
+    }
+
+    @Override
+    public Optional<AlertEpisodeAcknowledgement> findByEpisodeId(AlertEpisodeId episodeId) {
+        try {
+            return jdbc.query(SELECT_ACK, (result, rowNumber) -> new AlertEpisodeAcknowledgement(
+                    new AlertEpisodeId(result.getString("episode_id")), result.getString("actor"),
+                    result.getString("reason"), instant(result, "acknowledged_at")), episodeId.value())
+                    .stream().findFirst();
+        } catch (DataAccessException exception) {
+            throw historyPersistenceFailure(exception);
+        }
     }
 
     private AlertEpisode closeOpenEpisode(AlertEpisode episode, Instant resolvedAt) {
@@ -467,6 +544,15 @@ public final class H2AlertLifecycleRepository
             throw historyInvariantFailure("open alert episode could not be closed");
         }
         return closed;
+    }
+
+    interface EpisodeLockObserver {
+        EpisodeLockObserver NO_OP = new EpisodeLockObserver() { };
+
+        default void beforeLock(Operation operation) { }
+        default void afterLock(Operation operation) { }
+
+        enum Operation { ACKNOWLEDGE, RESOLVE }
     }
 
     private AlertEpisode createLegacyEpisode(AlertEpisode legacyEpisode) {

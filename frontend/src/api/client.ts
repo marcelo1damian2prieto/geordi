@@ -17,10 +17,11 @@ export class ApiError extends Error {
   }
 }
 
-async function requestJson<T>(path: string, method: 'GET' | 'POST', signal?: AbortSignal): Promise<T> {
+async function requestJson<T>(path: string, method: 'GET' | 'POST', signal?: AbortSignal, body?: unknown): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     method,
-    headers: { Accept: 'application/json' },
+    headers: { Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+    body: body === undefined ? undefined : JSON.stringify(body),
     signal,
   })
 
@@ -43,6 +44,6 @@ export function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   return requestJson(path, 'GET', signal)
 }
 
-export function postJson<T>(path: string, signal?: AbortSignal): Promise<T> {
-  return requestJson(path, 'POST', signal)
+export function postJson<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+  return requestJson(path, 'POST', signal, body)
 }

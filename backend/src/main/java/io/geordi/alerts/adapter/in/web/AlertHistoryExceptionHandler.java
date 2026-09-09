@@ -3,6 +3,7 @@ package io.geordi.alerts.adapter.in.web;
 import io.geordi.alerts.application.AlertEpisodeNotFoundException;
 import io.geordi.alerts.application.AlertHistoryPersistenceException;
 import io.geordi.alerts.application.AlertLifecyclePersistenceException;
+import io.geordi.alerts.application.AlertEpisodeAcknowledgementConflictException;
 import java.time.format.DateTimeParseException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -26,6 +27,11 @@ public class AlertHistoryExceptionHandler {
     @ExceptionHandler(AlertEpisodeNotFoundException.class)
     ProblemDetail notFound(AlertEpisodeNotFoundException exception) {
         return problem(HttpStatus.NOT_FOUND, "Alert episode not found", "The requested alert episode was not found");
+    }
+
+    @ExceptionHandler(AlertEpisodeAcknowledgementConflictException.class)
+    ProblemDetail conflict(AlertEpisodeAcknowledgementConflictException exception) {
+        return problem(HttpStatus.CONFLICT, "Alert acknowledgement conflict", "The alert episode cannot be acknowledged with this request");
     }
 
     @ExceptionHandler(AlertLifecyclePersistenceException.class)

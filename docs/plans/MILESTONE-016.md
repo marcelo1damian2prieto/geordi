@@ -1,6 +1,6 @@
 # Milestone 016 — Episode-Scoped Alert Acknowledgement Foundation
 
-Status: M16 PLANNED — READY FOR IMPLEMENTATION
+Status: M16 IMPLEMENTED — LOCAL VALIDATION IN PROGRESS
 
 ## Owner-approved scope
 

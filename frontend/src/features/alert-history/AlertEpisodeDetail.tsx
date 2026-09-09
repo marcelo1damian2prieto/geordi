@@ -1,7 +1,10 @@
-import type { RefObject } from 'react'
+import { useState, type RefObject } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import type { UseQueryResult } from '@tanstack/react-query'
 import type { AlertEpisodeDetailResponse } from '../../api/alertHistory'
+import { acknowledgeAlertEpisode } from '../../api/alertHistory'
+import { ApiError } from '../../api/client'
 import { episodeDuration, episodeStatus, historyFailure, investigationTarget, transitionLabel } from './alertHistoryPresentation'
 import { alertConditionLabel, alertStatusLabel, alertWindowLabel, formatAlertBurnRate } from '../alert-evaluations/alertEvaluationPresentation'
 
@@ -9,6 +12,14 @@ export function AlertEpisodeDetail({ query, headingRef, onClose }: {
   query: UseQueryResult<AlertEpisodeDetailResponse, Error>; headingRef: RefObject<HTMLHeadingElement | null>; onClose: () => void
 }) {
   const episode = query.data?.episode
+  const queryClient = useQueryClient()
+  const [actor, setActor] = useState('')
+  const [reason, setReason] = useState('')
+  const mutation = useMutation({
+    mutationFn: () => acknowledgeAlertEpisode(episode!.id, { actor, reason: reason.trim() || null }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['alert-history', 'episode', episode?.id] }),
+    onError: () => void queryClient.invalidateQueries({ queryKey: ['alert-history', 'episode', episode?.id] }),
+  })
   return <section aria-labelledby="history-detail-heading" className="state-panel">
     <h2 id="history-detail-heading" tabIndex={-1} ref={headingRef}>Episode detail</h2>
     <button type="button" onClick={onClose}>Close episode detail</button>
@@ -24,6 +35,16 @@ export function AlertEpisodeDetail({ query, headingRef, onClose }: {
         <div><dt>Resolved (UTC)</dt><dd>{episode.closedAt === null ? 'Not resolved' : <time dateTime={episode.closedAt}>{episode.closedAt}</time>}</dd></div>
         <div><dt>Duration</dt><dd>{episodeDuration(episode)}</dd></div>
       </dl>
+      {episode.closedAt === null && !query.data?.acknowledgement && <form onSubmit={(event) => { event.preventDefault(); mutation.mutate() }}>
+        <h3>Acknowledgement</h3>
+        <label htmlFor="ack-actor">Actor</label>
+        <input id="ack-actor" required maxLength={128} value={actor} onChange={(event) => setActor(event.target.value)} />
+        <label htmlFor="ack-reason">Reason (optional)</label>
+        <textarea id="ack-reason" maxLength={512} value={reason} onChange={(event) => setReason(event.target.value)} />
+        <button type="submit" disabled={mutation.isPending || actor.trim().length === 0}>Acknowledge</button>
+        {mutation.isError && <p role="alert">{mutation.error instanceof ApiError && mutation.error.status === 409 ? 'The episode changed; refreshed detail is shown.' : 'Acknowledgement failed. Retry.'}</p>}
+      </form>}
+      {query.data?.acknowledgement && <section aria-label="Acknowledgement"><h3>Acknowledged</h3><p>Actor: {query.data.acknowledgement.actor}</p><p>Reason: {query.data.acknowledgement.reason ?? 'No reason provided'}</p><time dateTime={query.data.acknowledgement.acknowledgedAt}>{query.data.acknowledgement.acknowledgedAt}</time></section>}
       <h3>Transitions — newest first</h3>
       {query.data?.transitions.map((transition) => {
         const evaluation = transition.evaluation

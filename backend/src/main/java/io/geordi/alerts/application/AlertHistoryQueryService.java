@@ -1,6 +1,7 @@
 package io.geordi.alerts.application;
 
 import io.geordi.alerts.application.port.out.AlertHistoryRepository;
+import io.geordi.alerts.application.port.out.AlertEpisodeAcknowledgementRepository;
 import io.geordi.alerts.application.port.out.AlertEpisodeHistoryQuery;
 import io.geordi.alerts.application.port.out.AlertTransitionHistoryQuery;
 import io.geordi.alerts.domain.AlertEpisode;
@@ -13,9 +14,16 @@ import java.util.Objects;
 public final class AlertHistoryQueryService {
 
     private final AlertHistoryRepository repository;
+    private final AlertEpisodeAcknowledgementRepository acknowledgements;
 
     public AlertHistoryQueryService(AlertHistoryRepository repository) {
         this.repository = Objects.requireNonNull(repository, "alert history repository must not be null");
+        this.acknowledgements = repository instanceof AlertEpisodeAcknowledgementRepository a ? a : null;
+    }
+
+    public AlertHistoryQueryService(AlertHistoryRepository repository, AlertEpisodeAcknowledgementRepository acknowledgements) {
+        this.repository = Objects.requireNonNull(repository, "alert history repository must not be null");
+        this.acknowledgements = Objects.requireNonNull(acknowledgements);
     }
 
     public List<AlertEpisode> findEpisodes(AlertEpisodeHistoryQuery query) {
@@ -27,7 +35,8 @@ public final class AlertHistoryQueryService {
         AlertEpisode episode = repository.findEpisodeById(requiredId).orElseThrow(AlertEpisodeNotFoundException::new);
         List<AlertTransitionRecord> transitions = repository.findTransitions(
                 new AlertTransitionHistoryQuery(null, requiredId, null, null, 2));
-        return new AlertEpisodeDetail(episode, transitions);
+        return new AlertEpisodeDetail(episode,
+                acknowledgements == null ? null : acknowledgements.findByEpisodeId(requiredId).orElse(null), transitions);
     }
 
     public List<AlertTransitionRecord> findTransitions(AlertTransitionHistoryQuery query) {

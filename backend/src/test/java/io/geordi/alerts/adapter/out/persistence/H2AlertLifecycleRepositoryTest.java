@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import io.geordi.alerts.application.AlertHistoryPersistenceException;
+import io.geordi.alerts.application.AlertEpisodeAcknowledgementConflictException;
 import io.geordi.alerts.application.AlertHistoryPersistenceException.Kind;
 import io.geordi.alerts.application.AlertLifecyclePersistenceException;
 import io.geordi.alerts.application.port.out.AlertEpisodeHistoryQuery;
@@ -17,6 +18,9 @@ import io.geordi.alerts.application.port.out.AlertTransitionHistoryQuery;
 import io.geordi.alerts.domain.AlertCondition;
 import io.geordi.alerts.domain.AlertConditionType;
 import io.geordi.alerts.domain.AlertEpisodeOrigin;
+import io.geordi.alerts.domain.AlertEpisode;
+import io.geordi.alerts.domain.AlertEpisodeId;
+import io.geordi.alerts.application.port.out.AlertEpisodeAcknowledgementRepository;
 import io.geordi.alerts.domain.AlertEvaluation;
 import io.geordi.alerts.domain.AlertEvaluationStatus;
 import io.geordi.alerts.domain.AlertLifecycle;
@@ -33,6 +37,12 @@ import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -60,11 +70,136 @@ class H2AlertLifecycleRepositoryTest {
 
     @BeforeEach
     void createRepository() {
+        jdbc.execute("DELETE FROM alert_episode_acknowledgement");
         jdbc.execute("DELETE FROM alert_transition_history");
         jdbc.execute("DELETE FROM alert_episode");
         jdbc.execute("DELETE FROM alert_notification_outbox");
         jdbc.execute("DELETE FROM alert_lifecycle_state");
-        repository = new H2AlertLifecycleRepository(jdbc, JsonMapper.builder().findAndAddModules().build());
+        repository = new H2AlertLifecycleRepository(jdbc, JsonMapper.builder().findAndAddModules().build(),
+                new TransactionTemplate(new JdbcTransactionManager(jdbc.getDataSource())));
+    }
+
+    @Test
+    void createsAndReplaysAnAcknowledgementWithoutChangingHistory() {
+        AlertEpisode episode = AlertEpisode.opened("checkout-burn", FIRST);
+        jdbc.update("INSERT INTO alert_episode (episode_id, policy_id, opened_at, closed_at, origin) VALUES (?, ?, ?, ?, ?)",
+                episode.id().value(), episode.policyId(), Timestamp.from(FIRST), null, "M14");
+        Instant acknowledged = Instant.parse("2026-08-27T16:00:00.123456789Z");
+        var created = repository.acknowledge(episode.id(), "operator", null, acknowledged);
+        var replay = repository.acknowledge(episode.id(), "operator", null, acknowledged.plusSeconds(1));
+        assertThat(created.status()).isEqualTo(AlertEpisodeAcknowledgementRepository.Result.Status.CREATED);
+        assertThat(replay.status()).isEqualTo(AlertEpisodeAcknowledgementRepository.Result.Status.REPLAYED);
+        assertThat(replay.acknowledgement().acknowledgedAt()).isEqualTo(acknowledged);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_episode_acknowledgement", Integer.class)).isOne();
+    }
+
+    @Test
+    void rejectsClosedEpisodeAndPreservesNanoseconds() {
+        AlertEpisode episode = AlertEpisode.opened("closed", FIRST).resolve(FIRST.plusSeconds(1));
+        jdbc.update("INSERT INTO alert_episode (episode_id, policy_id, opened_at, closed_at, origin) VALUES (?, ?, ?, ?, ?)",
+                episode.id().value(), episode.policyId(), Timestamp.from(FIRST), Timestamp.from(episode.closedAt()), "M14");
+        assertThatThrownBy(() -> repository.acknowledge(episode.id(), "operator", null, FIRST))
+                .isInstanceOf(AlertEpisodeAcknowledgementConflictException.class);
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void acknowledgementWinsTheEpisodeRowLockBeforeCanonicalResolution() throws Exception {
+        var setup = openEpisode();
+        var observer = new BlockingLockObserver(H2AlertLifecycleRepository.EpisodeLockObserver.Operation.ACKNOWLEDGE);
+        H2AlertLifecycleRepository concurrent = transactionalRepository(observer);
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Future<AlertEpisodeAcknowledgementRepository.Result> acknowledgement = executor.submit(
+                    () -> concurrent.acknowledge(setup.episode().id(), "operator", "reason", FIRST.plusSeconds(2)));
+            observer.awaitLocked();
+            Future<Boolean> resolution = executor.submit(() -> concurrent.commit(
+                    setup.inactive(), Optional.of(0L), Optional.empty(),
+                    Optional.of(AlertHistoryMutation.from(setup.inactive().latestTransition()))));
+            observer.awaitEntered(H2AlertLifecycleRepository.EpisodeLockObserver.Operation.RESOLVE);
+            assertThat(resolution.isDone()).isFalse();
+            observer.release();
+            assertThat(acknowledgement.get(5, TimeUnit.SECONDS).status())
+                    .isEqualTo(AlertEpisodeAcknowledgementRepository.Result.Status.CREATED);
+            assertThat(resolution.get(5, TimeUnit.SECONDS)).isTrue();
+        }
+        assertThat(concurrentEpisode(setup.episode().id()).open()).isFalse();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_episode_acknowledgement", Integer.class)).isOne();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_transition_history", Integer.class)).isEqualTo(2);
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void canonicalResolutionWinsTheEpisodeRowLockBeforeAcknowledgement() throws Exception {
+        var setup = openEpisode();
+        var observer = new BlockingLockObserver(H2AlertLifecycleRepository.EpisodeLockObserver.Operation.RESOLVE);
+        H2AlertLifecycleRepository concurrent = transactionalRepository(observer);
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Future<Boolean> resolution = executor.submit(() -> concurrent.commit(
+                    setup.inactive(), Optional.of(0L), Optional.empty(),
+                    Optional.of(AlertHistoryMutation.from(setup.inactive().latestTransition()))));
+            observer.awaitLocked();
+            Future<AlertEpisodeAcknowledgementRepository.Result> acknowledgement = executor.submit(
+                    () -> concurrent.acknowledge(setup.episode().id(), "operator", null, FIRST.plusSeconds(2)));
+            observer.awaitEntered(H2AlertLifecycleRepository.EpisodeLockObserver.Operation.ACKNOWLEDGE);
+            assertThat(acknowledgement.isDone()).isFalse();
+            observer.release();
+            assertThat(resolution.get(5, TimeUnit.SECONDS)).isTrue();
+            assertThatThrownBy(() -> acknowledgement.get(5, TimeUnit.SECONDS))
+                    .hasCauseInstanceOf(AlertEpisodeAcknowledgementConflictException.class);
+        }
+        assertThat(concurrentEpisode(setup.episode().id()).open()).isFalse();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_episode_acknowledgement", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_transition_history", Integer.class)).isEqualTo(2);
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void concurrentIdenticalAcknowledgementsCreateThenReplayTheOriginalValue() throws Exception {
+        var setup = openEpisode();
+        var observer = new BlockingLockObserver(H2AlertLifecycleRepository.EpisodeLockObserver.Operation.ACKNOWLEDGE);
+        H2AlertLifecycleRepository concurrent = transactionalRepository(observer);
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Future<AlertEpisodeAcknowledgementRepository.Result> first = executor.submit(
+                    () -> concurrent.acknowledge(setup.episode().id(), "operator", "reason", FIRST.plusSeconds(2)));
+            observer.awaitLocked();
+            Future<AlertEpisodeAcknowledgementRepository.Result> second = executor.submit(
+                    () -> concurrent.acknowledge(setup.episode().id(), "operator", "reason", FIRST.plusSeconds(3)));
+            observer.awaitEntered(H2AlertLifecycleRepository.EpisodeLockObserver.Operation.ACKNOWLEDGE);
+            observer.release();
+            var firstResult = first.get(5, TimeUnit.SECONDS);
+            var secondResult = second.get(5, TimeUnit.SECONDS);
+            assertThat(firstResult.status()).isEqualTo(AlertEpisodeAcknowledgementRepository.Result.Status.CREATED);
+            assertThat(secondResult.status()).isEqualTo(AlertEpisodeAcknowledgementRepository.Result.Status.REPLAYED);
+            assertThat(secondResult.acknowledgement()).isEqualTo(firstResult.acknowledgement());
+        }
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_episode_acknowledgement", Integer.class)).isOne();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_transition_history", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_notification_outbox", Integer.class)).isZero();
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void concurrentConflictingAcknowledgementsPreserveTheFirstValue() throws Exception {
+        var setup = openEpisode();
+        var observer = new BlockingLockObserver(H2AlertLifecycleRepository.EpisodeLockObserver.Operation.ACKNOWLEDGE);
+        H2AlertLifecycleRepository concurrent = transactionalRepository(observer);
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Future<AlertEpisodeAcknowledgementRepository.Result> first = executor.submit(
+                    () -> concurrent.acknowledge(setup.episode().id(), "operator-a", null, FIRST.plusSeconds(2)));
+            observer.awaitLocked();
+            Future<AlertEpisodeAcknowledgementRepository.Result> second = executor.submit(
+                    () -> concurrent.acknowledge(setup.episode().id(), "operator-b", null, FIRST.plusSeconds(3)));
+            observer.awaitEntered(H2AlertLifecycleRepository.EpisodeLockObserver.Operation.ACKNOWLEDGE);
+            observer.release();
+            assertThat(first.get(5, TimeUnit.SECONDS).status())
+                    .isEqualTo(AlertEpisodeAcknowledgementRepository.Result.Status.CREATED);
+            assertThatThrownBy(() -> second.get(5, TimeUnit.SECONDS))
+                    .hasCauseInstanceOf(AlertEpisodeAcknowledgementConflictException.class);
+        }
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_episode_acknowledgement", Integer.class)).isOne();
+        assertThat(jdbc.queryForObject("SELECT actor FROM alert_episode_acknowledgement", String.class)).isEqualTo("operator-a");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_transition_history", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_notification_outbox", Integer.class)).isZero();
     }
 
     @Test
@@ -479,6 +614,81 @@ class H2AlertLifecycleRepositoryTest {
         return new H2AlertLifecycleRepository(
                 jdbc, JsonMapper.builder().findAndAddModules().build(),
                 new TransactionTemplate(new JdbcTransactionManager(jdbc.getDataSource())));
+    }
+
+    private H2AlertLifecycleRepository transactionalRepository(H2AlertLifecycleRepository.EpisodeLockObserver observer) {
+        return new H2AlertLifecycleRepository(
+                jdbc, JsonMapper.builder().findAndAddModules().build(),
+                new TransactionTemplate(new JdbcTransactionManager(jdbc.getDataSource())), observer);
+    }
+
+    private OpenEpisodeSetup openEpisode() {
+        H2AlertLifecycleRepository transactional = transactionalRepository();
+        AlertLifecycle firing = lifecycle(AlertEvaluationStatus.CONDITION_MET, FIRST, Optional.empty());
+        assertThat(transactional.commit(
+                firing, Optional.empty(), Optional.empty(), Optional.of(AlertHistoryMutation.from(firing.latestTransition()))))
+                .isTrue();
+        AlertEpisode episode = transactional.findEpisodes(new AlertEpisodeHistoryQuery("checkout-burn", null, null, null, 10))
+                .getFirst();
+        AlertLifecycle inactive = lifecycle(AlertEvaluationStatus.CONDITION_NOT_MET, FIRST.plusSeconds(1), Optional.of(firing));
+        return new OpenEpisodeSetup(episode, inactive);
+    }
+
+    private AlertEpisode concurrentEpisode(AlertEpisodeId episodeId) {
+        return transactionalRepository().findEpisodeById(episodeId).orElseThrow();
+    }
+
+    private record OpenEpisodeSetup(AlertEpisode episode, AlertLifecycle inactive) { }
+
+    private static final class BlockingLockObserver implements H2AlertLifecycleRepository.EpisodeLockObserver {
+        private final Operation blockedOperation;
+        private final CountDownLatch lockAcquired = new CountDownLatch(1);
+        private final CountDownLatch competingEntered = new CountDownLatch(1);
+        private final CountDownLatch release = new CountDownLatch(1);
+        private final AtomicInteger blockedEntries = new AtomicInteger();
+
+        private BlockingLockObserver(Operation blockedOperation) {
+            this.blockedOperation = blockedOperation;
+        }
+
+        @Override
+        public void beforeLock(Operation operation) {
+            if (operation != blockedOperation || blockedEntries.incrementAndGet() > 1) {
+                competingEntered.countDown();
+            }
+        }
+
+        @Override
+        public void afterLock(Operation operation) {
+            if (operation != blockedOperation || blockedEntries.get() != 1) {
+                return;
+            }
+            lockAcquired.countDown();
+            await(release, "winning transaction was not released");
+        }
+
+        private void awaitLocked() {
+            await(lockAcquired, "winning transaction did not acquire the episode row lock");
+        }
+
+        private void awaitEntered(Operation operation) {
+            await(competingEntered, "competing " + operation + " did not enter the persistence path");
+        }
+
+        private void release() {
+            release.countDown();
+        }
+
+        private static void await(CountDownLatch latch, String message) {
+            try {
+                if (!latch.await(5, TimeUnit.SECONDS)) {
+                    throw new AssertionError(message);
+                }
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(message, exception);
+            }
+        }
     }
 
     private void assertTransitionCorruptionRejected(

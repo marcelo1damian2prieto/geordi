@@ -115,7 +115,7 @@ class AlertHistoryV3ToV4MigrationIntegrationTest {
 
         migrate(dataSource, null);
 
-        assertThat(version(jdbc)).isEqualTo("4");
+        assertThat(version(jdbc)).isEqualTo("5");
         assertThat(jdbc.queryForObject(
                         "SELECT COUNT(*) FROM \"flyway_schema_history\" WHERE \"version\" = '4' AND \"success\" = TRUE",
                         Integer.class))
