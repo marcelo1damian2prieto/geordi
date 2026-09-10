@@ -115,7 +115,7 @@ class AlertHistoryV3ToV4MigrationIntegrationTest {
 
         migrate(dataSource, null);
 
-        assertThat(version(jdbc)).isEqualTo("5");
+        assertThat(version(jdbc)).isEqualTo("6");
         assertThat(jdbc.queryForObject(
                         "SELECT COUNT(*) FROM \"flyway_schema_history\" WHERE \"version\" = '4' AND \"success\" = TRUE",
                         Integer.class))
@@ -163,6 +163,59 @@ class AlertHistoryV3ToV4MigrationIntegrationTest {
                 .containsExactly(MICROSECONDS, NANOSECONDS);
         assertThat(transitions).extracting(AlertTransitionRecord::transition)
                 .containsExactly(resolved, started);
+    }
+
+    @Test
+    void installsV1ThroughV6WithUnicodeAcknowledgementCapacity() {
+        DriverManagerDataSource dataSource = isolatedDataSource("m16_clean_v6");
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+
+        migrate(dataSource, null);
+
+        assertThat(version(jdbc)).isEqualTo("6");
+        assertThat(columnCapacity(jdbc, "ACTOR")).isEqualTo(256);
+        assertThat(columnCapacity(jdbc, "REASON")).isEqualTo(1024);
+    }
+
+    @Test
+    void upgradesPopulatedV5AcknowledgementsWithoutChangingExistingRowsOrConstraints() {
+        DriverManagerDataSource dataSource = isolatedDataSource("m16_v5_upgrade");
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        migrate(dataSource, "5");
+        String transitionId = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        String actor = "existing-actor";
+        String reason = "existing reason";
+        Instant acknowledgedAt = NANOSECONDS;
+        jdbc.update("INSERT INTO alert_lifecycle_state (policy_id, version, aggregate_json) VALUES (?, ?, ?)",
+                POLICY_ID, 7L, "{\"preserved\":true}");
+        jdbc.update("INSERT INTO alert_episode (episode_id, policy_id, opened_at, closed_at, origin) VALUES (?, ?, ?, ?, ?)",
+                EPISODE_ID, POLICY_ID, Timestamp.from(NANOSECONDS), null, "M14");
+        jdbc.update("INSERT INTO alert_transition_history (transition_id, episode_id, policy_id, transition_type, "
+                        + "occurred_at, previous_state, current_state, transition_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                transitionId, EPISODE_ID, POLICY_ID, "ALERT_STARTED", Timestamp.from(NANOSECONDS), "INACTIVE", "FIRING", "{}");
+        jdbc.update("INSERT INTO alert_episode_acknowledgement (episode_id, actor, reason, acknowledged_at) VALUES (?, ?, ?, ?)",
+                EPISODE_ID, actor, reason, Timestamp.from(acknowledgedAt));
+
+        migrate(dataSource, null);
+
+        assertThat(version(jdbc)).isEqualTo("6");
+        assertThat(jdbc.queryForObject("SELECT version || ':' || aggregate_json FROM alert_lifecycle_state WHERE policy_id = ?", String.class, POLICY_ID))
+                .isEqualTo("7:{\"preserved\":true}");
+        assertThat(jdbc.queryForObject("SELECT episode_id || ':' || policy_id FROM alert_episode", String.class))
+                .isEqualTo(EPISODE_ID + ":" + POLICY_ID);
+        assertThat(jdbc.queryForObject("SELECT transition_id FROM alert_transition_history", String.class)).isEqualTo(transitionId);
+        assertThat(jdbc.queryForObject("SELECT actor || ':' || reason FROM alert_episode_acknowledgement", String.class))
+                .isEqualTo(actor + ":" + reason);
+        assertThat(jdbc.queryForObject("SELECT acknowledged_at FROM alert_episode_acknowledgement", Timestamp.class).toInstant())
+                .isEqualTo(acknowledgedAt);
+        assertThat(columnCapacity(jdbc, "ACTOR")).isEqualTo(256);
+        assertThat(columnCapacity(jdbc, "REASON")).isEqualTo(1024);
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO alert_episode_acknowledgement (episode_id, actor, reason, acknowledged_at) VALUES (?, ?, ?, ?)",
+                        EPISODE_ID, "duplicate", null, Timestamp.from(acknowledgedAt)))
+                .isInstanceOf(Exception.class);
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO alert_episode_acknowledgement (episode_id, actor, reason, acknowledged_at) VALUES (?, ?, ?, ?)",
+                        "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "orphan", null, Timestamp.from(acknowledgedAt)))
+                .isInstanceOf(Exception.class);
     }
 
     @Test
@@ -286,6 +339,13 @@ class AlertHistoryV3ToV4MigrationIntegrationTest {
         return jdbc.queryForObject(
                 "SELECT " + column + " FROM alert_episode WHERE episode_id = ?",
                 (result, rowNumber) -> result.getTimestamp(1).toInstant(), EPISODE_ID);
+    }
+
+    private static int columnCapacity(JdbcTemplate jdbc, String column) {
+        return jdbc.queryForObject(
+                "SELECT character_maximum_length FROM information_schema.columns "
+                        + "WHERE table_name = 'ALERT_EPISODE_ACKNOWLEDGEMENT' AND column_name = ?",
+                Integer.class, column);
     }
 
     private static Instant reconstruct(JdbcTemplate jdbc, String expression, String... epochSeconds) {

@@ -7,6 +7,6 @@ public interface AcknowledgeAlertEpisodeUseCase {
     AcknowledgementResult acknowledge(AlertEpisodeId episodeId, String actor, String reason);
 
     record AcknowledgementResult(Status status, AlertEpisodeAcknowledgement acknowledgement) {
-        public enum Status { CREATED, REPLAYED, CONFLICT }
+        public enum Status { CREATED, REPLAYED }
     }
 }

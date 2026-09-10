@@ -12,11 +12,11 @@ The authoritative GitLab pipeline is green: `backend`, `deployment_configuration
 
 Validation evidence:
 
-- backend full gate: 315 tests passed;
+- backend full gate: 299 tests passed;
 - backend focused M16 suite: up to 60 tests passed;
 - latest repository/controller focused slice: 45 tests passed;
 - PMD, SpotBugs, and Find Security Bugs: green;
-- frontend full gate: 219 tests passed;
+- frontend full gate: 210 tests passed;
 - frontend focused M16 suite: 45 tests passed;
 - TypeScript typecheck, ESLint, and production build: green;
 - OpenAPI validation: green;
@@ -40,6 +40,22 @@ Concurrency proofs:
 - conflicting concurrent ACK: PASS.
 
 There is no M16-blocking debt.
+
+## Post-closure contract reconciliation
+
+A bounded post-closure hardening pass reconciled the M16 acknowledgement contract
+without adding product behavior: the OpenAPI detail and command `503` responses are
+unambiguous and use OpenAPI 3.1 null schemas; the acknowledgement port exposes only
+the created/replayed outcomes while conflicts remain bounded exceptions; and frontend
+input uses the server's Java-whitespace and Unicode-code-point rules. The frontend
+capability documentation now accurately records the existing detail-only action.
+
+The original closure prose overstated the executed test totals: reproducing the
+authoritative implementation commit runs 299 backend and 210 frontend tests. The
+post-closure hardening suite adds four backend tests (V6 clean/upgrade preservation,
+Unicode persistence, and bounded acknowledgement telemetry) and three frontend input
+contract tests, for 303 and 213 tests respectively. No test was removed and test
+discovery configuration is unchanged.
 
 ## Owner-approved scope
 
@@ -159,7 +175,7 @@ conflict.
 
 ## Persistence and migration
 
-Use the existing H2 datasource and add only:
+M16 introduced the existing H2 datasource V5 migration:
 
 ```text
 V5__create_alert_episode_acknowledgement.sql
@@ -168,8 +184,8 @@ V5__create_alert_episode_acknowledgement.sql
 ```text
 alert_episode_acknowledgement
 - episode_id       VARCHAR(64) PRIMARY KEY REFERENCES alert_episode(episode_id)
-- actor            VARCHAR(256) NOT NULL
-- reason           VARCHAR(1024)
+- actor            VARCHAR(128) NOT NULL
+- reason           VARCHAR(512)
 - acknowledged_at  TIMESTAMP(9) WITH TIME ZONE NOT NULL
 ```
 
@@ -177,6 +193,12 @@ The foreign key has no cascade. There is no backfill, no new database, and no
 rewrite of V1–V4. Existing open M14 episodes are eligible; closed and legacy
 episodes are rejected by application semantics. Alerts persistence health must
 include this table.
+
+Post-M16 compatibility hardening adds V6, which widens only the physical H2
+columns to `actor VARCHAR(256)` and `reason VARCHAR(1024)`. These widths support
+supplementary-plane Unicode in the unchanged logical limits: actor remains 1–128
+Unicode code points and reason remains optional with at most 512 Unicode code
+points. V6 does not change acknowledgement semantics, backfill data, or rewrite V5.
 
 ## Existing milestone boundaries preserved
 

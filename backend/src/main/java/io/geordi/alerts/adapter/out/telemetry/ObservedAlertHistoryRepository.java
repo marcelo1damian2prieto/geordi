@@ -39,7 +39,6 @@ public final class ObservedAlertHistoryRepository implements AlertLifecycleRepos
     private final LongCounter episodes;
     private final LongCounter persistence;
     private final LongCounter queries;
-    private final LongCounter acknowledgements;
 
     public ObservedAlertHistoryRepository(
             AlertLifecycleRepository lifecycleDelegate, AlertHistoryRepository historyDelegate) {
@@ -56,7 +55,6 @@ public final class ObservedAlertHistoryRepository implements AlertLifecycleRepos
         episodes = meter.counterBuilder("geordi.alert.history.episodes").build();
         persistence = meter.counterBuilder("geordi.alert.history.persistence").build();
         queries = meter.counterBuilder("geordi.alert.history.queries").build();
-        acknowledgements = meter.counterBuilder("geordi.alert.acknowledgements").build();
     }
 
     @Override
@@ -131,15 +129,8 @@ public final class ObservedAlertHistoryRepository implements AlertLifecycleRepos
 
     @Override
     public Result acknowledge(AlertEpisodeId episodeId, String actor, String reason, java.time.Instant acknowledgedAt) {
-        try {
-            Result result = ((AlertEpisodeAcknowledgementRepository) lifecycleDelegate)
-                    .acknowledge(episodeId, actor, reason, acknowledgedAt);
-            acknowledgements.add(1, Attributes.of(OUTCOME, result.status().name().toLowerCase(Locale.ROOT)));
-            return result;
-        } catch (RuntimeException exception) {
-            acknowledgements.add(1, Attributes.of(OUTCOME, "failure"));
-            throw exception;
-        }
+        return ((AlertEpisodeAcknowledgementRepository) lifecycleDelegate)
+                .acknowledge(episodeId, actor, reason, acknowledgedAt);
     }
 
     @Override

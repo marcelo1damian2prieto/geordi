@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Geordi Platform API
-  version: milestone-11
+  version: milestone-16
   description: >-
     Platform APIs and bounded Metrics, Traces, Logs, observed Service Map, SLO, Burn
     Rate, stateless Alert Evaluation, durable current Alert Lifecycle, and backend-only
@@ -575,6 +575,12 @@ paths:
           content:
             application/problem+json:
               schema: {$ref: '#/components/schemas/Problem'}
+        '503':
+          description: Durable alert history could not be read.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+  /api/alert-episodes/{episodeId}/acknowledgements:
     post:
       operationId: acknowledgeAlertEpisode
       summary: Acknowledge one open alert episode.
@@ -611,11 +617,6 @@ paths:
         '503':
           description: Acknowledgement persistence is unavailable.
           content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}
-        '503':
-          description: Durable alert history could not be read.
-          content:
-            application/problem+json:
-              schema: {$ref: '#/components/schemas/Problem'}
   /api/alert-transitions:
     get:
       operationId: listAlertTransitions
@@ -1224,9 +1225,9 @@ components:
         episode:
           $ref: '#/components/schemas/AlertEpisode'
         acknowledgement:
-          nullable: true
-          allOf:
+          oneOf:
             - $ref: '#/components/schemas/AlertAcknowledgement'
+            - type: 'null'
         transitions:
           type: array
           maxItems: 2
@@ -1237,14 +1238,14 @@ components:
       required: [actor]
       properties:
         actor: {type: string, minLength: 1, maxLength: 128, description: Caller-asserted and not authenticated or audit-grade identity.}
-        reason: {type: string, nullable: true, maxLength: 512}
+        reason: {type: [string, 'null'], maxLength: 512}
     AlertAcknowledgement:
       type: object
       additionalProperties: false
       required: [actor, reason, acknowledgedAt]
       properties:
-        actor: {type: string}
-        reason: {type: string, nullable: true}
+        actor: {type: string, minLength: 1, maxLength: 128}
+        reason: {type: [string, 'null'], maxLength: 512}
         acknowledgedAt: {type: string, format: date-time}
     AlertLifecycleSnapshot:
       type: object

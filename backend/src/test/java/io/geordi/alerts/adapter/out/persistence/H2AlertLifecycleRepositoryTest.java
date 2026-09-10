@@ -103,6 +103,23 @@ class H2AlertLifecycleRepositoryTest {
     }
 
     @Test
+    void persistsMaximumUnicodeCodePointAcknowledgementValues() {
+        AlertEpisode episode = AlertEpisode.opened("unicode", FIRST);
+        jdbc.update("INSERT INTO alert_episode (episode_id, policy_id, opened_at, closed_at, origin) VALUES (?, ?, ?, ?, ?)",
+                episode.id().value(), episode.policyId(), Timestamp.from(FIRST), null, "M14");
+        String actor = "a".repeat(64) + "😀".repeat(64);
+        String reason = "r".repeat(256) + "😀".repeat(256);
+
+        var result = repository.acknowledge(episode.id(), actor, reason, FIRST.plusSeconds(1));
+
+        assertThat(result.acknowledgement().actor()).isEqualTo(actor);
+        assertThat(result.acknowledgement().reason()).isEqualTo(reason);
+        assertThat(repository.findByEpisodeId(episode.id()).orElseThrow())
+                .extracting(value -> value.actor(), value -> value.reason())
+                .containsExactly(actor, reason);
+    }
+
+    @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void acknowledgementWinsTheEpisodeRowLockBeforeCanonicalResolution() throws Exception {
         var setup = openEpisode();

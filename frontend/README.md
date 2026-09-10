@@ -40,9 +40,9 @@ The corresponding implemented API routes remain distinct: M9's side-effect-free
 nested/latest M9 condition evidence without presenting it as lifecycle state.
 
 The frontend has no scheduler, notification-delivery status or management UI, incident,
-acknowledgement, silencing, or related management UI. M11 webhook delivery remains a
-backend/operational capability. A transition is not presented as a delivered
-notification or incident event.
+silencing, or related management UI. M16 adds only the bounded episode-detail
+acknowledgement action; M11 webhook delivery remains a backend/operational capability.
+A transition is not presented as a delivered notification or incident event.
 
 ## M15 Alert History
 

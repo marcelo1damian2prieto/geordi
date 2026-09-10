@@ -44,10 +44,6 @@ public class AlertHistoryController {
         this.acknowledgements = acknowledgements;
     }
 
-    public AlertHistoryController(AlertHistoryQueryService queries) {
-        this(queries, (episodeId, actor, reason) -> { throw new UnsupportedOperationException(); });
-    }
-
     @GetMapping("/alert-episodes")
     public AlertEpisodesResponse listEpisodes(
             @RequestParam(required = false) String policyId,
@@ -72,8 +68,10 @@ public class AlertHistoryController {
     public ResponseEntity<AlertAcknowledgementResponse> acknowledge(
             @PathVariable String episodeId, @RequestBody AlertAcknowledgementRequest request) {
         var result = acknowledgements.acknowledge(new AlertEpisodeId(episodeId), request.actor(), request.reason());
-        HttpStatus status = result.status() == AcknowledgeAlertEpisodeUseCase.AcknowledgementResult.Status.CREATED
-                ? HttpStatus.CREATED : HttpStatus.OK;
+        HttpStatus status = switch (result.status()) {
+            case CREATED -> HttpStatus.CREATED;
+            case REPLAYED -> HttpStatus.OK;
+        };
         return ResponseEntity.status(status).body(AlertAcknowledgementResponse.from(result.acknowledgement()));
     }
 

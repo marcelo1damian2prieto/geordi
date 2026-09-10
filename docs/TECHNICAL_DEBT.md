@@ -3,6 +3,27 @@
 This document tracks non-blocking technical debt identified during milestone validation.
 Entries do not change the completion status of the milestone in which they were detected.
 
+## Dependency vulnerability-management automation
+
+- **Status:** Pending / Non-blocking
+- **Detected in:** Post-M16 hardening
+- **Description:** A one-off OWASP Dependency-Check scan, refreshed on 2026-09-09,
+  reports vulnerabilities against Spring Boot 3.5.7 and its managed dependencies,
+  including Spring Framework and embedded Tomcat. A trial compatible update to 3.5.14
+  exposed a pre-existing negative-epoch migration-proof incompatibility and was not
+  retained in this bounded V6-only pass. The report also contains CPE-based associations
+  that require maintainer confirmation before suppression (for example, the OpenTelemetry
+  Java API association).
+- **Current impact:** The frontend audit is clean after compatible Vitest and js-yaml
+  updates. Backend dependency findings are visible in the generated scan report, but
+  no unsupported major-version upgrade or unreviewed suppression was introduced during
+  this bounded M16 hardening pass.
+- **Follow-up:** Establish an authenticated, cached CI SCA/SBOM workflow; triage each
+  remaining backend advisory against the vendor's affected-version and remediation
+  guidance; then apply the next compatible dependency release or an evidence-backed
+  suppression. Do not treat a CPE match alone as a confirmed application vulnerability.
+- **Priority:** High
+
 ## ECharts bundle and Service Map lazy chunk
 
 - **Status:** Pending / Non-blocking

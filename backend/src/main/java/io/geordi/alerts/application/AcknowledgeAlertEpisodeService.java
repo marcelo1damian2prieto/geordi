@@ -27,6 +27,9 @@ public final class AcknowledgeAlertEpisodeService implements AcknowledgeAlertEpi
         }
         var result = repository.acknowledge(episodeId, normalizedActor, normalizedReason, clock.instant());
         return new AcknowledgementResult(
-                AcknowledgementResult.Status.valueOf(result.status().name()), result.acknowledgement());
+                switch (result.status()) {
+                    case CREATED -> AcknowledgementResult.Status.CREATED;
+                    case REPLAYED -> AcknowledgementResult.Status.REPLAYED;
+                }, result.acknowledgement());
     }
 }

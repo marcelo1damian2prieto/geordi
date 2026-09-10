@@ -10,6 +10,6 @@ public interface AlertEpisodeAcknowledgementRepository {
     Optional<AlertEpisodeAcknowledgement> findByEpisodeId(AlertEpisodeId episodeId);
 
     record Result(Status status, AlertEpisodeAcknowledgement acknowledgement) {
-        public enum Status { CREATED, REPLAYED, CONFLICT }
+        public enum Status { CREATED, REPLAYED }
     }
 }

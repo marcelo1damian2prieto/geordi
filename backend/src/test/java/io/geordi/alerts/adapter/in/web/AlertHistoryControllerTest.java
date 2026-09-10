@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.geordi.alerts.application.AlertHistoryQueryService;
+import io.geordi.alerts.application.AcknowledgeAlertEpisodeUseCase;
 import io.geordi.alerts.application.port.out.AlertEpisodeHistoryQuery;
 import io.geordi.alerts.application.port.out.AlertHistoryRepository;
 import io.geordi.alerts.application.port.out.AlertTransitionHistoryQuery;
@@ -110,7 +111,11 @@ class AlertHistoryControllerTest {
     }
 
     private static MockMvc mvc(AlertHistoryRepository repository) {
-        return MockMvcBuilders.standaloneSetup(new AlertHistoryController(new AlertHistoryQueryService(repository)))
+        AcknowledgeAlertEpisodeUseCase acknowledgements = (episodeId, actor, reason) -> {
+            throw new AssertionError("history-query tests must not invoke acknowledgement");
+        };
+        return MockMvcBuilders.standaloneSetup(
+                        new AlertHistoryController(new AlertHistoryQueryService(repository), acknowledgements))
                 .setControllerAdvice(new AlertHistoryExceptionHandler())
                 .build();
     }

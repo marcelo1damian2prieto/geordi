@@ -5,6 +5,7 @@ import type { UseQueryResult } from '@tanstack/react-query'
 import type { AlertEpisodeDetailResponse } from '../../api/alertHistory'
 import { acknowledgeAlertEpisode } from '../../api/alertHistory'
 import { ApiError } from '../../api/client'
+import { hasAtMostCodePoints, stripJavaWhitespace } from './acknowledgementInput'
 import { episodeDuration, episodeStatus, historyFailure, investigationTarget, transitionLabel } from './alertHistoryPresentation'
 import { alertConditionLabel, alertStatusLabel, alertWindowLabel, formatAlertBurnRate } from '../alert-evaluations/alertEvaluationPresentation'
 
@@ -15,8 +16,13 @@ export function AlertEpisodeDetail({ query, headingRef, onClose }: {
   const queryClient = useQueryClient()
   const [actor, setActor] = useState('')
   const [reason, setReason] = useState('')
+  const normalizedActor = stripJavaWhitespace(actor)
+  const normalizedReason = stripJavaWhitespace(reason)
   const mutation = useMutation({
-    mutationFn: () => acknowledgeAlertEpisode(episode!.id, { actor, reason: reason.trim() || null }),
+    mutationFn: () => acknowledgeAlertEpisode(episode!.id, {
+      actor: normalizedActor,
+      reason: normalizedReason || null,
+    }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['alert-history', 'episode', episode?.id] }),
     onError: () => void queryClient.invalidateQueries({ queryKey: ['alert-history', 'episode', episode?.id] }),
   })
@@ -38,10 +44,14 @@ export function AlertEpisodeDetail({ query, headingRef, onClose }: {
       {episode.closedAt === null && !query.data?.acknowledgement && <form onSubmit={(event) => { event.preventDefault(); mutation.mutate() }}>
         <h3>Acknowledgement</h3>
         <label htmlFor="ack-actor">Actor</label>
-        <input id="ack-actor" required maxLength={128} value={actor} onChange={(event) => setActor(event.target.value)} />
+        <input id="ack-actor" required value={actor} onChange={(event) => {
+          if (hasAtMostCodePoints(stripJavaWhitespace(event.target.value), 128)) setActor(event.target.value)
+        }} />
         <label htmlFor="ack-reason">Reason (optional)</label>
-        <textarea id="ack-reason" maxLength={512} value={reason} onChange={(event) => setReason(event.target.value)} />
-        <button type="submit" disabled={mutation.isPending || actor.trim().length === 0}>Acknowledge</button>
+        <textarea id="ack-reason" value={reason} onChange={(event) => {
+          if (hasAtMostCodePoints(stripJavaWhitespace(event.target.value), 512)) setReason(event.target.value)
+        }} />
+        <button type="submit" disabled={mutation.isPending || normalizedActor.length === 0}>Acknowledge</button>
         {mutation.isError && <p role="alert">{mutation.error instanceof ApiError && mutation.error.status === 409 ? 'The episode changed; refreshed detail is shown.' : 'Acknowledgement failed. Retry.'}</p>}
       </form>}
       {query.data?.acknowledgement && <section aria-label="Acknowledgement"><h3>Acknowledged</h3><p>Actor: {query.data.acknowledgement.actor}</p><p>Reason: {query.data.acknowledgement.reason ?? 'No reason provided'}</p><time dateTime={query.data.acknowledgement.acknowledgedAt}>{query.data.acknowledgement.acknowledgedAt}</time></section>}

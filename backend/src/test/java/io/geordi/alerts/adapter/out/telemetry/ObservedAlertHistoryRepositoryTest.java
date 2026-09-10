@@ -140,7 +140,6 @@ class ObservedAlertHistoryRepositoryTest {
         LongCounter episodes = counter(meter, "geordi.alert.history.episodes");
         LongCounter persistence = counter(meter, "geordi.alert.history.persistence");
         LongCounter queries = counter(meter, "geordi.alert.history.queries");
-        counter(meter, "geordi.alert.acknowledgements");
         return new RepositoryFixture(
                 lifecycle,
                 history,

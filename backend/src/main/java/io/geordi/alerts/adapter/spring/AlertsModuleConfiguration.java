@@ -14,6 +14,7 @@ import io.geordi.alerts.adapter.out.persistence.H2AlertLifecycleRepository;
 import io.geordi.alerts.adapter.out.webhook.HttpWebhookNotificationSender;
 import io.geordi.alerts.adapter.out.slos.SlosReliabilityAdapter;
 import io.geordi.alerts.adapter.out.telemetry.ObservedAlertEvaluationUseCase;
+import io.geordi.alerts.adapter.out.telemetry.ObservedAcknowledgeAlertEpisodeUseCase;
 import io.geordi.alerts.adapter.out.telemetry.ObservedAlertHistoryRepository;
 import io.geordi.alerts.adapter.out.telemetry.ObservedAlertLifecycleEvaluationUseCase;
 import io.geordi.alerts.adapter.out.telemetry.ObservedAlertRoutingPort;
@@ -141,7 +142,8 @@ public class AlertsModuleConfiguration {
         @Bean
         AcknowledgeAlertEpisodeUseCase acknowledgeAlertEpisodeUseCase(
                 AlertEpisodeAcknowledgementRepository repository, Clock sloClock) {
-            return new AcknowledgeAlertEpisodeService(repository, sloClock);
+            return new ObservedAcknowledgeAlertEpisodeUseCase(
+                    new AcknowledgeAlertEpisodeService(repository, sloClock));
         }
 
         @Bean

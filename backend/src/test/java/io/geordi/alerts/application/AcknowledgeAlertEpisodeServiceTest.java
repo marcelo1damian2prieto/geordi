@@ -32,9 +32,15 @@ class AcknowledgeAlertEpisodeServiceTest {
 
     @Test
     void rejectsInvalidActorAndReason() {
-        var service = new AcknowledgeAlertEpisodeService(mock(AlertEpisodeAcknowledgementRepository.class), Clock.systemUTC());
+        var repository = mock(AlertEpisodeAcknowledgementRepository.class);
+        var service = new AcknowledgeAlertEpisodeService(repository, Clock.systemUTC());
         assertThatThrownBy(() -> service.acknowledge(ID, " ", null)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> service.acknowledge(ID, "a", "x".repeat(513)))
                 .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.acknowledge(ID, "😀".repeat(129), null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.acknowledge(ID, "a", "😀".repeat(513)))
+                .isInstanceOf(IllegalArgumentException.class);
+        verifyNoInteractions(repository);
     }
 }
