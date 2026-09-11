@@ -1,6 +1,6 @@
 # ADR-020: Alert Notification Disposition and Delivery Status
 
-Status: ACCEPTED — locally implemented and validated; authoritative GitLab revalidation pending
+Status: ACCEPTED — IMPLEMENTED AND AUTHORITATIVELY VALIDATED
 
 ## Context
 

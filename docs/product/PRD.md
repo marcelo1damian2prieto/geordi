@@ -1,6 +1,6 @@
 # Geordi Product Requirements Document
 
-Status: MILESTONES 1 THROUGH 16 COMPLETE
+Status: MILESTONES 1 THROUGH 17 COMPLETE
 
 ## Vision
 
@@ -422,7 +422,7 @@ all passed. The authoritative GitLab pipeline for commit
 
 ## Milestone 17 scope
 
-Status: LOCALLY IMPLEMENTED AND VALIDATED — AUTHORITATIVE GITLAB REVALIDATION PENDING
+Status: COMPLETE
 
 M17 adds immutable notification-disposition evidence to an M14 canonical transition:
 `MATCHED`, `SUPPRESSED`, or `UNROUTED`. The episode-detail read model also exposes a

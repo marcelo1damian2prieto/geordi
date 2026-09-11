@@ -242,7 +242,7 @@ the notification-delivery foundation described below.
   immutable caller-asserted acknowledgement with server-owned time; exact replay returns the
   original fact, closed episodes return conflict, and acknowledgement does not change lifecycle,
   routing, scheduling, delivery, or incident state.
-- **Alert notification disposition and delivery status (M17 in implementation):**
+- **Alert notification disposition and delivery status (M17 complete):**
   episode detail reads immutable `MATCHED`, `SUPPRESSED`, `UNROUTED`, or read-only
   `NOT_RECORDED` notification evidence and, where exactly correlated durable work exists,
   its bounded current delivery status. It is not a delivery-management API or UI.

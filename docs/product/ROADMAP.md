@@ -1,6 +1,6 @@
 # Roadmap
 
-Status: MILESTONES 1 THROUGH 16 COMPLETE
+Status: MILESTONES 1 THROUGH 17 COMPLETE
 
 ## v0.1 — Platform Core + Self-Observability
 
