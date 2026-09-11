@@ -248,7 +248,7 @@ The authoritative GitLab pipeline for commit
 
 ## Milestone 17 — Alert Notification Disposition and Delivery Status
 
-LOCALLY IMPLEMENTED AND VALIDATED — AUTHORITATIVE GITLAB REVALIDATION PENDING
+COMPLETE
 
 M17 records one immutable notification disposition with each newly committed canonical
 transition: `MATCHED`, `SUPPRESSED`, or `UNROUTED`. Episode detail can read that

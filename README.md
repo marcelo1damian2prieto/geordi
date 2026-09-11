@@ -260,7 +260,7 @@ This is a bounded service-investigation foundation, not full APM.
 
 ### Milestone 17 — Alert Notification Disposition and Delivery Status
 
-M17 is locally implemented and validated, with authoritative GitLab revalidation pending.
+M17 is COMPLETE. Local implementation, independent review, and authoritative GitLab revalidation are complete.
 It enriches only `/api/alert-episodes/{episodeId}` and the
 episode-detail UI with durable notification disposition and, when exactly correlated,
 delivery status. `NOT_RECORDED` denotes absence of a durable disposition fact, not a
