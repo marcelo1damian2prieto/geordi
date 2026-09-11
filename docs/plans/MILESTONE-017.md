@@ -1,6 +1,6 @@
 # Milestone 017 — Alert Notification Disposition and Delivery Status
 
-Status: M17 LOCALLY IMPLEMENTED AND VALIDATED — AUTHORITATIVE GITLAB REVALIDATION PENDING
+Status: COMPLETE
 
 ## Purpose and operator outcome
 
