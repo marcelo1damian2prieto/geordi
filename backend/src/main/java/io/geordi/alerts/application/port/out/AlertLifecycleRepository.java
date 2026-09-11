@@ -1,8 +1,7 @@
 package io.geordi.alerts.application.port.out;
 
 import io.geordi.alerts.domain.AlertLifecycle;
-import io.geordi.alerts.domain.AlertHistoryMutation;
-import io.geordi.alerts.domain.NotificationDelivery;
+import io.geordi.alerts.domain.AlertTransitionCommitIntent;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,22 +16,12 @@ public interface AlertLifecycleRepository {
     boolean replaceIfVersionMatches(AlertLifecycle lifecycle, long expectedVersion);
 
     default boolean commit(
-            AlertLifecycle lifecycle, Optional<Long> expectedVersion, Optional<NotificationDelivery> delivery) {
-        if (delivery.isPresent()) {
-            throw new UnsupportedOperationException("notification delivery commit is not supported");
+            AlertLifecycle lifecycle, Optional<Long> expectedVersion, Optional<AlertTransitionCommitIntent> transition) {
+        if (transition.isPresent()) {
+            throw new UnsupportedOperationException("alert transition commit is not supported");
         }
         return expectedVersion.map(version -> replaceIfVersionMatches(lifecycle, version))
                 .orElseGet(() -> insertIfAbsent(lifecycle));
     }
 
-    default boolean commit(
-            AlertLifecycle lifecycle,
-            Optional<Long> expectedVersion,
-            Optional<NotificationDelivery> delivery,
-            Optional<AlertHistoryMutation> historyMutation) {
-        if (historyMutation.isPresent()) {
-            throw new UnsupportedOperationException("alert history commit is not supported");
-        }
-        return commit(lifecycle, expectedVersion, delivery);
-    }
 }

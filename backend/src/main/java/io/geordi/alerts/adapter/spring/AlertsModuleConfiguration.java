@@ -16,6 +16,7 @@ import io.geordi.alerts.adapter.out.slos.SlosReliabilityAdapter;
 import io.geordi.alerts.adapter.out.telemetry.ObservedAlertEvaluationUseCase;
 import io.geordi.alerts.adapter.out.telemetry.ObservedAcknowledgeAlertEpisodeUseCase;
 import io.geordi.alerts.adapter.out.telemetry.ObservedAlertHistoryRepository;
+import io.geordi.alerts.adapter.out.telemetry.ObservedAlertNotificationProjectionQuery;
 import io.geordi.alerts.adapter.out.telemetry.ObservedAlertLifecycleEvaluationUseCase;
 import io.geordi.alerts.adapter.out.telemetry.ObservedAlertRoutingPort;
 import io.geordi.alerts.application.AlertEvaluationService;
@@ -25,6 +26,8 @@ import io.geordi.alerts.application.AlertEvaluationUseCase;
 import io.geordi.alerts.application.AlertLifecycleEvaluationUseCase;
 import io.geordi.alerts.application.AlertLifecycleQueryService;
 import io.geordi.alerts.application.AlertHistoryQueryService;
+import io.geordi.alerts.application.AlertNotificationProjectionQuery;
+import io.geordi.alerts.application.AlertNotificationProjectionService;
 import io.geordi.alerts.application.AlertLifecycleService;
 import io.geordi.alerts.application.AlertSchedulingSettings;
 import io.geordi.alerts.application.SingleFlightAlertLifecycleEvaluationUseCase;
@@ -33,6 +36,7 @@ import io.geordi.alerts.application.AlertPolicyReferenceValidator;
 import io.geordi.alerts.application.NotificationDeliveryWorkService;
 import io.geordi.alerts.application.port.out.AlertLifecycleRepository;
 import io.geordi.alerts.application.port.out.AlertHistoryRepository;
+import io.geordi.alerts.application.port.out.AlertNotificationEvidenceQuery;
 import io.geordi.alerts.application.port.out.AlertEpisodeAcknowledgementRepository;
 import io.geordi.alerts.application.port.out.AlertLifecyclePersistenceHealthProbe;
 import io.geordi.alerts.application.port.out.AlertPolicyCatalog;
@@ -132,11 +136,17 @@ public class AlertsModuleConfiguration {
         }
 
         @Bean
+        AlertNotificationProjectionQuery alertNotificationProjectionQuery(AlertNotificationEvidenceQuery evidence) {
+            return new ObservedAlertNotificationProjectionQuery(new AlertNotificationProjectionService(evidence));
+        }
+
+        @Bean
         AlertHistoryQueryService alertHistoryQueryService(
-                AlertHistoryRepository repository, ObjectProvider<AlertEpisodeAcknowledgementRepository> acknowledgements) {
+                AlertHistoryRepository repository, ObjectProvider<AlertEpisodeAcknowledgementRepository> acknowledgements,
+                AlertNotificationProjectionQuery notifications) {
             AlertEpisodeAcknowledgementRepository value = acknowledgements.getIfAvailable(
                     () -> repository instanceof AlertEpisodeAcknowledgementRepository a ? a : null);
-            return value == null ? new AlertHistoryQueryService(repository) : new AlertHistoryQueryService(repository, value);
+            return new AlertHistoryQueryService(repository, value, notifications);
         }
 
         @Bean

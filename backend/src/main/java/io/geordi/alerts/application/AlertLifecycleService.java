@@ -8,6 +8,9 @@ import io.geordi.alerts.application.port.out.VersionedAlertLifecycle;
 import io.geordi.alerts.domain.AlertEvaluation;
 import io.geordi.alerts.domain.AlertLifecycleDecision;
 import io.geordi.alerts.domain.AlertHistoryMutation;
+import io.geordi.alerts.domain.AlertTransitionCommitIntent;
+import io.geordi.alerts.domain.NotificationCommitIntent;
+import io.geordi.alerts.domain.RoutingDecision;
 import io.geordi.alerts.domain.AlertLifecycleTransitions;
 import io.geordi.alerts.domain.AlertTransition;
 import io.geordi.alerts.domain.NotificationDelivery;
@@ -35,7 +38,7 @@ public final class AlertLifecycleService implements AlertLifecycleEvaluationUseC
             AlertLifecycleRepository repository,
             SloLifecycleBindingPort sloBindings,
             Clock clock) {
-        this(catalog, evaluations, repository, sloBindings, clock, ignored -> io.geordi.alerts.domain.RoutingDecision.unrouted());
+        this(catalog, evaluations, repository, sloBindings, clock, ignored -> RoutingDecision.unrouted());
     }
 
     public AlertLifecycleService(
@@ -89,18 +92,17 @@ public final class AlertLifecycleService implements AlertLifecycleEvaluationUseC
         return repository.commit(
                 decision.current(),
                 stored.map(VersionedAlertLifecycle::version),
-                notification(decision.transition()),
-                Optional.ofNullable(decision.transition()).map(AlertHistoryMutation::from));
+                Optional.ofNullable(decision.transition()).map(transition -> new AlertTransitionCommitIntent(
+                        AlertHistoryMutation.from(transition), notification(transition))));
     }
 
-    private Optional<NotificationDelivery> notification(AlertTransition transition) {
-        if (transition == null) {
-            return Optional.empty();
-        }
+    private NotificationCommitIntent notification(AlertTransition transition) {
         var decision = routing.route(transition);
-        if (decision instanceof io.geordi.alerts.domain.RoutingDecision.Matched matched) {
-            return Optional.of(NotificationDelivery.pending(transition, matched.destination(), clock.instant()));
-        }
-        return Optional.empty();
+        return switch (decision) {
+            case RoutingDecision.Matched matched -> new NotificationCommitIntent.Matched(
+                    NotificationDelivery.pending(transition, matched.destination(), clock.instant()));
+            case RoutingDecision.Suppressed ignored -> NotificationCommitIntent.Suppressed.INSTANCE;
+            case RoutingDecision.Unrouted ignored -> NotificationCommitIntent.Unrouted.INSTANCE;
+        };
     }
 }

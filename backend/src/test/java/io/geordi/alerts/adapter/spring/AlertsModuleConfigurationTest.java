@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.geordi.alerts.application.AlertEvaluationUseCase;
+import io.geordi.alerts.application.AlertNotificationProjectionQuery;
+import io.geordi.alerts.adapter.out.telemetry.ObservedAlertNotificationProjectionQuery;
 import io.geordi.alerts.application.AlertLifecyclePersistenceException;
 import io.geordi.alerts.application.port.out.AlertLifecyclePersistenceHealthProbe;
 import io.geordi.alerts.application.port.out.AlertLifecycleRepository;
@@ -53,6 +55,8 @@ class AlertsModuleConfigurationTest {
         runner.withPropertyValues(policyProperties("checkout-availability"))
                 .run(context -> {
                     assertThat(context).hasNotFailed().hasSingleBean(AlertEvaluationUseCase.class);
+                    assertThat(context.getBean(AlertNotificationProjectionQuery.class))
+                            .isInstanceOf(ObservedAlertNotificationProjectionQuery.class);
                     assertThat(context.getBean(AlertPolicyCatalog.class).findAll())
                             .singleElement().satisfies(policy -> {
                                 assertThat(policy.id()).isEqualTo("checkout-burn");
@@ -90,6 +94,7 @@ class AlertsModuleConfigurationTest {
         runner.withPropertyValues("geordi.modules.alerts.enabled=false")
                 .run(context -> {
                     assertThat(context).hasNotFailed().doesNotHaveBean(AlertPolicyCatalog.class);
+                    assertThat(context).doesNotHaveBean(AlertNotificationProjectionQuery.class);
                     assertThat(context.getBean(ModuleRegistry.class).modules())
                             .contains(new ModuleInventory("alerts", "Alert Evaluation", false));
                 });
@@ -126,6 +131,29 @@ class AlertsModuleConfigurationTest {
             } finally {
                 jdbc.execute("ALTER TABLE alert_lifecycle_state_unavailable RENAME TO alert_lifecycle_state");
             }
+        });
+    }
+
+    @Test
+    void reportsMissingNotificationDispositionSchemaThroughAlertsHealthAndRecovers() {
+        runner.run(context -> {
+            assertThat(context).hasNotFailed();
+            AlertLifecyclePersistenceHealthProbe probe = context.getBean(AlertLifecyclePersistenceHealthProbe.class);
+            assertThat(probe.isAvailable()).isTrue();
+            JdbcTemplate jdbc = context.getBean(JdbcTemplate.class);
+            jdbc.execute("ALTER TABLE alert_notification_disposition RENAME TO alert_notification_disposition_unavailable");
+            try {
+                assertThat(probe.isAvailable()).isFalse();
+                assertThat(context.getBean(PlatformHealthService.class).health().modules())
+                        .filteredOn(module -> module.id().equals("alerts"))
+                        .singleElement().satisfies(module -> assertThat(module.status()).isEqualTo(ModuleStatus.DOWN));
+            } finally {
+                jdbc.execute("ALTER TABLE alert_notification_disposition_unavailable RENAME TO alert_notification_disposition");
+            }
+            assertThat(probe.isAvailable()).isTrue();
+            assertThat(context.getBean(PlatformHealthService.class).health().modules())
+                    .filteredOn(module -> module.id().equals("alerts"))
+                    .singleElement().satisfies(module -> assertThat(module.status()).isEqualTo(ModuleStatus.UP));
         });
     }
 

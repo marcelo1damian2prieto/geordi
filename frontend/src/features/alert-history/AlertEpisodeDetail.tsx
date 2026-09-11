@@ -6,7 +6,7 @@ import type { AlertEpisodeDetailResponse } from '../../api/alertHistory'
 import { acknowledgeAlertEpisode } from '../../api/alertHistory'
 import { ApiError } from '../../api/client'
 import { hasAtMostCodePoints, stripJavaWhitespace } from './acknowledgementInput'
-import { episodeDuration, episodeStatus, historyFailure, investigationTarget, transitionLabel } from './alertHistoryPresentation'
+import { episodeDuration, episodeStatus, historyFailure, investigationTarget, notificationDeliveryLabel, notificationDispositionLabel, notificationTimestamps, transitionLabel } from './alertHistoryPresentation'
 import { alertConditionLabel, alertStatusLabel, alertWindowLabel, formatAlertBurnRate } from '../alert-evaluations/alertEvaluationPresentation'
 
 export function AlertEpisodeDetail({ query, headingRef, onClose }: {
@@ -60,6 +60,8 @@ export function AlertEpisodeDetail({ query, headingRef, onClose }: {
         const evaluation = transition.evaluation
         const evidence = evaluation.evidence
         const target = investigationTarget(evidence)
+        const delivery = transition.notification.delivery
+        const timestamps = delivery === null ? null : notificationTimestamps(delivery)
         return <article key={transition.id}>
           <h4>{transitionLabel(transition.type)}</h4>
           <p>{transition.previousState} → {transition.currentState} at <time dateTime={transition.occurredAt}>{transition.occurredAt}</time></p>
@@ -77,6 +79,19 @@ export function AlertEpisodeDetail({ query, headingRef, onClose }: {
               <div><dt>Observed burn rate</dt><dd>{evidence.observedBurnRate === null ? 'Unavailable' : formatAlertBurnRate(evidence.observedBurnRate)}</dd></div>
             </>}
           </dl>
+          <section aria-label="Notification">
+            <h5>Notification</h5>
+            <dl className="alert-evaluation-facts">
+              <div><dt>Disposition</dt><dd>{notificationDispositionLabel(transition.notification.disposition)}</dd></div>
+              {delivery && <>
+                <div><dt>Delivery</dt><dd>{notificationDeliveryLabel(delivery)}</dd></div>
+                <div><dt>Claims consumed</dt><dd>{delivery.attempts}</dd></div>
+                <div><dt>Created (UTC)</dt><dd><time dateTime={timestamps!.createdAt}>{timestamps!.createdAt}</time></dd></div>
+                {timestamps!.nextAttemptAt !== null && <div><dt>Next attempt (UTC)</dt><dd><time dateTime={timestamps!.nextAttemptAt}>{timestamps!.nextAttemptAt}</time></dd></div>}
+                {timestamps!.completedAt !== null && <div><dt>Completed (UTC)</dt><dd><time dateTime={timestamps!.completedAt}>{timestamps!.completedAt}</time></dd></div>}
+              </>}
+            </dl>
+          </section>
           {target ? <Link to={target}>Investigate {transitionLabel(transition.type)} evidence</Link> : <p>Investigation unavailable for this persisted evidence</p>}
         </article>
       })}

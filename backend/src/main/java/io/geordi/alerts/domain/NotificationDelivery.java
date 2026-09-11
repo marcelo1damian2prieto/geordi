@@ -1,10 +1,6 @@
 package io.geordi.alerts.domain;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.Objects;
 
 /**
@@ -44,14 +40,7 @@ public record NotificationDelivery(
     }
 
     public static String stableId(AlertTransition transition) {
-        Objects.requireNonNull(transition, "notification transition must not be null");
-        String identity = transition.policyId() + "\n" + transition.type().name() + "\n" + transition.occurredAt();
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(identity.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 must be available", exception);
-        }
+        return AlertTransitionId.from(transition).value();
     }
 
     public NotificationDelivery leased(String token, Instant expiresAt) {

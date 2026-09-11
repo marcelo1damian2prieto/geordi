@@ -21,9 +21,17 @@ export interface AlertTransitionHistory {
   occurredAt: string
   evaluation: AlertEvaluation
 }
+export type AlertNotificationDisposition = 'MATCHED' | 'SUPPRESSED' | 'UNROUTED' | 'NOT_RECORDED'
+export type AlertNotificationDelivery =
+  | { state: 'PENDING'; attempts: number; createdAt: string; nextAttemptAt: string; completedAt: null }
+  | { state: 'LEASED'; attempts: number; createdAt: string; nextAttemptAt: null; completedAt: null }
+  | { state: 'DELIVERED' | 'FAILED'; attempts: number; createdAt: string; nextAttemptAt: null; completedAt: string }
+export interface AlertEpisodeDetailTransition extends AlertTransitionHistory {
+  notification: { disposition: AlertNotificationDisposition; delivery: AlertNotificationDelivery | null }
+}
 export interface AlertEpisodesResponse { alertEpisodes: AlertEpisode[] }
 export interface AlertAcknowledgement { actor: string; reason: string | null; acknowledgedAt: string }
-export interface AlertEpisodeDetailResponse { episode: AlertEpisode; acknowledgement: AlertAcknowledgement | null; transitions: AlertTransitionHistory[] }
+export interface AlertEpisodeDetailResponse { episode: AlertEpisode; acknowledgement: AlertAcknowledgement | null; transitions: AlertEpisodeDetailTransition[] }
 export interface AlertHistoryQuery { from: string; to: string; policyId?: string; state?: AlertEpisodeState; limit: number }
 
 export function listAlertEpisodes(query: AlertHistoryQuery, signal?: AbortSignal) {

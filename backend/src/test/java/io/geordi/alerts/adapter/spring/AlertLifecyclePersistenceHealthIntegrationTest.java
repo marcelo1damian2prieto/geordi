@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 import io.geordi.alerts.application.AlertLifecyclePersistenceException;
+import io.geordi.alerts.adapter.out.persistence.H2AlertLifecycleRepository;
 import io.geordi.alerts.application.port.out.AlertEpisodeHistoryQuery;
 import io.geordi.alerts.application.port.out.AlertHistoryRepository;
 import io.geordi.alerts.application.port.out.AlertLifecyclePersistenceHealthProbe;
@@ -33,6 +34,7 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @SpringBootTest(
@@ -54,6 +56,9 @@ class AlertLifecyclePersistenceHealthIntegrationTest {
 
     @Autowired
     private MutableLifecyclePersistence persistence;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     @MockitoBean(name = "observedMetricsQueryAdapter")
     private ObservedMetricsQueryAdapter metricsBackend;
@@ -90,6 +95,26 @@ class AlertLifecyclePersistenceHealthIntegrationTest {
         assertThat(getJson("/actuator/health/readiness").getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void missingDispositionTableMakesAlertsAndReadinessUnavailableUntilRestored() {
+        assertThat(getJson("/actuator/health/readiness").getStatusCode()).isEqualTo(HttpStatus.OK);
+        jdbc.execute("ALTER TABLE alert_notification_disposition RENAME TO alert_notification_disposition_unavailable");
+        try {
+            ResponseEntity<Map<String, Object>> platformHealth = getJson("/api/platform/health");
+            assertThat(platformHealth.getBody()).containsEntry("status", "DOWN");
+            List<Map<String, Object>> modules = (List<Map<String, Object>>) platformHealth.getBody().get("modules");
+            assertThat(modules).filteredOn(module -> module.get("id").equals("alerts"))
+                    .singleElement().satisfies(module -> assertThat(module).containsEntry("status", "DOWN"));
+            assertThat(getJson("/actuator/health/readiness").getStatusCode())
+                    .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        } finally {
+            jdbc.execute("ALTER TABLE alert_notification_disposition_unavailable RENAME TO alert_notification_disposition");
+        }
+        assertThat(getJson("/api/platform/health").getBody()).containsEntry("status", "UP");
+        assertThat(getJson("/actuator/health/readiness").getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
     private ResponseEntity<Map<String, Object>> getJson(String path) {
         return restTemplate.exchange(
                 "http://localhost:" + port + path,
@@ -103,8 +128,8 @@ class AlertLifecyclePersistenceHealthIntegrationTest {
 
         @Bean
         @Primary
-        MutableLifecyclePersistence observedAlertHistoryRepository() {
-            return new MutableLifecyclePersistence();
+        MutableLifecyclePersistence observedAlertHistoryRepository(H2AlertLifecycleRepository repository) {
+            return new MutableLifecyclePersistence(repository);
         }
     }
 
@@ -112,6 +137,11 @@ class AlertLifecyclePersistenceHealthIntegrationTest {
             implements AlertLifecycleRepository, AlertHistoryRepository, AlertLifecyclePersistenceHealthProbe {
 
         private final AtomicBoolean available = new AtomicBoolean(true);
+        private final AlertLifecyclePersistenceHealthProbe schema;
+
+        MutableLifecyclePersistence(AlertLifecyclePersistenceHealthProbe schema) {
+            this.schema = schema;
+        }
 
         void setAvailable(boolean value) {
             available.set(value);
@@ -119,7 +149,7 @@ class AlertLifecyclePersistenceHealthIntegrationTest {
 
         @Override
         public boolean isAvailable() {
-            return available.get();
+            return available.get() && schema.isAvailable();
         }
 
         @Override

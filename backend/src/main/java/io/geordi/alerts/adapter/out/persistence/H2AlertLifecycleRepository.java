@@ -3,6 +3,9 @@ package io.geordi.alerts.adapter.out.persistence;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.geordi.alerts.application.AlertHistoryPersistenceException;
+import io.geordi.alerts.application.AlertNotificationEvidence;
+import io.geordi.alerts.application.AlertNotificationIntegrityException;
+import io.geordi.alerts.application.port.out.AlertNotificationEvidenceQuery;
 import io.geordi.alerts.application.AlertEpisodeNotFoundException;
 import io.geordi.alerts.application.AlertEpisodeAcknowledgementConflictException;
 import io.geordi.alerts.application.AlertHistoryPersistenceException.Kind;
@@ -21,6 +24,9 @@ import io.geordi.alerts.domain.AlertEpisodeAcknowledgement;
 import io.geordi.alerts.domain.AlertEpisodeId;
 import io.geordi.alerts.domain.AlertEpisodeOrigin;
 import io.geordi.alerts.domain.AlertHistoryMutation;
+import io.geordi.alerts.domain.AlertTransitionCommitIntent;
+import io.geordi.alerts.domain.NotificationCommitIntent;
+import io.geordi.alerts.domain.NotificationDisposition;
 import io.geordi.alerts.domain.AlertLifecycle;
 import io.geordi.alerts.domain.NotificationDelivery;
 import io.geordi.alerts.domain.NotificationDeliveryState;
@@ -44,7 +50,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 public final class H2AlertLifecycleRepository
         implements AlertLifecycleRepository, AlertLifecyclePersistenceHealthProbe, NotificationDeliveryWorkRepository,
-                AlertHistoryRepository, AlertEpisodeAcknowledgementRepository {
+                AlertHistoryRepository, AlertEpisodeAcknowledgementRepository, AlertNotificationEvidenceQuery {
 
     private static final String AVAILABILITY_CHECK = """
             SELECT
@@ -53,6 +59,7 @@ public final class H2AlertLifecycleRepository
               + (SELECT COUNT(*) FROM alert_episode WHERE 1 = 0)
               + (SELECT COUNT(*) FROM alert_transition_history WHERE 1 = 0)
               + (SELECT COUNT(*) FROM alert_episode_acknowledgement WHERE 1 = 0)
+              + (SELECT COUNT(*) FROM alert_notification_disposition WHERE 1 = 0)
             """;
 
     private static final String SELECT_BY_POLICY = """
@@ -239,21 +246,13 @@ public final class H2AlertLifecycleRepository
 
     @Override
     public boolean commit(
-            AlertLifecycle lifecycle, Optional<Long> expectedVersion, Optional<NotificationDelivery> delivery) {
-        return commit(lifecycle, expectedVersion, delivery, Optional.empty());
-    }
-
-    @Override
-    public boolean commit(
             AlertLifecycle lifecycle,
             Optional<Long> expectedVersion,
-            Optional<NotificationDelivery> delivery,
-            Optional<AlertHistoryMutation> historyMutation) {
+            Optional<AlertTransitionCommitIntent> transition) {
         Objects.requireNonNull(lifecycle, "alert lifecycle must not be null");
         Objects.requireNonNull(expectedVersion, "expected lifecycle version must not be null");
-        Objects.requireNonNull(delivery, "notification delivery must not be null");
-        Objects.requireNonNull(historyMutation, "alert history mutation must not be null");
-        if (delivery.isEmpty() && historyMutation.isEmpty()) {
+        Objects.requireNonNull(transition, "alert transition intent must not be null");
+        if (transition.isEmpty()) {
             return expectedVersion.map(version -> replaceIfVersionMatches(lifecycle, version))
                     .orElseGet(() -> insertIfAbsent(lifecycle));
         }
@@ -269,8 +268,13 @@ public final class H2AlertLifecycleRepository
                     status.setRollbackOnly();
                     return false;
                 }
-                historyMutation.ifPresent(this::applyHistoryMutation);
-                delivery.ifPresent(this::insertNotification);
+                AlertTransitionCommitIntent intent = transition.orElseThrow();
+                applyHistoryMutation(intent.history());
+                jdbc.update("INSERT INTO alert_notification_disposition (transition_id, disposition) VALUES (?, ?)",
+                        intent.disposition().transitionId().value(), intent.disposition().disposition().name());
+                if (intent.notification() instanceof NotificationCommitIntent.Matched matched) {
+                    insertNotification(matched.delivery());
+                }
                 return true;
             });
             return Boolean.TRUE.equals(committed);
@@ -338,6 +342,66 @@ public final class H2AlertLifecycleRepository
                     statement.toString(), (result, rowNumber) -> readTransitionRecord(result), arguments.toArray());
         } catch (DataAccessException exception) {
             throw historyPersistenceFailure(exception);
+        }
+    }
+
+    @Override
+    public List<AlertNotificationEvidence> findNotificationEvidence(List<AlertTransitionId> transitionIds) {
+        Objects.requireNonNull(transitionIds);
+        if (transitionIds.size() > 2) {
+            throw new IllegalArgumentException("notification evidence is bounded to one episode");
+        }
+        if (transitionIds.isEmpty()) {
+            return List.of();
+        }
+        String placeholders = String.join(",", java.util.Collections.nCopies(transitionIds.size(), "?"));
+        String statement = """
+                SELECT h.transition_id, d.transition_id AS disposition_transition_id, d.disposition, o.delivery_id, o.payload_json,
+                       o.state, o.attempts, o.created_at, o.next_attempt_at, o.completed_at,
+                       o.claim_token, o.lease_expires_at
+                FROM alert_transition_history h
+                LEFT JOIN alert_notification_disposition d ON d.transition_id = h.transition_id
+                LEFT JOIN alert_notification_outbox o ON o.delivery_id = h.transition_id
+                WHERE h.transition_id IN (
+                """ + placeholders + ")";
+        try {
+            return jdbc.query(statement, (result, rowNumber) -> readNotificationEvidence(result),
+                    transitionIds.stream().map(AlertTransitionId::value).toArray());
+        } catch (DataAccessException exception) {
+            throw historyPersistenceFailure(exception);
+        }
+    }
+
+    private AlertNotificationEvidence readNotificationEvidence(ResultSet result) throws SQLException {
+        try {
+            String disposition = result.getString("disposition");
+            if (result.getString("disposition_transition_id") != null && disposition == null) {
+                throw new IllegalArgumentException("missing durable disposition value");
+            }
+            String deliveryId = result.getString("delivery_id");
+            AlertNotificationEvidence.Delivery delivery = null;
+            if (deliveryId != null) {
+                NotificationDeliveryState state = NotificationDeliveryState.valueOf(result.getString("state"));
+                String claimToken = result.getString("claim_token");
+                Instant leaseExpiresAt = instant(result, "lease_expires_at");
+                if ((state == NotificationDeliveryState.LEASED
+                        && (claimToken == null || claimToken.isBlank() || leaseExpiresAt == null))
+                        || (state != NotificationDeliveryState.LEASED && (claimToken != null || leaseExpiresAt != null))) {
+                    throw new IllegalArgumentException("invalid durable delivery lease");
+                }
+                int attempts = result.getInt("attempts");
+                if (result.wasNull()) {
+                    throw new IllegalArgumentException("missing delivery attempts");
+                }
+                delivery = new AlertNotificationEvidence.Delivery(deliveryId,
+                        Objects.requireNonNull(objectMapper.readValue(result.getString("payload_json"), AlertTransition.class)),
+                        state, attempts,
+                        instant(result, "created_at"), instant(result, "next_attempt_at"), instant(result, "completed_at"));
+            }
+            return new AlertNotificationEvidence(new AlertTransitionId(result.getString("transition_id")),
+                    disposition == null ? null : NotificationDisposition.valueOf(disposition), delivery);
+        } catch (JsonProcessingException | IllegalArgumentException | NullPointerException exception) {
+            throw new AlertNotificationIntegrityException(AlertNotificationIntegrityException.Reason.STORED_VALUE_INVALID);
         }
     }
 

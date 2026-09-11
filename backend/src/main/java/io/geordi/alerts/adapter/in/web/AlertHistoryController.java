@@ -1,6 +1,8 @@
 package io.geordi.alerts.adapter.in.web;
 
 import io.geordi.alerts.application.AlertEpisodeDetail;
+import io.geordi.alerts.application.AlertEpisodeTransition;
+import io.geordi.alerts.application.AlertNotificationStatus;
 import io.geordi.alerts.application.AlertHistoryQueryService;
 import io.geordi.alerts.application.AcknowledgeAlertEpisodeUseCase;
 import io.geordi.alerts.application.port.out.AlertEpisodeHistoryQuery;
@@ -104,12 +106,40 @@ public class AlertHistoryController {
 
     public record AlertEpisodeDetailResponse(
             AlertEpisodeResponse episode, AlertAcknowledgementResponse acknowledgement,
-            List<AlertTransitionHistoryResponse> transitions) {
+            List<AlertEpisodeTransitionResponse> transitions) {
 
         static AlertEpisodeDetailResponse from(AlertEpisodeDetail detail) {
             return new AlertEpisodeDetailResponse(
                     AlertEpisodeResponse.from(detail.episode()), detail.acknowledgement() == null ? null : AlertAcknowledgementResponse.from(detail.acknowledgement()),
-                    detail.transitions().stream().map(AlertTransitionHistoryResponse::from).toList());
+                    detail.transitions().stream().map(AlertEpisodeTransitionResponse::from).toList());
+        }
+    }
+
+    public record AlertEpisodeTransitionResponse(
+            String id, String episodeId, String policyId, String type,
+            AlertLifecycleState previousState, AlertLifecycleState currentState, String occurredAt,
+            AlertPolicyController.AlertEvaluationResponse evaluation, AlertNotificationResponse notification) {
+        static AlertEpisodeTransitionResponse from(AlertEpisodeTransition detail) {
+            var base = AlertTransitionHistoryResponse.from(detail.record());
+            return new AlertEpisodeTransitionResponse(base.id(), base.episodeId(), base.policyId(), base.type(),
+                    base.previousState(), base.currentState(), base.occurredAt(), base.evaluation(),
+                    AlertNotificationResponse.from(detail.notification()));
+        }
+    }
+
+    public record AlertNotificationResponse(AlertNotificationStatus.Disposition disposition,
+            AlertDeliveryResponse delivery) {
+        static AlertNotificationResponse from(AlertNotificationStatus status) {
+            return new AlertNotificationResponse(status.disposition(),
+                    status.delivery() == null ? null : AlertDeliveryResponse.from(status.delivery()));
+        }
+    }
+
+    public record AlertDeliveryResponse(String state, int attempts, String createdAt,
+            String nextAttemptAt, String completedAt) {
+        static AlertDeliveryResponse from(AlertNotificationStatus.Delivery delivery) {
+            return new AlertDeliveryResponse(delivery.state().name(), delivery.attempts(), text(delivery.createdAt()),
+                    text(delivery.nextAttemptAt()), text(delivery.completedAt()));
         }
     }
 

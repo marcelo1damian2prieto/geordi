@@ -12,6 +12,33 @@ class NotificationDeliveryTest {
     private static final Instant OCCURRED_AT = Instant.parse("2026-08-28T18:00:00Z");
 
     @Test
+    void preservesKnownNanosecondCanonicalIdentity() {
+        AlertTransition transition = transition(OCCURRED_AT.plusNanos(123456789));
+        String expected = "6b652cfbbf4fdda11500ff84bc1772f382bd4f0630c0ffeb3d9f350c0d830cfd";
+        assertThat(NotificationDelivery.stableId(transition)).isEqualTo(expected);
+        assertThat(AlertTransitionId.from(transition).value()).isEqualTo(expected);
+    }
+
+    @Test
+    void requiresOneCanonicalTransitionForHistoryAndMatchedDelivery() {
+        AlertTransition transition = transition(OCCURRED_AT.plusNanos(123456789));
+        NotificationDelivery delivery = NotificationDelivery.pending(
+                transition, new NotificationDestination("operations-webhook", "fingerprint"), OCCURRED_AT);
+        var intent = new AlertTransitionCommitIntent(AlertHistoryMutation.from(transition),
+                new NotificationCommitIntent.Matched(delivery));
+        assertThat(intent.disposition().disposition()).isEqualTo(NotificationDisposition.MATCHED);
+        assertThatThrownBy(() -> new AlertTransitionCommitIntent(
+                AlertHistoryMutation.from(transition(OCCURRED_AT)), new NotificationCommitIntent.Matched(delivery)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(new AlertTransitionCommitIntent(AlertHistoryMutation.from(transition),
+                NotificationCommitIntent.Suppressed.INSTANCE).disposition().disposition())
+                .isEqualTo(NotificationDisposition.SUPPRESSED);
+        assertThat(new AlertTransitionCommitIntent(AlertHistoryMutation.from(transition),
+                NotificationCommitIntent.Unrouted.INSTANCE).disposition().disposition())
+                .isEqualTo(NotificationDisposition.UNROUTED);
+    }
+
+    @Test
     void derivesAStableDeliveryIdentityFromTheCanonicalTransition() {
         AlertTransition first = transition(OCCURRED_AT);
         AlertTransition equivalent = transition(OCCURRED_AT);

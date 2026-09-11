@@ -5,30 +5,36 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AlertHistoryPage } from './AlertHistoryPage'
+import type { AlertEpisode, AlertEpisodeDetailResponse } from '../../api/alertHistory'
+import type { AlertEvidence } from '../../api/alertEvaluations'
 
 const a = 'a'.repeat(64)
 const b = 'b'.repeat(64)
 const from = '2026-08-27T10:00:00.123456789Z'
 const to = '2026-08-28T10:00:00.123456789Z'
 const base = `from=${from}&to=${to}&limit=50`
-const evidence = {
+const evidence: AlertEvidence = {
   service: { name: 'checkout', namespace: null, environment: 'production' },
   window: 'PT15M', range: { from, to: '2026-08-27T10:15:00.123456789Z' },
   evaluatedAt: '2026-08-27T10:15:00.123456789Z', observedBurnRate: 3,
 }
-function episode(id = a, policyId = 'checkout-burn', closedAt: string | null = null) {
+function episode(id = a, policyId = 'checkout-burn', closedAt: string | null = null): AlertEpisode {
   return { id, policyId, openedAt: from, closedAt, origin: 'M14', durationSeconds: closedAt ? 900 : null }
 }
-function detail(id = a, policyId = 'selected-policy') {
+function detail(id = a, policyId = 'selected-policy'): AlertEpisodeDetailResponse {
+  const evaluation: AlertEpisodeDetailResponse['transitions'][number]['evaluation'] = {
+    policyId, policyName: 'Historical policy', sloId: 'availability', condition: { type: 'BURN_RATE_ABOVE', threshold: 2 },
+    status: 'CONDITION_MET', reason: null, evidence,
+  }
   return {
     episode: episode(id, policyId, evidence.range.to),
+    acknowledgement: null,
     transitions: [
-      { id: 'resolved', episodeId: id, policyId, type: 'ALERT_RESOLVED', previousState: 'FIRING', currentState: 'INACTIVE', occurredAt: evidence.range.to },
-      { id: 'started', episodeId: id, policyId, type: 'ALERT_STARTED', previousState: 'INACTIVE', currentState: 'FIRING', occurredAt: from },
-    ].map((transition) => ({ ...transition, evaluation: {
-      policyId, policyName: 'Historical policy', sloId: 'availability', condition: { type: 'BURN_RATE_ABOVE', threshold: 2 },
-      status: 'CONDITION_MET', reason: null, evidence,
-    } })),
+      { id: 'resolved', episodeId: id, policyId, type: 'ALERT_RESOLVED', previousState: 'FIRING', currentState: 'INACTIVE', occurredAt: evidence.range.to, evaluation, notification: { disposition: 'SUPPRESSED', delivery: null } },
+      { id: 'started', episodeId: id, policyId, type: 'ALERT_STARTED', previousState: 'INACTIVE', currentState: 'FIRING', occurredAt: from, evaluation, notification: { disposition: 'MATCHED', delivery: {
+        state: 'PENDING', attempts: 0, createdAt: from, nextAttemptAt: evidence.range.to, completedAt: null,
+      } } },
+    ],
   }
 }
 function response(body: unknown, status = 200) {
@@ -138,7 +144,7 @@ describe('Alert history page acceptance', () => {
 
   it('invalid persisted context leaves readable transitions and the retention notice', async () => {
     const body = structuredClone(detail())
-    body.transitions[0].evaluation.evidence.service.name = ' trimmed '
+    body.transitions[0].evaluation.evidence!.service.name = ' trimmed '
     vi.spyOn(globalThis, 'fetch').mockImplementation((input) => Promise.resolve(response(url(input).pathname === '/api/alert-episodes' ? { alertEpisodes: [] } : body)))
     renderPage(`${base}&episodeId=${a}`)
     expect((await screen.findAllByText('Investigation unavailable for this persisted evidence')).length).toBeGreaterThan(0)
@@ -242,6 +248,33 @@ describe('Alert history page acceptance', () => {
       expect(init?.method).toBe('GET')
       expect(url(input).pathname).toMatch(/^\/api\/alert-episodes(?:\/[a-f0-9]{64})?$/)
     })
+  })
+
+  it('presents bounded notification evidence with truthful delivery state and timestamp fields', async () => {
+    const payload = structuredClone(detail())
+    const transitions = payload.transitions
+    transitions[0].notification = { disposition: 'SUPPRESSED', delivery: null }
+    transitions[1].notification = { disposition: 'NOT_RECORDED', delivery: { state: 'LEASED', attempts: 1, createdAt: from, nextAttemptAt: null, completedAt: null } }
+    transitions.push({ ...transitions[0], id: 'unrouted', notification: { disposition: 'UNROUTED', delivery: null } })
+    transitions.push({ ...transitions[0], id: 'pending', notification: { disposition: 'MATCHED', delivery: { state: 'PENDING', attempts: 0, createdAt: from, nextAttemptAt: evidence.range.to, completedAt: null } } })
+    transitions.push({ ...transitions[0], id: 'delivered', notification: { disposition: 'MATCHED', delivery: { state: 'DELIVERED', attempts: 2, createdAt: from, nextAttemptAt: null, completedAt: evidence.range.to } } })
+    transitions.push({ ...transitions[0], id: 'failed', notification: { disposition: 'MATCHED', delivery: { state: 'FAILED', attempts: 3, createdAt: from, nextAttemptAt: null, completedAt: evidence.range.to } } })
+    const secret = 'SECRET_DELIVERY_INTERNAL'
+    ;(payload as unknown as Record<string, unknown>).destination = secret
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => Promise.resolve(response(url(input).pathname === '/api/alert-episodes' ? { alertEpisodes: [] } : payload)))
+    renderPage(`${base}&episodeId=${a}`)
+    expect((await screen.findAllByText('Matched')).length).toBeGreaterThan(0)
+    expect(screen.getByText('Suppressed')).toBeInTheDocument()
+    expect(screen.getByText('No matching route')).toBeInTheDocument()
+    expect(screen.getByText('Not recorded')).toBeInTheDocument()
+    expect(screen.getByText('Leased — completion not recorded; may await reclaim')).toBeInTheDocument()
+    expect(screen.getByText('Pending')).toBeInTheDocument()
+    expect(screen.getByText('Delivered — Geordi recorded an accepted HTTP response')).toBeInTheDocument()
+    expect(screen.getByText('Failed — no detailed cause was recorded')).toBeInTheDocument()
+    expect(screen.getAllByText('Claims consumed')).toHaveLength(4)
+    expect(screen.getAllByText('Next attempt (UTC)')).toHaveLength(1)
+    expect(screen.getAllByText('Completed (UTC)')).toHaveLength(2)
+    expect(document.body.textContent).not.toContain(secret)
   })
 
   it('supports known-ID legacy detail honestly without inventing a ranged legacy row', async () => {

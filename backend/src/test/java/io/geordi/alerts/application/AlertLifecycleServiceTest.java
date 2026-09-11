@@ -141,6 +141,65 @@ class AlertLifecycleServiceTest {
     }
 
     @Test
+    void recordsSuppressedAndUnroutedDecisionsWithoutDelivery() {
+        for (var routing : List.of(io.geordi.alerts.domain.RoutingDecision.suppressed(),
+                io.geordi.alerts.domain.RoutingDecision.unrouted())) {
+            InMemoryRepository repository = new InMemoryRepository();
+            AtomicInteger routes = new AtomicInteger();
+            var service = new AlertLifecycleService(catalog(),
+                    id -> evaluation(AlertEvaluationStatus.CONDITION_MET, FIRST), repository, bindings(),
+                    Clock.fixed(FIRST, ZoneOffset.UTC), transition -> {
+                        routes.incrementAndGet();
+                        return routing;
+                    });
+            service.evaluate(POLICY.id());
+            service.evaluate(POLICY.id());
+            assertThat(routes).hasValue(1);
+            assertThat(repository.deliveries).isEmpty();
+            assertThat(repository.intents).singleElement().satisfies(intent ->
+                    assertThat(intent.disposition().disposition().name()).isEqualTo(
+                            routing instanceof io.geordi.alerts.domain.RoutingDecision.Suppressed ? "SUPPRESSED" : "UNROUTED"));
+        }
+    }
+
+    @Test
+    void routingExceptionReachesNoRepositoryWrite() {
+        var repository = new InMemoryRepository();
+        var service = new AlertLifecycleService(catalog(),
+                id -> evaluation(AlertEvaluationStatus.CONDITION_MET, FIRST), repository, bindings(),
+                Clock.fixed(FIRST, ZoneOffset.UTC), transition -> { throw new IllegalStateException("routing failed"); });
+        assertThatThrownBy(() -> service.evaluate(POLICY.id())).isInstanceOf(IllegalStateException.class);
+        assertThat(repository.findAll()).isEmpty();
+        assertThat(repository.intents).isEmpty();
+    }
+
+    @Test
+    void noTransitionWriteDoesNotRouteAndWinningRetryPersistsOnlyOneIntent() {
+        AtomicInteger failures = new AtomicInteger(1);
+        var repository = new InMemoryRepository() {
+            @Override
+            public boolean insertIfAbsent(AlertLifecycle lifecycle) {
+                return failures.getAndDecrement() > 0 ? false : super.insertIfAbsent(lifecycle);
+            }
+        };
+        AtomicInteger routes = new AtomicInteger();
+        var service = new AlertLifecycleService(catalog(),
+                id -> evaluation(AlertEvaluationStatus.CONDITION_MET, FIRST), repository, bindings(),
+                Clock.fixed(FIRST, ZoneOffset.UTC), transition -> {
+                    routes.incrementAndGet();
+                    return io.geordi.alerts.domain.RoutingDecision.unrouted();
+                });
+        service.evaluate(POLICY.id());
+        assertThat(routes).hasValue(2);
+        assertThat(repository.intents).hasSize(1);
+        new AlertLifecycleService(catalog(), id -> evaluation(AlertEvaluationStatus.CONDITION_MET, FIRST.plusSeconds(1)),
+                repository, bindings(), Clock.fixed(FIRST, ZoneOffset.UTC), transition -> {
+                    throw new AssertionError("a no-transition lifecycle write must not route");
+                }).evaluate(POLICY.id());
+        assertThat(repository.intents).hasSize(1);
+    }
+
+    @Test
     void concurrentStartsAndResolutionsEachProduceOneLogicalTransition() throws Exception {
         InMemoryRepository repository = new InMemoryRepository();
         AlertLifecycleService starts = service(
@@ -224,6 +283,7 @@ class AlertLifecycleServiceTest {
     }
 
     private static class InMemoryRepository implements AlertLifecycleRepository {
+        final List<io.geordi.alerts.domain.AlertTransitionCommitIntent> intents = new java.util.concurrent.CopyOnWriteArrayList<>();
 
         private final ConcurrentHashMap<String, VersionedAlertLifecycle> records = new ConcurrentHashMap<>();
         private final List<NotificationDelivery> deliveries = new ArrayList<>();
@@ -259,22 +319,20 @@ class AlertLifecycleServiceTest {
 
         @Override
         public boolean commit(
-                AlertLifecycle lifecycle, Optional<Long> expectedVersion, Optional<NotificationDelivery> delivery) {
+                AlertLifecycle lifecycle, Optional<Long> expectedVersion,
+                Optional<io.geordi.alerts.domain.AlertTransitionCommitIntent> transition) {
             boolean committed = expectedVersion.map(version -> replaceIfVersionMatches(lifecycle, version))
                     .orElseGet(() -> insertIfAbsent(lifecycle));
             if (committed) {
-                delivery.ifPresent(deliveries::add);
+                transition.ifPresent(intent -> {
+                    intents.add(intent);
+                    if (intent.notification() instanceof io.geordi.alerts.domain.NotificationCommitIntent.Matched matched) {
+                        deliveries.add(matched.delivery());
+                    }
+                });
             }
             return committed;
         }
 
-        @Override
-        public boolean commit(
-                AlertLifecycle lifecycle,
-                Optional<Long> expectedVersion,
-                Optional<NotificationDelivery> delivery,
-                Optional<io.geordi.alerts.domain.AlertHistoryMutation> historyMutation) {
-            return commit(lifecycle, expectedVersion, delivery);
-        }
     }
 }

@@ -1,11 +1,12 @@
 openapi: 3.1.0
 info:
   title: Geordi Platform API
-  version: milestone-16
+  version: milestone-17
   description: >-
     Platform APIs and bounded Metrics, Traces, Logs, observed Service Map, SLO, Burn
-    Rate, stateless Alert Evaluation, durable current Alert Lifecycle, and backend-only
-    durable webhook Notification Delivery capabilities. M11 adds no delivery API.
+    Rate, stateless Alert Evaluation, durable current Alert Lifecycle, and durable
+    webhook Notification Delivery. Episode detail exposes bounded, read-only
+    notification disposition and delivery-status evidence; it adds no delivery command.
 servers:
   - url: http://localhost:8080
 paths:
@@ -556,7 +557,10 @@ paths:
       summary: Get one durable alert episode and its transitions.
       description: >-
         A detail lookup is not range-filtered and returns the episode's at-most-two
-        canonical transition records (one for a legacy resolution-only episode).
+        canonical transition records (one for a legacy resolution-only episode). Each
+        detail transition includes durable notification evidence. Delivery is present
+        only when exactly correlated durable evidence exists; no destination, delivery
+        identity, payload, claim, lease, credential, or error detail is returned.
       parameters:
         - name: episodeId
           in: path
@@ -576,7 +580,7 @@ paths:
             application/problem+json:
               schema: {$ref: '#/components/schemas/Problem'}
         '503':
-          description: Durable alert history could not be read.
+          description: Alerts persistence is unavailable or durable notification evidence is malformed or inconsistent.
           content:
             application/problem+json:
               schema: {$ref: '#/components/schemas/Problem'}
@@ -1231,7 +1235,100 @@ components:
         transitions:
           type: array
           maxItems: 2
-          items: {$ref: '#/components/schemas/AlertTransitionHistory'}
+          items: {$ref: '#/components/schemas/AlertEpisodeDetailTransition'}
+    AlertEpisodeDetailTransition:
+      type: object
+      additionalProperties: false
+      required: [id, episodeId, policyId, type, previousState, currentState, occurredAt, evaluation, notification]
+      properties:
+        id:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        episodeId:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        policyId:
+          type: string
+          minLength: 1
+        type:
+          $ref: '#/components/schemas/AlertTransitionType'
+        previousState:
+          $ref: '#/components/schemas/AlertLifecycleState'
+        currentState:
+          $ref: '#/components/schemas/AlertLifecycleState'
+        occurredAt:
+          type: string
+          format: date-time
+        evaluation:
+          $ref: '#/components/schemas/AlertEvaluation'
+        notification:
+          $ref: '#/components/schemas/AlertNotificationEvidence'
+    AlertNotificationEvidence:
+      type: object
+      additionalProperties: false
+      required: [disposition, delivery]
+      properties:
+        disposition:
+          $ref: '#/components/schemas/AlertNotificationDisposition'
+        delivery:
+          oneOf:
+            - $ref: '#/components/schemas/AlertNotificationDeliveryStatus'
+            - type: 'null'
+    AlertNotificationDisposition:
+      type: string
+      description: NOT_RECORDED is read-only evidence absence; it is never a persisted disposition.
+      enum: [MATCHED, SUPPRESSED, UNROUTED, NOT_RECORDED]
+    AlertNotificationDeliveryStatus:
+      oneOf:
+        - $ref: '#/components/schemas/AlertNotificationPendingDelivery'
+        - $ref: '#/components/schemas/AlertNotificationLeasedDelivery'
+        - $ref: '#/components/schemas/AlertNotificationCompletedDelivery'
+    AlertNotificationDeliveryBase:
+      type: object
+      additionalProperties: false
+      required: [state, attempts, createdAt, nextAttemptAt, completedAt]
+      properties:
+        state:
+          type: string
+        attempts:
+          type: integer
+          minimum: 0
+          description: Claims consumed before HTTP execution; this is not a receiver invocation count.
+        createdAt:
+          type: string
+          format: date-time
+        nextAttemptAt:
+          type: [string, 'null']
+          format: date-time
+        completedAt:
+          type: [string, 'null']
+          format: date-time
+    AlertNotificationPendingDelivery:
+      allOf:
+        - $ref: '#/components/schemas/AlertNotificationDeliveryBase'
+        - type: object
+          properties:
+            state: {const: PENDING}
+            nextAttemptAt: {type: string, format: date-time}
+            completedAt: {type: 'null'}
+    AlertNotificationLeasedDelivery:
+      description: Completion is not durably recorded and this delivery may await recovery.
+      allOf:
+        - $ref: '#/components/schemas/AlertNotificationDeliveryBase'
+        - type: object
+          properties:
+            state: {const: LEASED}
+            nextAttemptAt: {type: 'null'}
+            completedAt: {type: 'null'}
+    AlertNotificationCompletedDelivery:
+      description: DELIVERED means Geordi recorded an accepted HTTP 2xx response, not human receipt.
+      allOf:
+        - $ref: '#/components/schemas/AlertNotificationDeliveryBase'
+        - type: object
+          properties:
+            state: {enum: [DELIVERED, FAILED]}
+            nextAttemptAt: {type: 'null'}
+            completedAt: {type: string, format: date-time}
     AlertAcknowledgementRequest:
       type: object
       additionalProperties: false

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getAlertEpisode, listAlertEpisodes } from './alertHistory'
+import type { AlertEpisodeDetailResponse } from './alertHistory'
 import { ApiError } from './client'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -16,7 +17,11 @@ describe('alert history read client', () => {
     expect(options).toMatchObject({ method: 'GET', signal })
   })
   it('encodes detail ID and preserves the detail envelope', async () => {
-    const body = { episode: { openedAt: null, durationSeconds: null }, transitions: [] }
+    const body: AlertEpisodeDetailResponse = { episode: { id: 'episode', policyId: 'policy', openedAt: null, closedAt: null, origin: 'M14', durationSeconds: null }, acknowledgement: null, transitions: [{
+      id: 'transition', episodeId: 'episode', policyId: 'policy', type: 'ALERT_STARTED', previousState: 'INACTIVE', currentState: 'FIRING', occurredAt: '2026-01-01T00:00:00Z',
+      evaluation: { policyId: 'policy', policyName: 'Policy', sloId: 'slo', condition: { type: 'BURN_RATE_ABOVE', threshold: 2 }, status: 'CONDITION_MET', reason: null, evidence: null },
+      notification: { disposition: 'MATCHED', delivery: { state: 'PENDING', attempts: 0, createdAt: '2026-01-01T00:00:00Z', nextAttemptAt: '2026-01-01T00:01:00Z', completedAt: null } },
+    }] }
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify(body)))
     vi.stubGlobal('fetch', fetcher)
     const signal = new AbortController().signal

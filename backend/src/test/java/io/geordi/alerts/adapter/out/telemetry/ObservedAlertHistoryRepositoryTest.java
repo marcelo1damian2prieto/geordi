@@ -11,6 +11,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.geordi.alerts.application.port.out.AlertEpisodeHistoryQuery;
+import io.geordi.alerts.application.AlertHistoryPersistenceException;
+import io.geordi.alerts.application.AlertLifecyclePersistenceException;
 import io.geordi.alerts.application.port.out.AlertHistoryRepository;
 import io.geordi.alerts.application.port.out.AlertLifecycleRepository;
 import io.geordi.alerts.application.port.out.AlertTransitionHistoryQuery;
@@ -23,6 +25,8 @@ import io.geordi.alerts.domain.AlertHistoryMutation;
 import io.geordi.alerts.domain.AlertLifecycle;
 import io.geordi.alerts.domain.AlertLifecycleState;
 import io.geordi.alerts.domain.AlertTransition;
+import io.geordi.alerts.domain.AlertTransitionCommitIntent;
+import io.geordi.alerts.domain.NotificationCommitIntent;
 import io.geordi.alerts.domain.AlertTransitionType;
 import io.geordi.alerts.domain.BurnRateEvidence;
 import io.geordi.alerts.domain.EvaluationWindow;
@@ -47,29 +51,29 @@ class ObservedAlertHistoryRepositoryTest {
         RepositoryFixture fixture = fixture();
         AlertHistoryMutation mutation = AlertHistoryMutation.from(started());
         AlertLifecycle lifecycle = mock(AlertLifecycle.class);
-        when(fixture.lifecycle().commit(eq(lifecycle), eq(Optional.empty()), eq(Optional.empty()), any()))
+        when(fixture.lifecycle().commit(eq(lifecycle), eq(Optional.empty()), any()))
                 .thenReturn(true);
 
         boolean committed = fixture.observed().commit(
-                lifecycle, Optional.empty(), Optional.empty(), Optional.of(mutation));
+                lifecycle, Optional.empty(), Optional.of(intent(mutation)));
 
         assertThat(committed).isTrue();
         assertSingleAttribute(fixture.episodes(), "geordi.alert.history.transition.type", "alert_started");
         assertSingleAttribute(fixture.persistence(), "geordi.alert.history.outcome", "success");
+        assertSingleAttribute(fixture.notificationCommits(), "geordi.alert.notification.outcome", "success");
     }
 
     @Test
     void doesNotGuessThatCombinedCommitFailureCameFromHistoryPersistence() {
         RepositoryFixture fixture = fixture();
         AlertLifecycle lifecycle = mock(AlertLifecycle.class);
-        when(fixture.lifecycle().commit(eq(lifecycle), eq(Optional.empty()), eq(Optional.empty()), any()))
+        when(fixture.lifecycle().commit(eq(lifecycle), eq(Optional.empty()), any()))
                 .thenThrow(new IllegalStateException("history transaction failed"));
 
         assertThatThrownBy(() -> fixture.observed().commit(
                         lifecycle,
                         Optional.empty(),
-                        Optional.empty(),
-                        Optional.of(AlertHistoryMutation.from(started()))))
+                        Optional.of(intent(AlertHistoryMutation.from(started())))))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("history transaction failed");
 
@@ -81,14 +85,59 @@ class ObservedAlertHistoryRepositoryTest {
     void doesNotRecordOrdinaryLifecyclePersistenceAsHistoryPersistence() {
         RepositoryFixture fixture = fixture();
         AlertLifecycle lifecycle = mock(AlertLifecycle.class);
-        when(fixture.lifecycle().commit(lifecycle, Optional.empty(), Optional.empty(), Optional.empty()))
+        when(fixture.lifecycle().commit(lifecycle, Optional.empty(), Optional.empty()))
                 .thenThrow(new IllegalStateException("lifecycle persistence failed"));
 
         assertThatThrownBy(() -> fixture.observed().commit(
-                        lifecycle, Optional.empty(), Optional.empty(), Optional.empty()))
+                        lifecycle, Optional.empty(), Optional.empty()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("lifecycle persistence failed");
 
+        verify(fixture.persistence(), never()).add(eq(1L), any(Attributes.class));
+        verify(fixture.episodes(), never()).add(eq(1L), any(Attributes.class));
+        verify(fixture.notificationCommits(), never()).add(eq(1L), any(Attributes.class));
+    }
+
+    @Test
+    void recordsNotificationPersistenceFailureEvenWhenFailureIsOutsideHistoryInsertion() {
+        RepositoryFixture fixture = fixture();
+        AlertLifecycle lifecycle = mock(AlertLifecycle.class);
+        when(fixture.lifecycle().commit(eq(lifecycle), eq(Optional.empty()), any()))
+                .thenThrow(new AlertLifecyclePersistenceException("sensitive persistence text", new IllegalStateException()));
+
+        assertThatThrownBy(() -> fixture.observed().commit(lifecycle, Optional.empty(),
+                Optional.of(intent(AlertHistoryMutation.from(started())))))
+                .isInstanceOf(AlertLifecyclePersistenceException.class);
+
+        assertSingleAttribute(fixture.notificationCommits(), "geordi.alert.notification.outcome", "persistence_failure");
+        verify(fixture.persistence(), never()).add(eq(1L), any(Attributes.class));
+        verify(fixture.episodes(), never()).add(eq(1L), any(Attributes.class));
+    }
+
+    @Test
+    void recordsBoundedNotificationInvariantFailure() {
+        RepositoryFixture fixture = fixture();
+        AlertLifecycle lifecycle = mock(AlertLifecycle.class);
+        when(fixture.lifecycle().commit(eq(lifecycle), eq(Optional.empty()), any()))
+                .thenThrow(new AlertHistoryPersistenceException(
+                        AlertHistoryPersistenceException.Kind.INVARIANT, "sensitive evidence", null));
+
+        assertThatThrownBy(() -> fixture.observed().commit(lifecycle, Optional.empty(),
+                Optional.of(intent(AlertHistoryMutation.from(started())))))
+                .isInstanceOf(AlertHistoryPersistenceException.class);
+
+        assertSingleAttribute(fixture.notificationCommits(), "geordi.alert.notification.outcome", "invariant_failure");
+        assertSingleAttribute(fixture.persistence(), "geordi.alert.history.outcome", "invariant");
+        verify(fixture.episodes(), never()).add(eq(1L), any(Attributes.class));
+    }
+
+    @Test
+    void doesNotRecordLosingCasAsCommittedNotification() {
+        RepositoryFixture fixture = fixture();
+        boolean committed = fixture.observed().commit(mock(AlertLifecycle.class), Optional.of(1L),
+                Optional.of(intent(AlertHistoryMutation.from(started()))));
+        assertThat(committed).isFalse();
+        verify(fixture.notificationCommits(), never()).add(eq(1L), any(Attributes.class));
         verify(fixture.persistence(), never()).add(eq(1L), any(Attributes.class));
         verify(fixture.episodes(), never()).add(eq(1L), any(Attributes.class));
     }
@@ -140,13 +189,15 @@ class ObservedAlertHistoryRepositoryTest {
         LongCounter episodes = counter(meter, "geordi.alert.history.episodes");
         LongCounter persistence = counter(meter, "geordi.alert.history.persistence");
         LongCounter queries = counter(meter, "geordi.alert.history.queries");
+        LongCounter notificationCommits = counter(meter, "geordi.alert.notification.commits");
         return new RepositoryFixture(
                 lifecycle,
                 history,
                 new ObservedAlertHistoryRepository(lifecycle, history, meter),
                 episodes,
                 persistence,
-                queries);
+                queries,
+                notificationCommits);
     }
 
     private static LongCounter counter(Meter meter, String name) {
@@ -178,6 +229,10 @@ class ObservedAlertHistoryRepositoryTest {
                 evaluation);
     }
 
+    private static AlertTransitionCommitIntent intent(AlertHistoryMutation history) {
+        return new AlertTransitionCommitIntent(history, NotificationCommitIntent.Unrouted.INSTANCE);
+    }
+
     private static final Instant NOW = Instant.parse("2026-09-01T12:00:00Z");
 
     private record RepositoryFixture(
@@ -186,6 +241,7 @@ class ObservedAlertHistoryRepositoryTest {
             ObservedAlertHistoryRepository observed,
             LongCounter episodes,
             LongCounter persistence,
-            LongCounter queries) {
+            LongCounter queries,
+            LongCounter notificationCommits) {
     }
 }

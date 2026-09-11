@@ -242,6 +242,10 @@ the notification-delivery foundation described below.
   immutable caller-asserted acknowledgement with server-owned time; exact replay returns the
   original fact, closed episodes return conflict, and acknowledgement does not change lifecycle,
   routing, scheduling, delivery, or incident state.
+- **Alert notification disposition and delivery status (M17 in implementation):**
+  episode detail reads immutable `MATCHED`, `SUPPRESSED`, `UNROUTED`, or read-only
+  `NOT_RECORDED` notification evidence and, where exactly correlated durable work exists,
+  its bounded current delivery status. It is not a delivery-management API or UI.
 
 ### Milestone 16 — Episode Acknowledgement
 
@@ -253,6 +257,16 @@ does not change lifecycle state, canonical history, routing, scheduling, notific
 delivery, silencing, or incident state.
 
 This is a bounded service-investigation foundation, not full APM.
+
+### Milestone 17 — Alert Notification Disposition and Delivery Status
+
+M17 is locally implemented and validated, with authoritative GitLab revalidation pending.
+It enriches only `/api/alert-episodes/{episodeId}` and the
+episode-detail UI with durable notification disposition and, when exactly correlated,
+delivery status. `NOT_RECORDED` denotes absence of a durable disposition fact, not a
+claim about transition age. The projection is read-only, preserves M16 acknowledgement
+independence, and does not disclose destination, delivery identity, payload, credentials,
+claim/lease data, or error detail.
 
 ## Run locally
 

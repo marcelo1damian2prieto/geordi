@@ -113,7 +113,7 @@ class AlertHistoryV3ToV4MigrationIntegrationTest {
         assertThat(before).isEqualTo(Instant.parse("2026-09-02T12:34:56.123457Z"));
         List<TransitionColumns> beforeColumns = transitionColumns(jdbc);
 
-        migrate(dataSource, null);
+        migrate(dataSource, "6");
 
         assertThat(version(jdbc)).isEqualTo("6");
         assertThat(jdbc.queryForObject(
@@ -170,7 +170,7 @@ class AlertHistoryV3ToV4MigrationIntegrationTest {
         DriverManagerDataSource dataSource = isolatedDataSource("m16_clean_v6");
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
 
-        migrate(dataSource, null);
+        migrate(dataSource, "6");
 
         assertThat(version(jdbc)).isEqualTo("6");
         assertThat(columnCapacity(jdbc, "ACTOR")).isEqualTo(256);
@@ -196,7 +196,7 @@ class AlertHistoryV3ToV4MigrationIntegrationTest {
         jdbc.update("INSERT INTO alert_episode_acknowledgement (episode_id, actor, reason, acknowledged_at) VALUES (?, ?, ?, ?)",
                 EPISODE_ID, actor, reason, Timestamp.from(acknowledgedAt));
 
-        migrate(dataSource, null);
+        migrate(dataSource, "6");
 
         assertThat(version(jdbc)).isEqualTo("6");
         assertThat(jdbc.queryForObject("SELECT version || ':' || aggregate_json FROM alert_lifecycle_state WHERE policy_id = ?", String.class, POLICY_ID))
@@ -263,7 +263,7 @@ class AlertHistoryV3ToV4MigrationIntegrationTest {
     }
 
     private static void assertV4MigrationFails(CorruptFixture fixture) {
-        assertThatThrownBy(() -> migrate(fixture.dataSource(), null)).isInstanceOf(FlywayException.class);
+        assertThatThrownBy(() -> migrate(fixture.dataSource(), "4")).isInstanceOf(FlywayException.class);
         assertThat(fixture.jdbc().queryForObject(
                         "SELECT COUNT(*) FROM \"flyway_schema_history\" WHERE \"version\" = '4' AND \"success\" = TRUE",
                         Integer.class))

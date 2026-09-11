@@ -246,6 +246,22 @@ The authoritative GitLab pipeline for commit
 `526b19b31e2e7e7bc7c1a933211aaf4006efc50f` passed `backend`,
 `deployment_configuration`, `frontend`, and `local_stack_smoke`.
 
+## Milestone 17 — Alert Notification Disposition and Delivery Status
+
+LOCALLY IMPLEMENTED AND VALIDATED — AUTHORITATIVE GITLAB REVALIDATION PENDING
+
+M17 records one immutable notification disposition with each newly committed canonical
+transition: `MATCHED`, `SUPPRESSED`, or `UNROUTED`. Episode detail can read that
+evidence and, only for exactly correlated durable work, a bounded current delivery
+status. `NOT_RECORDED` means absence of a durable disposition fact; it is never a
+persisted value or a reconstruction from current routing.
+
+The capability is an episode-detail read model, not delivery management. It adds no
+delivery retry/redrive, routing mutation, destination exposure, global delivery search,
+new channel, authentication/RBAC, or acknowledgement-aware behavior. Local closure gates
+and independent implementation review are complete; authoritative GitLab revalidation
+remains pending.
+
 ## Later
 
 DEFERRED

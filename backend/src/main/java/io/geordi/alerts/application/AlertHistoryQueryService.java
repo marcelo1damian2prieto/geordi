@@ -15,15 +15,13 @@ public final class AlertHistoryQueryService {
 
     private final AlertHistoryRepository repository;
     private final AlertEpisodeAcknowledgementRepository acknowledgements;
+    private final AlertNotificationProjectionQuery notifications;
 
-    public AlertHistoryQueryService(AlertHistoryRepository repository) {
-        this.repository = Objects.requireNonNull(repository, "alert history repository must not be null");
-        this.acknowledgements = repository instanceof AlertEpisodeAcknowledgementRepository a ? a : null;
-    }
-
-    public AlertHistoryQueryService(AlertHistoryRepository repository, AlertEpisodeAcknowledgementRepository acknowledgements) {
-        this.repository = Objects.requireNonNull(repository, "alert history repository must not be null");
+    public AlertHistoryQueryService(AlertHistoryRepository repository,
+            AlertEpisodeAcknowledgementRepository acknowledgements, AlertNotificationProjectionQuery notifications) {
+        this.repository = Objects.requireNonNull(repository);
         this.acknowledgements = Objects.requireNonNull(acknowledgements);
+        this.notifications = Objects.requireNonNull(notifications);
     }
 
     public List<AlertEpisode> findEpisodes(AlertEpisodeHistoryQuery query) {
@@ -36,7 +34,8 @@ public final class AlertHistoryQueryService {
         List<AlertTransitionRecord> transitions = repository.findTransitions(
                 new AlertTransitionHistoryQuery(null, requiredId, null, null, 2));
         return new AlertEpisodeDetail(episode,
-                acknowledgements == null ? null : acknowledgements.findByEpisodeId(requiredId).orElse(null), transitions);
+                acknowledgements.findByEpisodeId(requiredId).orElse(null),
+                notifications.project(transitions));
     }
 
     public List<AlertTransitionRecord> findTransitions(AlertTransitionHistoryQuery query) {

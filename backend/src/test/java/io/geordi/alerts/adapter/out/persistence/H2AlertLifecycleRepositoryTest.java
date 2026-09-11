@@ -6,6 +6,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.json.JsonMapper;
@@ -26,7 +28,9 @@ import io.geordi.alerts.domain.AlertEvaluationStatus;
 import io.geordi.alerts.domain.AlertLifecycle;
 import io.geordi.alerts.domain.AlertLifecycleTransitions;
 import io.geordi.alerts.domain.AlertHistoryMutation;
+import io.geordi.alerts.domain.AlertTransitionCommitIntent;
 import io.geordi.alerts.domain.NotificationDelivery;
+import io.geordi.alerts.domain.NotificationCommitIntent;
 import io.geordi.alerts.domain.NotificationDestination;
 import io.geordi.alerts.domain.BurnRateEvidence;
 import io.geordi.alerts.domain.EvaluationWindow;
@@ -71,6 +75,7 @@ class H2AlertLifecycleRepositoryTest {
     @BeforeEach
     void createRepository() {
         jdbc.execute("DELETE FROM alert_episode_acknowledgement");
+        jdbc.execute("DELETE FROM alert_notification_disposition");
         jdbc.execute("DELETE FROM alert_transition_history");
         jdbc.execute("DELETE FROM alert_episode");
         jdbc.execute("DELETE FROM alert_notification_outbox");
@@ -130,8 +135,7 @@ class H2AlertLifecycleRepositoryTest {
                     () -> concurrent.acknowledge(setup.episode().id(), "operator", "reason", FIRST.plusSeconds(2)));
             observer.awaitLocked();
             Future<Boolean> resolution = executor.submit(() -> concurrent.commit(
-                    setup.inactive(), Optional.of(0L), Optional.empty(),
-                    Optional.of(AlertHistoryMutation.from(setup.inactive().latestTransition()))));
+                    setup.inactive(), Optional.of(0L), Optional.of(suppressedIntent(setup.inactive()))));
             observer.awaitEntered(H2AlertLifecycleRepository.EpisodeLockObserver.Operation.RESOLVE);
             assertThat(resolution.isDone()).isFalse();
             observer.release();
@@ -152,8 +156,7 @@ class H2AlertLifecycleRepositoryTest {
         H2AlertLifecycleRepository concurrent = transactionalRepository(observer);
         try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
             Future<Boolean> resolution = executor.submit(() -> concurrent.commit(
-                    setup.inactive(), Optional.of(0L), Optional.empty(),
-                    Optional.of(AlertHistoryMutation.from(setup.inactive().latestTransition()))));
+                    setup.inactive(), Optional.of(0L), Optional.of(suppressedIntent(setup.inactive()))));
             observer.awaitLocked();
             Future<AlertEpisodeAcknowledgementRepository.Result> acknowledgement = executor.submit(
                     () -> concurrent.acknowledge(setup.episode().id(), "operator", null, FIRST.plusSeconds(2)));
@@ -304,18 +307,45 @@ class H2AlertLifecycleRepositoryTest {
     }
 
     @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void lifecycleInsertFailureDoesNotWriteTransitionFacts() {
+        JdbcTemplate failingJdbc = spy(jdbc);
+        doThrow(new DataAccessResourceFailureException("injected lifecycle failure"))
+                .when(failingJdbc)
+                .update(anyString(), any(Object[].class));
+        H2AlertLifecycleRepository transactional = new H2AlertLifecycleRepository(
+                failingJdbc, JsonMapper.builder().findAndAddModules().build(),
+                new TransactionTemplate(new JdbcTransactionManager(jdbc.getDataSource())));
+        AlertLifecycle firing = lifecycle(AlertEvaluationStatus.CONDITION_MET, FIRST, Optional.empty());
+
+        assertThatThrownBy(() -> transactional.commit(
+                        firing, Optional.empty(), Optional.of(matchedIntent(firing, delivery(firing, FIRST)))))
+                .isInstanceOf(AlertLifecyclePersistenceException.class);
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_lifecycle_state", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_episode", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_transition_history", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_notification_disposition", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_notification_outbox", Integer.class)).isZero();
+    }
+
+    @Test
     void atomicallyPersistsTheWinningLifecycleAndItsNotificationDelivery() {
         H2AlertLifecycleRepository transactional = transactionalRepository();
         AlertLifecycle firing = lifecycle(AlertEvaluationStatus.CONDITION_MET, FIRST, Optional.empty());
         NotificationDelivery delivery = delivery(firing, FIRST.plusSeconds(1));
 
-        assertThat(transactional.commit(firing, Optional.empty(), Optional.of(delivery))).isTrue();
+        assertThat(transactional.commit(firing, Optional.empty(), Optional.of(matchedIntent(firing, delivery))))
+                .isTrue();
 
         assertThat(transactional.findByPolicyId("checkout-burn").orElseThrow().lifecycle()).isEqualTo(firing);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_notification_outbox", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject(
                         "SELECT delivery_id FROM alert_notification_outbox", String.class))
                 .isEqualTo(delivery.id());
+        assertThat(jdbc.queryForObject(
+                        "SELECT transition_id || ':' || disposition FROM alert_notification_disposition", String.class))
+                .isEqualTo(delivery.id() + ":MATCHED");
     }
 
     @Test
@@ -325,8 +355,7 @@ class H2AlertLifecycleRepositoryTest {
         NotificationDelivery startedDelivery = delivery(firing, FIRST);
 
         assertThat(transactional.commit(
-                firing, Optional.empty(), Optional.of(startedDelivery),
-                Optional.of(AlertHistoryMutation.from(firing.latestTransition())))).isTrue();
+                firing, Optional.empty(), Optional.of(matchedIntent(firing, startedDelivery)))).isTrue();
 
         var opened = transactional.findEpisodes(new AlertEpisodeHistoryQuery("checkout-burn", null, null, null, 10));
         assertThat(opened).singleElement().satisfies(episode -> {
@@ -339,8 +368,7 @@ class H2AlertLifecycleRepositoryTest {
                 AlertEvaluationStatus.CONDITION_NOT_MET, FIRST.plusSeconds(1), Optional.of(firing));
         NotificationDelivery resolvedDelivery = delivery(inactive, FIRST.plusSeconds(1));
         assertThat(transactional.commit(
-                inactive, Optional.of(0L), Optional.of(resolvedDelivery),
-                Optional.of(AlertHistoryMutation.from(inactive.latestTransition())))).isTrue();
+                inactive, Optional.of(0L), Optional.of(matchedIntent(inactive, resolvedDelivery)))).isTrue();
 
         assertThat(transactional.findEpisodes(new AlertEpisodeHistoryQuery("checkout-burn", null, null, null, 10)))
                 .singleElement()
@@ -356,21 +384,28 @@ class H2AlertLifecycleRepositoryTest {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_lifecycle_state", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_episode", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_transition_history", Integer.class)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_notification_disposition", Integer.class)).isEqualTo(2);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_notification_outbox", Integer.class)).isEqualTo(2);
     }
 
     @Test
-    void persistsHistoryWithoutAnOutboxRowWhenDeliveryIsSuppressedOrUnrouted() {
+    void persistsSuppressedAndUnroutedDispositionsWithoutOutboxRows() {
         H2AlertLifecycleRepository transactional = transactionalRepository();
         AlertLifecycle firing = lifecycle(AlertEvaluationStatus.CONDITION_MET, FIRST, Optional.empty());
 
         assertThat(transactional.commit(
-                firing, Optional.empty(), Optional.empty(),
-                Optional.of(AlertHistoryMutation.from(firing.latestTransition())))).isTrue();
+                firing, Optional.empty(), Optional.of(suppressedIntent(firing)))).isTrue();
+        AlertLifecycle inactive = lifecycle(
+                AlertEvaluationStatus.CONDITION_NOT_MET, FIRST.plusSeconds(1), Optional.of(firing));
+        assertThat(transactional.commit(
+                inactive, Optional.of(0L), Optional.of(unroutedIntent(inactive)))).isTrue();
 
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_lifecycle_state", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_episode", Integer.class)).isEqualTo(1);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_transition_history", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_transition_history", Integer.class)).isEqualTo(2);
+        assertThat(jdbc.queryForList(
+                        "SELECT disposition FROM alert_notification_disposition ORDER BY disposition", String.class))
+                .containsExactly("SUPPRESSED", "UNROUTED");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_notification_outbox", Integer.class)).isZero();
     }
 
@@ -384,8 +419,7 @@ class H2AlertLifecycleRepositoryTest {
         NotificationDelivery delivery = delivery(inactive, FIRST.plusSeconds(1));
 
         assertThat(transactional.commit(
-                inactive, Optional.of(0L), Optional.of(delivery),
-                Optional.of(AlertHistoryMutation.from(inactive.latestTransition())))).isTrue();
+                inactive, Optional.of(0L), Optional.of(matchedIntent(inactive, delivery)))).isTrue();
 
         assertThat(transactional.findEpisodes(new AlertEpisodeHistoryQuery("checkout-burn", null, null, null, 10)))
                 .singleElement()
@@ -413,8 +447,7 @@ class H2AlertLifecycleRepositoryTest {
         H2AlertLifecycleRepository transactional = transactionalRepository();
         AlertLifecycle firing = lifecycle(AlertEvaluationStatus.CONDITION_MET, FIRST, Optional.empty());
         assertThat(transactional.commit(
-                firing, Optional.empty(), Optional.empty(),
-                Optional.of(AlertHistoryMutation.from(firing.latestTransition())))).isTrue();
+                firing, Optional.empty(), Optional.of(suppressedIntent(firing)))).isTrue();
 
         assertThatThrownBy(() -> jdbc.update(
                         "UPDATE alert_transition_history SET policy_id = ?",
@@ -427,8 +460,7 @@ class H2AlertLifecycleRepositoryTest {
         H2AlertLifecycleRepository transactional = transactionalRepository();
         AlertLifecycle firing = lifecycle(AlertEvaluationStatus.CONDITION_MET, FIRST, Optional.empty());
         assertThat(transactional.commit(
-                firing, Optional.empty(), Optional.empty(),
-                Optional.of(AlertHistoryMutation.from(firing.latestTransition())))).isTrue();
+                firing, Optional.empty(), Optional.of(suppressedIntent(firing)))).isTrue();
 
         assertTransitionCorruptionRejected(transactional, "transition_type", "ALERT_RESOLVED", "ALERT_STARTED");
         assertTransitionCorruptionRejected(
@@ -448,41 +480,36 @@ class H2AlertLifecycleRepositoryTest {
 
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    void casLossWritesNeitherHistoryNorOutbox() {
+    void casLossWritesNeitherHistoryDispositionNorOutbox() {
         H2AlertLifecycleRepository transactional = transactionalRepository();
         AlertLifecycle firing = lifecycle(AlertEvaluationStatus.CONDITION_MET, FIRST, Optional.empty());
         assertThat(transactional.insertIfAbsent(firing)).isTrue();
 
         assertThat(transactional.commit(
-                firing, Optional.of(99L), Optional.of(delivery(firing, FIRST)),
-                Optional.of(AlertHistoryMutation.from(firing.latestTransition())))).isFalse();
+                firing, Optional.of(99L), Optional.of(matchedIntent(firing, delivery(firing, FIRST))))).isFalse();
 
         assertThat(transactional.findByPolicyId("checkout-burn").orElseThrow().version()).isZero();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_episode", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_transition_history", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_notification_disposition", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_notification_outbox", Integer.class)).isZero();
     }
 
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    void rollsBackLifecycleEpisodeHistoryAndOutboxWhenTheOutboxInsertFails() {
+    void rollsBackLifecycleEpisodeHistoryAndDispositionWhenTheOutboxInsertFails() {
         H2AlertLifecycleRepository transactional = transactionalRepository();
         AlertLifecycle firing = lifecycle(AlertEvaluationStatus.CONDITION_MET, FIRST, Optional.empty());
-        NotificationDelivery firstDelivery = delivery(firing, FIRST.plusSeconds(1));
         assertThat(transactional.commit(
-                firing, Optional.empty(), Optional.of(firstDelivery),
-                Optional.of(AlertHistoryMutation.from(firing.latestTransition())))).isTrue();
+                firing, Optional.empty(), Optional.of(suppressedIntent(firing)))).isTrue();
 
         AlertLifecycle inactive = lifecycle(
                 AlertEvaluationStatus.CONDITION_NOT_MET, FIRST.plusSeconds(2), Optional.of(firing));
-        NotificationDelivery duplicateId = new NotificationDelivery(
-                firstDelivery.id(), inactive.latestTransition(), firstDelivery.destination(),
-                firstDelivery.state(), firstDelivery.attempts(), firstDelivery.createdAt(),
-                firstDelivery.nextAttemptAt(), null, null, null);
+        NotificationDelivery resolvedDelivery = delivery(inactive, FIRST.plusSeconds(2));
+        seedOutbox(resolvedDelivery);
 
         assertThatThrownBy(() -> transactional.commit(
-                        inactive, Optional.of(0L), Optional.of(duplicateId),
-                        Optional.of(AlertHistoryMutation.from(inactive.latestTransition()))))
+                        inactive, Optional.of(0L), Optional.of(matchedIntent(inactive, resolvedDelivery))))
                 .isInstanceOf(AlertLifecyclePersistenceException.class);
         assertThat(transactional.findByPolicyId("checkout-burn").orElseThrow())
                 .satisfies(stored -> {
@@ -491,7 +518,34 @@ class H2AlertLifecycleRepositoryTest {
                 });
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_notification_outbox", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_transition_history", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_notification_disposition", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT disposition FROM alert_notification_disposition", String.class))
+                .isEqualTo("SUPPRESSED");
         assertThat(jdbc.queryForObject("SELECT closed_at FROM alert_episode", Timestamp.class)).isNull();
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void rollsBackLifecycleEpisodeAndHistoryWhenDispositionInsertFails() {
+        JdbcTemplate failingJdbc = spy(jdbc);
+        doThrow(new DataIntegrityViolationException("injected disposition failure"))
+                .when(failingJdbc)
+                .update(eq("INSERT INTO alert_notification_disposition (transition_id, disposition) VALUES (?, ?)"),
+                        any(Object[].class));
+        H2AlertLifecycleRepository transactional = new H2AlertLifecycleRepository(
+                failingJdbc, JsonMapper.builder().findAndAddModules().build(),
+                new TransactionTemplate(new JdbcTransactionManager(jdbc.getDataSource())));
+        AlertLifecycle firing = lifecycle(AlertEvaluationStatus.CONDITION_MET, FIRST, Optional.empty());
+
+        assertThatThrownBy(() -> transactional.commit(
+                        firing, Optional.empty(), Optional.of(matchedIntent(firing, delivery(firing, FIRST)))))
+                .isInstanceOf(AlertLifecyclePersistenceException.class);
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_lifecycle_state", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_episode", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_transition_history", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_notification_disposition", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_notification_outbox", Integer.class)).isZero();
     }
 
     @Test
@@ -509,7 +563,8 @@ class H2AlertLifecycleRepositoryTest {
                 mutation.episode().id().value(), mutation.episode().policyId(), Timestamp.from(FIRST), null, "M14");
 
         assertThatThrownBy(() -> transactional.commit(
-                        firing, Optional.empty(), Optional.of(delivery(firing, FIRST)), Optional.of(mutation)))
+                        firing, Optional.empty(), Optional.of(new AlertTransitionCommitIntent(
+                                mutation, new NotificationCommitIntent.Matched(delivery(firing, FIRST))))))
                 .isInstanceOf(AlertHistoryPersistenceException.class)
                 .hasMessage("alert history persistence operation failed")
                 .satisfies(exception -> assertThat(((AlertHistoryPersistenceException) exception).kind())
@@ -517,6 +572,7 @@ class H2AlertLifecycleRepositoryTest {
 
         assertThat(transactional.findByPolicyId("checkout-burn")).isEmpty();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_transition_history", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_notification_disposition", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_notification_outbox", Integer.class)).isZero();
     }
 
@@ -526,15 +582,14 @@ class H2AlertLifecycleRepositoryTest {
         H2AlertLifecycleRepository transactional = transactionalRepository();
         AlertLifecycle firing = lifecycle(AlertEvaluationStatus.CONDITION_MET, FIRST, Optional.empty());
         assertThat(transactional.commit(
-                firing, Optional.empty(), Optional.of(delivery(firing, FIRST)),
-                Optional.of(AlertHistoryMutation.from(firing.latestTransition())))).isTrue();
+                firing, Optional.empty(), Optional.of(matchedIntent(firing, delivery(firing, FIRST))))).isTrue();
         jdbc.update("UPDATE alert_episode SET closed_at = ?", Timestamp.from(FIRST.plusSeconds(1)));
 
         AlertLifecycle inactive = lifecycle(
                 AlertEvaluationStatus.CONDITION_NOT_MET, FIRST.plusSeconds(2), Optional.of(firing));
         assertThatThrownBy(() -> transactional.commit(
-                        inactive, Optional.of(0L), Optional.of(delivery(inactive, FIRST.plusSeconds(2))),
-                        Optional.of(AlertHistoryMutation.from(inactive.latestTransition()))))
+                        inactive, Optional.of(0L), Optional.of(matchedIntent(
+                                inactive, delivery(inactive, FIRST.plusSeconds(2))))))
                 .isInstanceOf(AlertHistoryPersistenceException.class)
                 .hasMessage("normal alert resolution has no open episode")
                 .satisfies(exception -> assertThat(((AlertHistoryPersistenceException) exception).kind())
@@ -547,6 +602,7 @@ class H2AlertLifecycleRepositoryTest {
                 });
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_episode", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_transition_history", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_notification_disposition", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM alert_notification_outbox", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject(
                         "SELECT COUNT(*) FROM alert_episode WHERE origin = 'PRE_M14_UNKNOWN_START'", Integer.class))
@@ -559,7 +615,8 @@ class H2AlertLifecycleRepositoryTest {
         H2AlertLifecycleRepository transactional = transactionalRepository();
         AlertLifecycle firing = lifecycle(AlertEvaluationStatus.CONDITION_MET, FIRST, Optional.empty());
         NotificationDelivery delivery = delivery(firing, FIRST);
-        assertThat(transactional.commit(firing, Optional.empty(), Optional.of(delivery))).isTrue();
+        assertThat(transactional.commit(firing, Optional.empty(), Optional.of(matchedIntent(firing, delivery))))
+                .isTrue();
 
         NotificationDelivery claimed = transactional.claimDue(FIRST, FIRST.plusSeconds(30), 10, 3).getFirst();
 
@@ -578,7 +635,8 @@ class H2AlertLifecycleRepositoryTest {
         H2AlertLifecycleRepository transactional = transactionalRepository();
         AlertLifecycle firing = lifecycle(AlertEvaluationStatus.CONDITION_MET, FIRST, Optional.empty());
         NotificationDelivery delivery = delivery(firing, FIRST);
-        assertThat(transactional.commit(firing, Optional.empty(), Optional.of(delivery))).isTrue();
+        assertThat(transactional.commit(firing, Optional.empty(), Optional.of(matchedIntent(firing, delivery))))
+                .isTrue();
 
         NotificationDelivery firstClaim = transactional.claimDue(FIRST, FIRST.plusSeconds(5), 1, 3).getFirst();
         NotificationDelivery recoveredClaim = transactional.claimDue(FIRST.plusSeconds(5), FIRST.plusSeconds(10), 1, 3)
@@ -608,7 +666,7 @@ class H2AlertLifecycleRepositoryTest {
         H2AlertLifecycleRepository transactional = transactionalRepository();
         AlertLifecycle firing = lifecycle(AlertEvaluationStatus.CONDITION_MET, FIRST, Optional.empty());
         assertThat(transactional.commit(
-                firing, Optional.empty(), Optional.of(delivery(firing, FIRST)))).isTrue();
+                firing, Optional.empty(), Optional.of(matchedIntent(firing, delivery(firing, FIRST))))).isTrue();
 
         NotificationDelivery first = transactional.claimDue(FIRST, FIRST.plusSeconds(1), 1, 3).getFirst();
         assertThat(transactional.reschedule(
@@ -643,7 +701,7 @@ class H2AlertLifecycleRepositoryTest {
         H2AlertLifecycleRepository transactional = transactionalRepository();
         AlertLifecycle firing = lifecycle(AlertEvaluationStatus.CONDITION_MET, FIRST, Optional.empty());
         assertThat(transactional.commit(
-                firing, Optional.empty(), Optional.empty(), Optional.of(AlertHistoryMutation.from(firing.latestTransition()))))
+                firing, Optional.empty(), Optional.of(suppressedIntent(firing))))
                 .isTrue();
         AlertEpisode episode = transactional.findEpisodes(new AlertEpisodeHistoryQuery("checkout-burn", null, null, null, 10))
                 .getFirst();
@@ -723,6 +781,46 @@ class H2AlertLifecycleRepositoryTest {
     private static NotificationDelivery delivery(AlertLifecycle lifecycle, Instant createdAt) {
         return NotificationDelivery.pending(
                 lifecycle.latestTransition(), new NotificationDestination("operations-webhook", "f1a5b7c9"), createdAt);
+    }
+
+    private static AlertTransitionCommitIntent matchedIntent(
+            AlertLifecycle lifecycle, NotificationDelivery delivery) {
+        return new AlertTransitionCommitIntent(
+                AlertHistoryMutation.from(lifecycle.latestTransition()),
+                new NotificationCommitIntent.Matched(delivery));
+    }
+
+    private static AlertTransitionCommitIntent suppressedIntent(AlertLifecycle lifecycle) {
+        return new AlertTransitionCommitIntent(
+                AlertHistoryMutation.from(lifecycle.latestTransition()), NotificationCommitIntent.Suppressed.INSTANCE);
+    }
+
+    private static AlertTransitionCommitIntent unroutedIntent(AlertLifecycle lifecycle) {
+        return new AlertTransitionCommitIntent(
+                AlertHistoryMutation.from(lifecycle.latestTransition()), NotificationCommitIntent.Unrouted.INSTANCE);
+    }
+
+    private void seedOutbox(NotificationDelivery delivery) {
+        try {
+            jdbc.update(
+                    """
+                    INSERT INTO alert_notification_outbox (
+                        delivery_id, policy_id, transition_type, occurred_at,
+                        destination_id, destination_fingerprint, payload_json,
+                        state, attempts, created_at, next_attempt_at,
+                        claim_token, lease_expires_at, completed_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    delivery.id(), delivery.transition().policyId(), delivery.transition().type().name(),
+                    Timestamp.from(delivery.transition().occurredAt()), delivery.destination().id(),
+                    delivery.destination().configurationFingerprint(),
+                    JsonMapper.builder().findAndAddModules().build().writeValueAsString(delivery.transition()),
+                    delivery.state().name(), delivery.attempts(), Timestamp.from(delivery.createdAt()),
+                    Timestamp.from(delivery.nextAttemptAt()), delivery.claimToken(), delivery.leaseExpiresAt(),
+                    delivery.completedAt());
+        } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+            throw new AssertionError("canonical transition must serialize", exception);
+        }
     }
 
     private static AlertLifecycle lifecycle(

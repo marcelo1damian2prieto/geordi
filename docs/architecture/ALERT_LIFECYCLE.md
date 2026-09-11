@@ -95,6 +95,13 @@ M14 completed on authoritative commit
 `local_stack_smoke` verified backend artifact revision and SHA-256 provenance, then
 passed the M9–M13 regression chain and the M14 history smoke.
 
+M17 adds no lifecycle state or transition type. For a winning canonical transition it
+adds an immutable notification-disposition companion fact in the same transaction as
+the M14 history mutation and matched-only M11 delivery work. M10 remains authoritative
+for current state, M14 for canonical transition identity/history, M13 for routing, and
+M11 for mutable delivery state. The M17 episode-detail projection is read-only; it
+does not reroute, retry, acknowledge, or otherwise mutate lifecycle or delivery work.
+
 Enabled M9 evidence carries exact policy/SLO/service context, window, half-open
 `[from,to)` range, and canonical `evaluatedAt`. Lifecycle start/resolve `occurredAt`
 and `startedAt`/`resolvedAt` use this exact timestamp. The lifecycle layer creates no

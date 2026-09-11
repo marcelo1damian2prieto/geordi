@@ -1,6 +1,6 @@
 # Milestone 017 — Alert Notification Disposition and Delivery Status
 
-Status: M17 PLANNED — READY FOR IMPLEMENTATION
+Status: M17 LOCALLY IMPLEMENTED AND VALIDATED — AUTHORITATIVE GITLAB REVALIDATION PENDING
 
 ## Purpose and operator outcome
 
@@ -20,6 +20,13 @@ Operator story:
 M17 is read-only from the operator perspective. It does not add a delivery command,
 retry control, routing mutation, or a new public endpoint.
 
+## Implementation and verification record
+
+Local implementation, backend/frontend quality gates, migration and smoke evidence,
+final diff inspection, and independent implementation review are complete. ADR-020 and
+the OpenAPI detail contract record the implemented boundary. This plan does not record
+M17 as complete because authoritative GitLab revalidation remains pending.
+
 ## Authoritative baseline and planning boundary
 
 This plan was prepared from a clean `main` worktree at
@@ -27,11 +34,10 @@ This plan was prepared from a clean `main` worktree at
 acknowledgement contracts`). A live fetch of authoritative GitLab `origin/main`
 resolved to the same commit. M1–M16 and post-M16 hardening are complete.
 
-This planning task changes only this file. It does not implement production code,
-migrations, tests, OpenAPI, frontend, CI/CD, or the ADR. Implementation must begin by
-fetching GitLab and repeating the baseline checks; if authoritative `origin/main` has
-advanced, rebase the plan's file inventory and assumptions on that state before writing
-code.
+At planning time this file was the only changed artifact; no production code,
+migrations, tests, OpenAPI, frontend, CI/CD, or ADR had then been created. Implementation
+uses this baseline and must repeat the authoritative baseline checks if `origin/main`
+advances before a release/merge decision.
 
 The implementation must remain a module-internal extension of the modular monolith.
 H2, JDBC, Flyway, Spring transaction types, and stored rows remain in outbound adapters;
@@ -689,11 +695,11 @@ Use direct database setup/inspection only where the existing smoke already estab
 that operational pattern. Do not add manual retry, cancellation, redrive, global delivery
 search, or broad delivery-management smoke behavior.
 
-## ADR proposal
+## ADR implementation record
 
-Implementation should add
+Implementation adds
 `docs/adr/ADR-020-alert-notification-disposition-and-delivery-status.md`, the next
-available number after ADR-019. The decision must define:
+available number after ADR-019. The decision defines:
 
 - immutable companion disposition authority versus M14 transition and M11 mutable
   delivery authorities;
@@ -705,8 +711,8 @@ available number after ADR-019. The decision must define:
 - all-or-nothing integrity failure behavior;
 - public state/timestamp semantics and the disclosure boundary.
 
-Do not create this ADR during planning. It must preserve ADR-019/M14 transition-history
-authority, M11 delivery-state authority, and ADR-018/M13 routing semantics.
+The ADR preserves ADR-019/M14 transition-history authority, M11 delivery-state
+authority, and ADR-018/M13 routing semantics.
 
 ## Explicit non-goals and maintenance boundary
 
@@ -752,6 +758,36 @@ Run from the repository root unless a subdirectory is stated:
     document an explicit accepted-debt justification and rerun affected gates.
 
 Do not make unrelated SCA/SBOM automation an M17 closure gate.
+
+## Local implementation evidence
+
+Local closure completed against baseline
+`56b29ccb6f343218bec01f4d1ed61ded72781fef` without commit or push:
+
+- backend `mvnw.cmd -B -ntp verify`: 363 tests, zero failures/errors/skips; PMD,
+  SpotBugs, and Find Security Bugs passed;
+- frontend `npm ci`, tests, typecheck, lint, and build: 219 tests passed and all
+  gates succeeded;
+- focused migration/rollback coverage: 46 tests passed, including clean V1→V7 and
+  populated V6→V7 preservation, zero disposition backfill, constraints, and atomic
+  rollback injection;
+- extended deployed alert-history smoke passed M17 disposition/delivery durability,
+  privacy, integrity, legacy correlation, restart, and M14/M15/M16 regressions;
+- OpenAPI 3.1 parsing and duplicate-key rejection passed, and the
+  `/api/alert-transitions` path/schema are byte-for-byte unchanged from the baseline;
+- base plus maintained M10/M12/M13/M14 Compose configurations rendered successfully;
+- `git diff --check`, PowerShell parsing, public-field searches, and bounded telemetry
+  label inspection passed;
+- fresh post-remediation independent review: BLOCKER 0, HIGH 0, MEDIUM 0, LOW 0.
+
+The accepted MEDIUM evidence debt is limited to harness structure: the deployed smoke
+creates a clean V7 database and then removes disposition facts to exercise runtime
+legacy behavior; it does not itself stage a populated V6 database. The dedicated
+migration integration suite directly proves populated V6→V7 preservation and zero
+backfill, while the smoke proves the distinct deployed runtime behaviors. This avoids
+embedding a second migration-test framework in the semantic smoke and does not defer a
+production defect. Authoritative GitLab revalidation remains required before M17 may be
+marked complete.
 
 ## Risks, review focus, and owner decisions
 

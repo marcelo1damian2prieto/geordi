@@ -1,6 +1,6 @@
 # Notification Delivery
 
-Status: MILESTONE 11 COMPLETE
+Status: M11 COMPLETE; M17 implementation in progress
 
 ## Scope
 
@@ -11,12 +11,13 @@ query SLO or Metrics evidence, or schedule lifecycle evaluation.
 ## Reliability boundary
 
 The lifecycle persistence adapter atomically commits a winning lifecycle CAS update,
-the M14 episode/immutable transition-history mutation, and an immutable delivery record
-when M13 returns `MATCHED`. `SUPPRESSED` and `UNROUTED` transitions commit lifecycle and
-history without creating delivery work. The worker dispatches a matched delivery record
-only after commit. A crash before the transaction commits persists none of these
-changes; a crash after it commits leaves the work recoverable. HTTP delivery is outside
-the database transaction.
+the M14 episode/immutable transition-history mutation, an M17 immutable disposition
+fact, and an immutable delivery record when M13 returns `MATCHED`. `SUPPRESSED` and
+`UNROUTED` transitions commit lifecycle, history, and their exact disposition without
+creating delivery work. The worker dispatches a matched delivery record only after
+commit. A crash before the transaction commits persists none of these changes; a crash
+after it commits leaves the work recoverable. HTTP delivery is outside the database
+transaction.
 
 Delivery is at-least-once from Geordi's perspective. A response can be lost after a
 receiver processes a request, so a stable delivery ID is supplied for receiver-side
@@ -41,6 +42,24 @@ delivery, reroute an existing delivery, re-drive failed work, modify retry, supp
 dispatch, or alter the persisted destination binding. M11/M13 delivery semantics remain
 unchanged.
 
+## M17 episode-detail evidence
+
+M17 adds a read-only notification projection to episode detail only. It presents the
+immutable disposition `MATCHED`, `SUPPRESSED`, or `UNROUTED`; `NOT_RECORDED` means no
+durable disposition fact is present and is never stored or inferred from current
+routing. Detail may include delivery status only for exactly correlated durable work.
+The transition-list API remains unchanged.
+
+`PENDING` exposes created and next-attempt times; `LEASED` exposes only created time;
+`DELIVERED` and `FAILED` expose created and completed times. `LEASED` means completion
+is not durably recorded and may await recovery. `DELIVERED` means Geordi recorded an
+accepted HTTP 2xx response, not human receipt or exactly-once network delivery.
+
+The projection exposes neither destination nor delivery identity, payload, webhook
+configuration, credentials, claims, leases, or arbitrary failure text. Inconsistent or
+malformed durable notification evidence fails the complete episode detail through the
+sanitized Alerts-unavailable boundary rather than returning partial data.
+
 ## Webhook safety
 
 One deployment-managed webhook destination is supported. Production requires HTTPS;
@@ -56,17 +75,20 @@ disabled are not backfilled.
 ## Observability and health
 
 Delivery reports low-cardinality attempts, results, retries, unexpected failures, and
-duration using only closed outcome/transition labels. It never uses policy, service,
-destination, URL, delivery ID, or error text as labels. A remote recipient outage is a
-delivery outcome, not platform unhealthiness. Unavailability of Geordi's lifecycle and
-outbox store makes Alerts/readiness DOWN.
+duration using only closed outcome/transition labels. M17 additionally records bounded
+notification-commit and projection outcomes, plus integrity-failure reason, without
+duplicating M11 worker metrics. It never uses policy, service, destination, URL,
+delivery ID, or error text as labels. A remote recipient outage is a delivery outcome,
+not platform unhealthiness. Unavailability of Geordi's lifecycle, outbox, or M17
+disposition store makes Alerts/readiness DOWN.
 
 ## Operational limitations
 
 M11 supports one deployment-managed webhook in a local single-node topology. It has no
 multi-node ownership, exactly-once receiver guarantee, dead-letter or operator re-drive
-workflow, retention management, delivery-status API/UI, additional channel, or alert
-evaluation scheduler. Receivers must deduplicate by the stable delivery ID.
+workflow, retention management, global delivery dashboard/search, delivery command,
+additional channel, or alert evaluation scheduler. M17 is a bounded episode-detail
+projection, not delivery management. Receivers must deduplicate by the stable delivery ID.
 
 ## Closure validation
 

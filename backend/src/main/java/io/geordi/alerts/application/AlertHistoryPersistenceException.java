@@ -2,7 +2,7 @@ package io.geordi.alerts.application;
 
 import java.util.Objects;
 
-public final class AlertHistoryPersistenceException extends RuntimeException {
+public class AlertHistoryPersistenceException extends RuntimeException {
 
     public enum Kind {
         PERSISTENCE,

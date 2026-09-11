@@ -419,3 +419,26 @@ Authoritative validation is complete: backend/frontend gates, static/security ch
 OpenAPI validation, Compose validation, semantic smoke, and final independent review
 all passed. The authoritative GitLab pipeline for commit
 `526b19b31e2e7e7bc7c1a933211aaf4006efc50f` is green.
+
+## Milestone 17 scope
+
+Status: LOCALLY IMPLEMENTED AND VALIDATED — AUTHORITATIVE GITLAB REVALIDATION PENDING
+
+M17 adds immutable notification-disposition evidence to an M14 canonical transition:
+`MATCHED`, `SUPPRESSED`, or `UNROUTED`. The episode-detail read model also exposes a
+bounded current delivery status when exactly correlated durable delivery evidence exists.
+`NOT_RECORDED` is read-only absence of a disposition fact; it is not persisted and is
+not inferred from current routing. The transition-list endpoint remains unchanged.
+
+The winning lifecycle CAS, M14 history, M17 disposition, and matched-only M11 outbox
+work share one transaction. Inconsistent or malformed durable notification evidence
+makes episode detail fail as sanitized `503`, rather than returning a partial detail.
+Delivery state is descriptive only: M17 adds no delivery command, retry/redrive,
+routing mutation, global delivery search, new destination, or new notification channel.
+
+The detail API and UI do not expose destination or delivery identity, payload, webhook
+data, credentials, claim/lease fields, or arbitrary error text. M17 does not change
+M9 evaluation, M10 lifecycle authority, M11 delivery processing, M12 scheduling, M13
+routing, M14 history authority, or M16 acknowledgement behavior. Local implementation,
+quality gates, semantic validation, and independent implementation review are complete;
+authoritative GitLab revalidation remains pending.

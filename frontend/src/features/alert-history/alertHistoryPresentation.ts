@@ -1,4 +1,4 @@
-import type { AlertEpisode } from '../../api/alertHistory'
+import type { AlertEpisode, AlertNotificationDelivery, AlertNotificationDisposition } from '../../api/alertHistory'
 import type { AlertEvidence } from '../../api/alertEvaluations'
 import type { AlertTransitionType } from '../../api/alertLifecycles'
 import { contextSearchParams, parseTelemetryContext } from '../../api/telemetryContext'
@@ -15,6 +15,27 @@ export function episodeDuration(episode: AlertEpisode) {
 }
 export function transitionLabel(type: AlertTransitionType) {
   return type === 'ALERT_STARTED' ? 'STARTED' : 'RESOLVED'
+}
+export function notificationDispositionLabel(disposition: AlertNotificationDisposition) {
+  switch (disposition) {
+    case 'MATCHED': return 'Matched'
+    case 'SUPPRESSED': return 'Suppressed'
+    case 'UNROUTED': return 'No matching route'
+    case 'NOT_RECORDED': return 'Not recorded'
+  }
+}
+export function notificationDeliveryLabel(delivery: AlertNotificationDelivery) {
+  switch (delivery.state) {
+    case 'PENDING': return 'Pending'
+    case 'LEASED': return 'Leased — completion not recorded; may await reclaim'
+    case 'DELIVERED': return 'Delivered — Geordi recorded an accepted HTTP response'
+    case 'FAILED': return 'Failed — no detailed cause was recorded'
+  }
+}
+export function notificationTimestamps(delivery: AlertNotificationDelivery) {
+  if (delivery.state === 'PENDING') return { createdAt: delivery.createdAt, nextAttemptAt: delivery.nextAttemptAt, completedAt: null }
+  if (delivery.state === 'LEASED') return { createdAt: delivery.createdAt, nextAttemptAt: null, completedAt: null }
+  return { createdAt: delivery.createdAt, nextAttemptAt: null, completedAt: delivery.completedAt }
 }
 export function investigationTarget(evidence: AlertEvidence | null) {
   if (!evidence?.service || !evidence.range) return null
