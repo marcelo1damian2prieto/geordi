@@ -827,3 +827,42 @@ fresh independent read-only review. If its fixed model is unavailable, use a fre
 separate supported-model reviewer. The final implementation report must state counts for
 `BLOCKER`, `HIGH`, `MEDIUM`, and `LOW`; all BLOCKER/HIGH findings must be fixed, while
 MEDIUM/LOW require explicit resolution or accepted-debt justification.
+
+## Closure
+
+**Status:** COMPLETE
+
+Milestone 17 was authoritatively revalidated on GitLab.
+
+Implementation commit:
+
+`295c66ac63cad71a4fddf279842640f411e84dd7`
+
+Authoritatively validated commit:
+
+`28da26822e1dfcc65e53bf68d9e7ff4c7736c01d`
+
+Verified backend artifact SHA-256:
+
+`3ed140c533b5054ca7f9ee6cb272691161a4b67c0f0faa888fd02f7ad8724513`
+
+Validation:
+
+- Backend: 363 tests passed.
+- PMD, SpotBugs, and Find Security Bugs passed.
+- Frontend pipeline passed.
+- Deployment configuration validation passed.
+- `local_stack_smoke` passed.
+- M17 semantic smoke passed.
+- M16 acknowledgement regression passed.
+- M14 alert-history regression passed.
+- Artifact revision and SHA-256 provenance were verified before runtime image construction.
+- Independent implementation review: BLOCKER 0 / HIGH 0 / MEDIUM 0 / LOW 0.
+
+Accepted evidence debt:
+
+The deployed semantic smoke does not itself stage a populated V6 database.
+Populated V6 -> V7 preservation and zero-backfill remain proven by the dedicated
+migration integration suite.
+
+Milestone 17 is COMPLETE.
