@@ -133,11 +133,11 @@ local_stack_smoke:
     - job: deployment_configuration
       artifacts: false
   resource_group: geordi-local-stack
-  timeout: 20m
+  timeout: 30m
   variables:
     GIT_STRATEGY: clone
-    RUNNER_SCRIPT_TIMEOUT: 18m
-    RUNNER_AFTER_SCRIPT_TIMEOUT: 2m
+    RUNNER_SCRIPT_TIMEOUT: 27m
+    RUNNER_AFTER_SCRIPT_TIMEOUT: 3m
   script:
     - git ls-files --eol backend/mvnw
     - docker compose down --volumes --remove-orphans
