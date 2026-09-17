@@ -71,6 +71,22 @@ persistence design; it makes no production multi-node, distributed-consensus, or
 exactly-once delivery guarantee. Unavailable lifecycle/outbox storage makes Alerts and
 platform readiness `DOWN`; a remote webhook failure remains a delivery outcome.
 
+## M18 multiwindow rollout and rollback
+
+Alert policies remain deployment-managed. Existing `BURN_RATE_ABOVE` policy YAML is
+valid; a multiwindow policy uses `MULTIWINDOW_BURN_RATE` with one or both fixed bands
+(`PT1H`/`PT5M`, `PT6H`/`PT30M`) and one threshold per band. `PT30M` is an alert
+observation window only and cannot be configured as an SLO window.
+
+Before deploying a multiwindow policy, take and validate a backup of the
+`alert-lifecycle-data` volume and retain the matching policy configuration. The first
+multiwindow lifecycle or transition write creates v2 durable JSON. Before that point,
+ordinary rollback to an M17 binary remains possible. After that point, M17 is not a
+supported reader: use an M18-compatible binary or restore pre-upgrade storage and its
+matching configuration. Restoration discards post-backup lifecycle, episode,
+acknowledgement, disposition, and delivery facts. Do not delete or rewrite v2 rows to
+manufacture rollback.
+
 M12 scheduling is disabled in the normal local stack by
 `GEORDI_SCHEDULING_ALERT_ENABLED=false`. The deployment-managed
 `geordi.scheduling.alert` configuration controls enablement, interval, bounded worker

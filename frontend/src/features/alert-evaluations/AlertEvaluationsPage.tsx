@@ -1,16 +1,12 @@
 import { useId, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
 import { ApiError } from '../../api/client'
-import type { AlertEvaluation, AlertPolicy } from '../../api/alertEvaluations'
-import { contextSearchParams, serviceLabel } from '../../api/telemetryContext'
+import { isMultiwindowAlertEvaluation, type AlertEvaluation, type AlertPolicy } from '../../api/alertEvaluations'
 import {
-  alertConditionLabel,
   alertStatusLabel,
   alertUnavailableReason,
-  alertWindowLabel,
-  formatAlertBurnRate,
 } from './alertEvaluationPresentation'
+import { AlertConditionDetails, AlertEvidenceDetails } from './AlertEvidenceDetails'
 import { useAlertEvaluations, useAlertPolicies } from './useAlertEvaluations'
 
 function catalogFailureMessage(error: Error | null) {
@@ -40,7 +36,7 @@ function PolicyFacts({ policy }: { policy: AlertPolicy }) {
     <dl className="alert-evaluation-facts">
       <div><dt>Policy ID</dt><dd><code>{policy.id}</code></dd></div>
       <div><dt>Referenced SLO</dt><dd><code>{policy.sloId}</code></dd></div>
-      <div><dt>Condition</dt><dd>{alertConditionLabel(policy.condition.type)} {formatAlertBurnRate(policy.condition.threshold)}</dd></div>
+      <div><dt>Condition</dt><dd><AlertConditionDetails condition={policy.condition} /></dd></div>
     </dl>
   )
 }
@@ -102,9 +98,6 @@ function AlertPolicyCard({
   const result = evaluation.data
   if (!result) return null
   const evidence = result.evidence
-  const investigateTarget = evidence
-    ? `/investigate?${contextSearchParams(evidence.service, evidence.range).toString()}`
-    : null
 
   return (
     <article className="alert-evaluation-card" aria-labelledby={headingId}>
@@ -118,31 +111,19 @@ function AlertPolicyCard({
       <dl className="alert-evaluation-facts">
         <div><dt>Policy ID</dt><dd><code>{result.policyId}</code></dd></div>
         <div><dt>Referenced SLO</dt><dd><code>{result.sloId}</code></dd></div>
-        <div><dt>Condition</dt><dd>{alertConditionLabel(result.condition.type)} {formatAlertBurnRate(result.condition.threshold)}</dd></div>
-        <div><dt>Observed burn rate</dt><dd>{evidence?.observedBurnRate === null || evidence === null ? 'Unavailable' : formatAlertBurnRate(evidence.observedBurnRate)}</dd></div>
+        <div><dt>Condition</dt><dd><AlertConditionDetails condition={result.condition} /></dd></div>
+        <div><dt>Aggregate result</dt><dd>{alertStatusLabel(result.status)}</dd></div>
       </dl>
       {result.status === 'UNAVAILABLE' && <p className="alert-evaluation-reason">{alertUnavailableReason(result.reason)}</p>}
-      {evidence && (
-        <>
-          <section className="alert-evidence" aria-labelledby={`${headingId}-evidence`}>
-            <h3 id={`${headingId}-evidence`}>Canonical evidence</h3>
-            <dl className="alert-evaluation-facts">
-              <div><dt>Service</dt><dd>{serviceLabel(evidence.service)}</dd></div>
-              <div><dt>Window</dt><dd>{alertWindowLabel(evidence.window)}</dd></div>
-              <div><dt>Evaluated</dt><dd><time dateTime={evidence.evaluatedAt}>{new Date(evidence.evaluatedAt).toLocaleString()}</time></dd></div>
-            </dl>
-          </section>
-          <section className="alert-evidence" aria-labelledby={`${headingId}-window`}>
-            <h3 id={`${headingId}-window`}>Evaluation window</h3>
-            <p className="alert-evaluation-explanation">Exact half-open interval [from, to)</p>
-            <dl className="alert-evaluation-facts alert-evaluation-window-facts">
-              <div><dt>From (inclusive)</dt><dd><time dateTime={evidence.range.from}>{evidence.range.from}</time></dd></div>
-              <div><dt>To (exclusive)</dt><dd><time dateTime={evidence.range.to}>{evidence.range.to}</time></dd></div>
-            </dl>
-          </section>
-        </>
-      )}
-      {investigateTarget && <Link className="view-traces-link" to={investigateTarget}>Investigate service</Link>}
+      {evidence && <AlertEvidenceDetails
+        evidence={evidence}
+        bandResults={isMultiwindowAlertEvaluation(result) ? result.bandResults : undefined}
+        headingId={`${headingId}-evidence`}
+        heading="Canonical evidence"
+        investigationLabel={(windowLabel) => result.condition.type === 'MULTIWINDOW_BURN_RATE'
+          ? `Investigate ${result.policyName} ${windowLabel} observation`
+          : 'Investigate service'}
+      />}
     </article>
   )
 }

@@ -7,8 +7,6 @@ import io.geordi.alerts.application.port.out.AlertLifecycleRepository;
 import io.geordi.alerts.application.port.out.AlertPolicyCatalog;
 import io.geordi.alerts.application.port.out.SloLifecycleBindingPort;
 import io.geordi.alerts.application.port.out.VersionedAlertLifecycle;
-import io.geordi.alerts.domain.AlertCondition;
-import io.geordi.alerts.domain.AlertConditionType;
 import io.geordi.alerts.domain.AlertEvaluation;
 import io.geordi.alerts.domain.AlertEvaluationStatus;
 import io.geordi.alerts.domain.AlertLifecycle;
@@ -20,6 +18,7 @@ import io.geordi.alerts.domain.NotificationDestination;
 import io.geordi.alerts.domain.AlertPolicy;
 import io.geordi.alerts.domain.AlertTransitionType;
 import io.geordi.alerts.domain.BurnRateEvidence;
+import io.geordi.alerts.domain.BurnRateAboveCondition;
 import io.geordi.alerts.domain.EvaluationWindow;
 import io.geordi.alerts.domain.ServiceIdentity;
 import io.geordi.alerts.domain.TimeRange;
@@ -42,7 +41,7 @@ class AlertLifecycleServiceTest {
     private static final Instant FIRST = Instant.parse("2026-08-27T14:00:00Z");
     private static final AlertPolicy POLICY = new AlertPolicy(
             "checkout-burn", "Checkout burn", null, true, "checkout-availability",
-            new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, new BigDecimal("2")));
+            new BurnRateAboveCondition(new BigDecimal("2")));
 
     @Test
     void callsCanonicalEvaluationExactlyOnceAcrossCasRetries() {

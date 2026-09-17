@@ -10,8 +10,7 @@ public record AlertLifecycleSnapshot(AlertPolicy policy, AlertLifecycle lifecycl
     public AlertLifecycleSnapshot {
         Objects.requireNonNull(policy, "snapshot policy must not be null");
         if (lifecycle != null) {
-            boolean sameCondition = policy.condition().type() == lifecycle.condition().type()
-                    && policy.condition().threshold().compareTo(lifecycle.condition().threshold()) == 0;
+            boolean sameCondition = policy.condition().equals(lifecycle.condition());
             if (!policy.id().equals(lifecycle.policyId())
                     || !policy.sloId().equals(lifecycle.sloId())
                     || !sameCondition) {

@@ -1,8 +1,8 @@
 import type { AlertEpisode, AlertNotificationDelivery, AlertNotificationDisposition } from '../../api/alertHistory'
-import type { AlertEvidence } from '../../api/alertEvaluations'
+import type { LegacyAlertEvidence } from '../../api/alertEvaluations'
 import type { AlertTransitionType } from '../../api/alertLifecycles'
-import { contextSearchParams, parseTelemetryContext } from '../../api/telemetryContext'
 import { ApiError } from '../../api/client'
+import { exactInvestigationTarget } from '../alert-evaluations/alertEvaluationPresentation'
 
 export function episodeStatus(episode: AlertEpisode) {
   if (episode.origin === 'PRE_M14_UNKNOWN_START') return 'CLOSED — legacy, start unknown'
@@ -37,15 +37,8 @@ export function notificationTimestamps(delivery: AlertNotificationDelivery) {
   if (delivery.state === 'LEASED') return { createdAt: delivery.createdAt, nextAttemptAt: null, completedAt: null }
   return { createdAt: delivery.createdAt, nextAttemptAt: null, completedAt: delivery.completedAt }
 }
-export function investigationTarget(evidence: AlertEvidence | null) {
-  if (!evidence?.service || !evidence.range) return null
-  const params = contextSearchParams(evidence.service, evidence.range)
-  const parsed = parseTelemetryContext(params)
-  if (parsed.status !== 'valid') return null
-  const { service, range } = parsed.context
-  if (service.name !== evidence.service.name || service.namespace !== evidence.service.namespace
-    || service.environment !== evidence.service.environment || range.from !== evidence.range.from || range.to !== evidence.range.to) return null
-  return `/investigate?${params.toString()}`
+export function investigationTarget(evidence: LegacyAlertEvidence | null) {
+  return evidence === null ? null : exactInvestigationTarget(evidence.service, evidence.range)
 }
 export function historyFailure(error: Error | null, detail = false) {
   if (error instanceof ApiError && error.status === 400) return 'Invalid alert history request'

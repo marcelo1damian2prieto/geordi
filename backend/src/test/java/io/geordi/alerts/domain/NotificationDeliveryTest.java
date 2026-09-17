@@ -74,7 +74,7 @@ class NotificationDeliveryTest {
                 new BigDecimal("3"), null);
         AlertEvaluation evaluation = new AlertEvaluation(
                 "checkout-burn", "Checkout burn", "checkout-availability",
-                new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, new BigDecimal("2")),
+                new BurnRateAboveCondition(new BigDecimal("2")),
                 AlertEvaluationStatus.CONDITION_MET, null, evidence);
         return new AlertTransition(
                 "checkout-burn", AlertTransitionType.ALERT_STARTED, AlertLifecycleState.INACTIVE,

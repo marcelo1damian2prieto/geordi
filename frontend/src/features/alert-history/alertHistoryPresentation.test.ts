@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { AlertEpisode, AlertNotificationDelivery } from '../../api/alertHistory'
-import type { AlertEvidence } from '../../api/alertEvaluations'
+import type { LegacyAlertEvidence } from '../../api/alertEvaluations'
 import { episodeStatus, episodeDuration, transitionLabel, investigationTarget, notificationDeliveryLabel, notificationDispositionLabel, notificationTimestamps } from './alertHistoryPresentation'
 
 const open: AlertEpisode = { id: 'a'.repeat(64), policyId: 'p', openedAt: '2026-01-01T00:00:00.123456789Z', closedAt: null, origin: 'M14', durationSeconds: null }
-const evidence: AlertEvidence = { service: { name: 'a /&', namespace: null, environment: 'prod' }, window: 'PT5M', range: { from: open.openedAt!, to: '2026-01-01T00:05:00.123456789Z' }, evaluatedAt: open.openedAt!, observedBurnRate: 0 }
+const evidence: LegacyAlertEvidence = { service: { name: 'a /&', namespace: null, environment: 'prod' }, window: 'PT5M', range: { from: open.openedAt!, to: '2026-01-01T00:05:00.123456789Z' }, evaluatedAt: open.openedAt!, observedBurnRate: 0 }
 describe('historical presentation', () => {
   it('presents ongoing, completed including zero, and legacy without fabricated duration', () => {
     expect(episodeStatus(open)).toBe('OPEN — ongoing')

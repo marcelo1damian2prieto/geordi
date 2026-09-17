@@ -13,23 +13,28 @@ import io.geordi.alerts.application.port.out.AlertLifecycleRepository;
 import io.geordi.alerts.application.port.out.AlertPolicyCatalog;
 import io.geordi.alerts.application.port.out.SloLifecycleBindingPort;
 import io.geordi.alerts.application.port.out.VersionedAlertLifecycle;
-import io.geordi.alerts.domain.AlertCondition;
-import io.geordi.alerts.domain.AlertConditionType;
 import io.geordi.alerts.domain.AlertEvaluation;
 import io.geordi.alerts.domain.AlertEvaluationStatus;
+import io.geordi.alerts.domain.AlertObservationWindow;
 import io.geordi.alerts.domain.AlertLifecycle;
 import io.geordi.alerts.domain.AlertLifecycleBindingMismatchException;
 import io.geordi.alerts.domain.AlertLifecycleProcessingOutcome;
 import io.geordi.alerts.domain.AlertLifecycleTransitions;
 import io.geordi.alerts.domain.AlertPolicy;
 import io.geordi.alerts.domain.BurnRateEvidence;
+import io.geordi.alerts.domain.BurnRateAboveCondition;
+import io.geordi.alerts.domain.BurnRateBand;
 import io.geordi.alerts.domain.EvaluationWindow;
+import io.geordi.alerts.domain.MultiwindowBurnRateCondition;
+import io.geordi.alerts.domain.MultiwindowBurnRateEvidence;
 import io.geordi.alerts.domain.ServiceIdentity;
 import io.geordi.alerts.domain.TimeRange;
+import io.geordi.alerts.domain.WindowBurnRateObservation;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -39,7 +44,7 @@ class AlertLifecycleControllerTest {
     private static final Instant NOW = Instant.parse("2026-08-27T17:00:00Z");
     private static final AlertPolicy POLICY = new AlertPolicy(
             "checkout-burn", "Checkout burn", "Current burn", true, "checkout-availability",
-            new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, new BigDecimal("2")));
+            new BurnRateAboveCondition(new BigDecimal("2")));
 
     @Test
     void listsConfiguredPoliciesAsExplicitlyUninitializedAndInactive() throws Exception {
@@ -71,6 +76,30 @@ class AlertLifecycleControllerTest {
     }
 
     @Test
+    void retainsCompleteMultiwindowActiveEvidenceAcrossLifecycleMappings() throws Exception {
+        AlertPolicy policy = multiwindowPolicy();
+        AlertEvaluation evaluation = multiwindowEvaluation(policy);
+        var decision = AlertLifecycleTransitions.apply(Optional.empty(), evaluation, null);
+        AlertLifecycleEvaluationResult result = new AlertLifecycleEvaluationResult(
+                policy, evaluation, AlertLifecycleProcessingOutcome.APPLIED,
+                decision.current(), decision.transition());
+        AlertLifecycleController controller = new AlertLifecycleController(
+                new AlertLifecycleQueryService(catalog(policy), repository(), bindings(policy)), ignored -> result);
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(controller)
+                .setControllerAdvice(new AlertPolicyExceptionHandler()).build();
+
+        mvc.perform(post("/api/alert-policies/multiwindow-burn/lifecycle-evaluations"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.triggeringEvaluation.condition.type").value("MULTIWINDOW_BURN_RATE"))
+                .andExpect(jsonPath("$.triggeringEvaluation.bandResults[0].outcome").value("MET"))
+                .andExpect(jsonPath("$.current.activeEvidence.configuredSloWindow").value("PT5M"))
+                .andExpect(jsonPath("$.current.activeEvidence.observations.length()").value(2))
+                .andExpect(jsonPath("$.current.activeEvidence.observations[0].observationWindow").value("PT5M"))
+                .andExpect(jsonPath("$.current.activeEvidence.observations[1].observationWindow").value("PT1H"))
+                .andExpect(jsonPath("$.transition.evaluation.bandResults[0].outcome").value("MET"));
+    }
+
+    @Test
     void mapsImmutableBindingConflictWithoutLeakingStorageDetails() throws Exception {
         mvc(id -> {
             throw new AlertLifecycleBindingMismatchException();
@@ -86,7 +115,7 @@ class AlertLifecycleControllerTest {
         AlertLifecycle persisted = result().current();
         AlertPolicy changed = new AlertPolicy(
                 POLICY.id(), POLICY.name(), POLICY.description(), POLICY.enabled(), POLICY.sloId(),
-                new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, new BigDecimal("4")));
+                new BurnRateAboveCondition(new BigDecimal("4")));
         AlertPolicyCatalog changedCatalog = new AlertPolicyCatalog() {
             @Override
             public List<AlertPolicy> findAll() {
@@ -152,23 +181,56 @@ class AlertLifecycleControllerTest {
     }
 
     private static AlertPolicyCatalog catalog() {
+        return catalog(POLICY);
+    }
+
+    private static AlertPolicyCatalog catalog(AlertPolicy policy) {
         return new AlertPolicyCatalog() {
             @Override
             public List<AlertPolicy> findAll() {
-                return List.of(POLICY);
+                return List.of(policy);
             }
 
             @Override
             public Optional<AlertPolicy> findById(String id) {
-                return POLICY.id().equals(id) ? Optional.of(POLICY) : Optional.empty();
+                return policy.id().equals(id) ? Optional.of(policy) : Optional.empty();
             }
         };
     }
 
     private static SloLifecycleBindingPort bindings() {
+        return bindings(POLICY);
+    }
+
+    private static SloLifecycleBindingPort bindings(AlertPolicy policy) {
         return ignored -> Optional.of(new SloLifecycleBindingPort.Binding(
-                POLICY.sloId(), new ServiceIdentity("checkout", "commerce", "production"),
+                policy.sloId(), new ServiceIdentity("checkout", "commerce", "production"),
                 EvaluationWindow.PT5M));
+    }
+
+    private static AlertPolicy multiwindowPolicy() {
+        return new AlertPolicy(
+                "multiwindow-burn", "Multiwindow burn", null, true, "checkout-availability",
+                new MultiwindowBurnRateCondition(List.of(new BurnRateBand(
+                        AlertObservationWindow.PT1H, AlertObservationWindow.PT5M, new BigDecimal("2")))));
+    }
+
+    private static AlertEvaluation multiwindowEvaluation(AlertPolicy policy) {
+        MultiwindowBurnRateCondition condition = (MultiwindowBurnRateCondition) policy.condition();
+        MultiwindowBurnRateEvidence evidence = MultiwindowBurnRateEvidence.of(
+                policy.sloId(), new ServiceIdentity("checkout", "commerce", "production"),
+                EvaluationWindow.PT5M, NOW, Set.copyOf(condition.observationWindows()), List.of(
+                        new WindowBurnRateObservation(
+                                AlertObservationWindow.PT1H,
+                                new TimeRange(NOW.minus(AlertObservationWindow.PT1H.duration()), NOW),
+                                new BigDecimal("3"), null),
+                        new WindowBurnRateObservation(
+                                AlertObservationWindow.PT5M,
+                                new TimeRange(NOW.minus(AlertObservationWindow.PT5M.duration()), NOW),
+                                new BigDecimal("2"), null)));
+        return new AlertEvaluation(
+                policy.id(), policy.name(), policy.sloId(), condition,
+                AlertEvaluationStatus.CONDITION_MET, null, evidence);
     }
 
     private static AlertLifecycleRepository repository() {

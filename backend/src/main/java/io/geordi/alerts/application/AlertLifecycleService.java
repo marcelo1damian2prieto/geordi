@@ -78,8 +78,7 @@ public final class AlertLifecycleService implements AlertLifecycleEvaluationUseC
     }
 
     private static void validateEvaluationBinding(AlertPolicy policy, AlertEvaluation evaluation) {
-        boolean sameCondition = policy.condition().type() == evaluation.condition().type()
-                && policy.condition().threshold().compareTo(evaluation.condition().threshold()) == 0;
+        boolean sameCondition = policy.condition().equals(evaluation.condition());
         if (!policy.id().equals(evaluation.policyId())
                 || !policy.sloId().equals(evaluation.sloId())
                 || !sameCondition) {

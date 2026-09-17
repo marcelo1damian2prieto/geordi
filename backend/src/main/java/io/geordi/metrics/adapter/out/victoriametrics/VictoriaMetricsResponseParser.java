@@ -3,6 +3,7 @@ package io.geordi.metrics.adapter.out.victoriametrics;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.geordi.metrics.application.MetricsBackendException;
 import io.geordi.metrics.application.RequestOutcomeMeasurement;
+import io.geordi.metrics.application.RequestOutcomeBatchMeasurement;
 import io.geordi.metrics.application.RequestOutcomeQueryException;
 import io.geordi.metrics.domain.MetricPoint;
 import io.geordi.metrics.domain.MetricSeries;
@@ -11,10 +12,14 @@ import io.geordi.metrics.domain.ServiceIdentity;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
 
 final class VictoriaMetricsResponseParser {
 
     private static final String SLO_COMPONENT = "geordi.slo.component";
+    private static final String SLO_WINDOW = "geordi.slo.window";
 
     List<ServiceIdentity> services(JsonNode root) {
         ensureSuccess(root);
@@ -71,6 +76,49 @@ final class VictoriaMetricsResponseParser {
         return new RequestOutcomeMeasurement(requests, errors);
     }
 
+    RequestOutcomeBatchMeasurement requestOutcomeBatch(JsonNode root, List<String> requestedKeys) {
+        ensureSuccessForOutcomes(root);
+        Set<String> requested = Set.copyOf(requestedKeys);
+        if (requested.size() != requestedKeys.size()) {
+            throw integrityFailure();
+        }
+        Map<String, MutableOutcome> values = new LinkedHashMap<>();
+        requestedKeys.forEach(key -> values.put(key, new MutableOutcome()));
+        for (JsonNode result : root.path("data").path("result")) {
+            String key = result.path("metric").path(SLO_WINDOW).asText(null);
+            String component = result.path("metric").path(SLO_COMPONENT).asText(null);
+            if (key == null || !requested.contains(key)
+                    || !("requests".equals(component) || "errors".equals(component))) {
+                throw integrityFailure();
+            }
+            MutableOutcome outcome = values.get(key);
+            double value = result.path("value").path(1).asDouble(Double.NaN);
+            if ("requests".equals(component)) {
+                if (outcome.requestsSeen) {
+                    throw integrityFailure();
+                }
+                outcome.requestsSeen = true;
+                outcome.requests = value;
+            } else {
+                if (outcome.errorsSeen) {
+                    throw integrityFailure();
+                }
+                outcome.errorsSeen = true;
+                outcome.errors = value;
+            }
+        }
+        Map<String, RequestOutcomeMeasurement> measurements = new LinkedHashMap<>();
+        values.forEach((key, outcome) -> {
+            Double requests = outcome.requestsSeen ? outcome.requests : null;
+            Double errors = outcome.errorsSeen ? outcome.errors : null;
+            if (requests != null && errors == null) {
+                errors = 0d;
+            }
+            measurements.put(key, new RequestOutcomeMeasurement(requests, errors));
+        });
+        return new RequestOutcomeBatchMeasurement(measurements);
+    }
+
     boolean scalarIsOne(JsonNode root) {
         ensureSuccess(root);
         JsonNode result = root.path("data").path("result");
@@ -95,6 +143,19 @@ final class VictoriaMetricsResponseParser {
         return new RequestOutcomeQueryException(
                 RequestOutcomeQueryException.Reason.INVALID_TELEMETRY,
                 "Metrics backend returned invalid request outcome telemetry");
+    }
+
+    private static RequestOutcomeQueryException integrityFailure() {
+        return new RequestOutcomeQueryException(
+                RequestOutcomeQueryException.Reason.INTEGRITY,
+                "Metrics backend returned an invalid bounded response");
+    }
+
+    private static final class MutableOutcome {
+        private boolean requestsSeen;
+        private boolean errorsSeen;
+        private double requests;
+        private double errors;
     }
 
     private static String text(JsonNode node, String field) {

@@ -3,12 +3,20 @@ package io.geordi.alerts.adapter.in.web;
 import io.geordi.alerts.application.AlertEvaluationUseCase;
 import io.geordi.alerts.application.AlertPolicyQueryService;
 import io.geordi.alerts.domain.AlertCondition;
+import io.geordi.alerts.domain.AlertEvidence;
 import io.geordi.alerts.domain.AlertEvaluation;
 import io.geordi.alerts.domain.AlertEvaluationStatus;
+import io.geordi.alerts.domain.BurnRateAboveCondition;
+import io.geordi.alerts.domain.BurnRateBand;
+import io.geordi.alerts.domain.BurnRateBandOutcome;
+import io.geordi.alerts.domain.BurnRateBandResult;
 import io.geordi.alerts.domain.AlertPolicy;
 import io.geordi.alerts.domain.AlertUnavailableReason;
 import io.geordi.alerts.domain.BurnRateEvidence;
+import io.geordi.alerts.domain.MultiwindowBurnRateCondition;
+import io.geordi.alerts.domain.MultiwindowBurnRateEvidence;
 import io.geordi.alerts.domain.ServiceIdentity;
+import io.geordi.alerts.domain.WindowBurnRateObservation;
 import java.math.BigDecimal;
 import java.util.List;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
@@ -60,45 +68,145 @@ public class AlertPolicyController {
         }
     }
 
-    public record AlertConditionResponse(String type, BigDecimal threshold) {
+    public sealed interface AlertConditionResponse
+            permits LegacyAlertConditionResponse, MultiwindowAlertConditionResponse {
 
         static AlertConditionResponse from(AlertCondition condition) {
-            return new AlertConditionResponse(condition.type().name(), condition.threshold());
+            return switch (condition) {
+                case BurnRateAboveCondition legacy ->
+                    new LegacyAlertConditionResponse(legacy.type().name(), legacy.threshold());
+                case MultiwindowBurnRateCondition multiwindow -> new MultiwindowAlertConditionResponse(
+                    multiwindow.type().name(), multiwindow.bands().stream().map(BurnRateBandResponse::from).toList());
+            };
         }
     }
 
-    public record AlertEvaluationResponse(
-            String policyId,
-            String policyName,
-            String sloId,
-            AlertConditionResponse condition,
-            AlertEvaluationStatus status,
-            AlertUnavailableReason reason,
-            AlertEvidenceResponse evidence) {
+    public record LegacyAlertConditionResponse(String type, BigDecimal threshold)
+            implements AlertConditionResponse {
+    }
+
+    public record MultiwindowAlertConditionResponse(String type, List<BurnRateBandResponse> bands)
+            implements AlertConditionResponse {
+    }
+
+    public record BurnRateBandResponse(String longWindow, String shortWindow, BigDecimal threshold) {
+
+        static BurnRateBandResponse from(BurnRateBand band) {
+            return new BurnRateBandResponse(
+                    band.longWindow().value(), band.shortWindow().value(), band.threshold());
+        }
+    }
+
+    public sealed interface AlertEvaluationResponse
+            permits LegacyAlertEvaluationResponse, MultiwindowAlertEvaluationResponse {
 
         static AlertEvaluationResponse from(AlertEvaluation evaluation) {
-            return new AlertEvaluationResponse(
+            if (evaluation.condition() instanceof MultiwindowBurnRateCondition) {
+                return new MultiwindowAlertEvaluationResponse(
+                        evaluation.policyId(), evaluation.policyName(), evaluation.sloId(),
+                        AlertConditionResponse.from(evaluation.condition()), evaluation.status(), evaluation.reason(),
+                        evaluation.evidence() == null ? null : AlertEvidenceResponse.from(evaluation.evidence()),
+                        evaluation.bandResults().stream().map(BurnRateBandResultResponse::from).toList());
+            }
+            return new LegacyAlertEvaluationResponse(
                     evaluation.policyId(), evaluation.policyName(), evaluation.sloId(),
                     AlertConditionResponse.from(evaluation.condition()), evaluation.status(), evaluation.reason(),
                     evaluation.evidence() == null ? null : AlertEvidenceResponse.from(evaluation.evidence()));
         }
     }
 
-    public record AlertEvidenceResponse(
+    public record LegacyAlertEvaluationResponse(
+            String policyId,
+            String policyName,
+            String sloId,
+            AlertConditionResponse condition,
+            AlertEvaluationStatus status,
+            AlertUnavailableReason reason,
+            AlertEvidenceResponse evidence) implements AlertEvaluationResponse {
+    }
+
+    public record MultiwindowAlertEvaluationResponse(
+            String policyId,
+            String policyName,
+            String sloId,
+            AlertConditionResponse condition,
+            AlertEvaluationStatus status,
+            AlertUnavailableReason reason,
+            AlertEvidenceResponse evidence,
+            List<BurnRateBandResultResponse> bandResults) implements AlertEvaluationResponse {
+    }
+
+    public sealed interface AlertEvidenceResponse
+            permits LegacyAlertEvidenceResponse, MultiwindowAlertEvidenceResponse {
+
+        static AlertEvidenceResponse from(AlertEvidence evidence) {
+            return switch (evidence) {
+                case BurnRateEvidence legacy -> LegacyAlertEvidenceResponse.from(legacy);
+                case MultiwindowBurnRateEvidence multiwindow -> MultiwindowAlertEvidenceResponse.from(multiwindow);
+            };
+        }
+    }
+
+    public record LegacyAlertEvidenceResponse(
             ServiceIdentity service,
             String window,
             RangeResponse range,
             String evaluatedAt,
-            BigDecimal observedBurnRate) {
+            BigDecimal observedBurnRate) implements AlertEvidenceResponse {
 
-        static AlertEvidenceResponse from(BurnRateEvidence evidence) {
-            return new AlertEvidenceResponse(
+        static LegacyAlertEvidenceResponse from(BurnRateEvidence evidence) {
+            return new LegacyAlertEvidenceResponse(
                     evidence.service(), evidence.window().value(),
-                    new RangeResponse(evidence.range().from().toString(), evidence.range().to().toString()),
+                    RangeResponse.from(evidence.range()),
                     evidence.evaluatedAt().toString(), evidence.observedBurnRate());
         }
     }
 
+    public record MultiwindowAlertEvidenceResponse(
+            ServiceIdentity service,
+            String configuredSloWindow,
+            String evaluatedAt,
+            List<WindowBurnRateObservationResponse> observations) implements AlertEvidenceResponse {
+
+        static MultiwindowAlertEvidenceResponse from(MultiwindowBurnRateEvidence evidence) {
+            return new MultiwindowAlertEvidenceResponse(
+                    evidence.service(), evidence.configuredSloWindow().value(), evidence.evaluatedAt().toString(),
+                    evidence.observations().stream().map(WindowBurnRateObservationResponse::from).toList());
+        }
+    }
+
+    public record WindowBurnRateObservationResponse(
+            String observationWindow,
+            RangeResponse range,
+            BigDecimal observedBurnRate,
+            AlertUnavailableReason reason) {
+
+        static WindowBurnRateObservationResponse from(WindowBurnRateObservation observation) {
+            return new WindowBurnRateObservationResponse(
+                    observation.observationWindow().value(), RangeResponse.from(observation.range()),
+                    observation.observedBurnRate(), observation.reason());
+        }
+    }
+
+    public record BurnRateBandResultResponse(
+            BurnRateBandResponse band,
+            WindowBurnRateObservationResponse longObservation,
+            WindowBurnRateObservationResponse shortObservation,
+            BurnRateBandOutcome outcome) {
+
+        static BurnRateBandResultResponse from(BurnRateBandResult result) {
+            return new BurnRateBandResultResponse(
+                    BurnRateBandResponse.from(result.band()),
+                    WindowBurnRateObservationResponse.from(result.longObservation()),
+                    WindowBurnRateObservationResponse.from(result.shortObservation()),
+                    result.outcome());
+        }
+    }
+
     public record RangeResponse(String from, String to) {
+
+        static RangeResponse from(io.geordi.alerts.domain.TimeRange range) {
+            return new RangeResponse(range.from().toString(), range.to().toString());
+        }
     }
 }

@@ -21,6 +21,7 @@ public final class RequestOutcomeQueryException extends RuntimeException {
     }
 
     public enum Reason {
+        INTEGRITY,
         INVALID_TELEMETRY,
         UNAVAILABLE
     }

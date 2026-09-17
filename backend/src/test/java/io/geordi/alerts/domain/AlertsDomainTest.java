@@ -11,8 +11,8 @@ class AlertsDomainTest {
 
     @Test
     void acceptsZeroAndFinitePublicNumberSafeThresholds() {
-        AlertCondition zero = new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, BigDecimal.ZERO);
-        AlertCondition positive = new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, new BigDecimal("2.5"));
+        BurnRateAboveCondition zero = new BurnRateAboveCondition(BigDecimal.ZERO);
+        BurnRateAboveCondition positive = new BurnRateAboveCondition(new BigDecimal("2.5"));
 
         assertThat(zero.threshold()).isEqualByComparingTo("0");
         assertThat(positive.threshold()).isEqualByComparingTo("2.5");
@@ -86,7 +86,7 @@ class AlertsDomainTest {
                 reason);
     }
 
-    private static AlertCondition condition(String threshold) {
-        return new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, new BigDecimal(threshold));
+    private static BurnRateAboveCondition condition(String threshold) {
+        return new BurnRateAboveCondition(new BigDecimal(threshold));
     }
 }

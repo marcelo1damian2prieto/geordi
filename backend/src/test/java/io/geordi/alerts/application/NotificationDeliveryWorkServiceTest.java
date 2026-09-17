@@ -3,8 +3,6 @@ package io.geordi.alerts.application;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.geordi.alerts.application.port.out.NotificationDeliveryWorkRepository;
-import io.geordi.alerts.domain.AlertCondition;
-import io.geordi.alerts.domain.AlertConditionType;
 import io.geordi.alerts.domain.AlertEvaluation;
 import io.geordi.alerts.domain.AlertEvaluationStatus;
 import io.geordi.alerts.domain.AlertLifecycleState;
@@ -82,7 +80,7 @@ class NotificationDeliveryWorkServiceTest {
                 EvaluationWindow.PT5M, new TimeRange(NOW.minusSeconds(300), NOW), NOW, new BigDecimal("3"), null);
         AlertEvaluation evaluation = new AlertEvaluation(
                 "checkout-burn", "Checkout burn", "checkout-availability",
-                new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, new BigDecimal("2")),
+                new io.geordi.alerts.domain.BurnRateAboveCondition(new BigDecimal("2")),
                 AlertEvaluationStatus.CONDITION_MET, null, evidence);
         return new AlertTransition(
                 "checkout-burn", AlertTransitionType.ALERT_STARTED, AlertLifecycleState.INACTIVE,

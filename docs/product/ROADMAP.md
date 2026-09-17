@@ -1,6 +1,6 @@
 # Roadmap
 
-Status: MILESTONES 1 THROUGH 17 COMPLETE
+Status: MILESTONES 1 THROUGH 17 COMPLETE; M18 IMPLEMENTATION IN PROGRESS
 
 ## v0.1 — Platform Core + Self-Observability
 
@@ -261,6 +261,24 @@ delivery retry/redrive, routing mutation, destination exposure, global delivery 
 new channel, authentication/RBAC, or acknowledgement-aware behavior. Local closure gates
 and independent implementation review are complete; authoritative GitLab revalidation
 remains pending.
+
+## Milestone 18 — Bounded Multiwindow Multi-Burn-Rate Alert Evaluation
+
+IMPLEMENTATION IN PROGRESS
+
+- preserves scalar `BURN_RATE_ABOVE` and adds closed multiwindow policies with the
+  fixed `PT1H`/`PT5M` and `PT6H`/`PT30M` bands;
+- retains canonical aggregate evidence, strong three-valued results, and exact persisted
+  observation ranges;
+- keeps configured SLO windows separate from Alerts observation windows;
+- reads frozen v1 durable data and writes validated v2 durable multiwindow values;
+- emits webhook v1 or v2 from the decoded stored transition, preserving delivery and
+  identity semantics.
+
+The rollout boundary is the first v2 durable write. Before it, ordinary M17 rollback
+is possible; afterward an M17 reader is unsupported and recovery requires an
+M18-compatible reader or coordinated pre-upgrade storage restore. No automatic
+downgrade, history backfill, or additional scheduler topology is included.
 
 ## Later
 

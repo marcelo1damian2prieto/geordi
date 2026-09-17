@@ -268,6 +268,37 @@ claim about transition age. The projection is read-only, preserves M16 acknowled
 independence, and does not disclose destination, delivery identity, payload, credentials,
 claim/lease data, or error detail.
 
+### Milestone 18 — Bounded Multiwindow Burn-Rate Alert Evaluation
+
+M18 implementation adds a closed `MULTIWINDOW_BURN_RATE` policy condition alongside
+the existing `BURN_RATE_ABOVE` condition. A multiwindow policy has one or both of the
+supported bands: `PT1H` with `PT5M`, and `PT6H` with `PT30M`; each band has one
+inclusive threshold. An alert condition is met when any band is met. Every requested
+observation is retained, including bounded unavailable reasons, so the result remains
+explainable in Alert Evaluation, lifecycle, history, and notification evidence.
+
+`PT30M` is an alert observation window only. It is not a configured SLO window or an
+Alerts configured-SLO provenance window. A deployment policy can use the new shape:
+
+```yaml
+condition:
+  type: MULTIWINDOW_BURN_RATE
+  bands:
+    - long-window: PT1H
+      short-window: PT5M
+      threshold: 14.4
+    - long-window: PT6H
+      short-window: PT30M
+      threshold: 6
+```
+
+Existing scalar policies remain valid. Before enabling a multiwindow policy, back up
+the lifecycle/outbox storage and record the rollback point. Before the first v2 durable
+multiwindow write, an M17 binary can still read the stored v1 values. Once v2 data has
+been written, rollback requires an M18-compatible reader or a coordinated restore of
+pre-upgrade storage and matching configuration; restoring that storage loses later
+alert facts. M18 does not downgrade or delete v2 values automatically.
+
 ## Run locally
 
 Prerequisites: Docker Desktop with Compose.

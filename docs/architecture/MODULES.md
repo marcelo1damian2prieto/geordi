@@ -1,6 +1,6 @@
 # Module Architecture
 
-Status: MILESTONES 1 THROUGH 16 COMPLETE
+Status: MILESTONES 1 THROUGH 17 COMPLETE; M18 MULTIWINDOW IMPLEMENTATION IN PROGRESS
 
 ## Initial modules
 
@@ -117,6 +117,15 @@ M14 adds durable alert episodes and canonical transition history. M15 adds the
 read-only Alert History investigation UI. M16 adds one immutable episode-scoped
 acknowledgement fact for open M14 episodes only; it does not change lifecycle state,
 canonical history, routing, scheduling, delivery, silencing, or incidents.
+
+M18 extends Alerts with a closed multiwindow condition/evidence model. Alerts owns
+alert observation windows and maps them through its SLO composition adapter. The SLO
+application owns the provider-neutral bounded observation request and evaluates it
+against the canonical Metrics boundary; it has no dependency on Alerts. This keeps
+`PT30M` available for alert observations without widening either configured SLO or
+Alerts provenance windows. The explicit Alerts persistence adapter owns v1/v2 durable
+JSON decoding; neither domain nor application code depends on persistence DTOs or
+provider syntax.
 
 ## Planned modules
 

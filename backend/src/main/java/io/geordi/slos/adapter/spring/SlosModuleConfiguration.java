@@ -7,6 +7,8 @@ import io.geordi.slos.adapter.out.config.ConfigurationSloDefinitionCatalog;
 import io.geordi.slos.adapter.out.config.SloDefinitionsProperties;
 import io.geordi.slos.adapter.out.metrics.MetricsRequestOutcomeMeasurementAdapter;
 import io.geordi.slos.adapter.out.telemetry.ObservedSloEvaluationUseCase;
+import io.geordi.slos.application.BoundedWindowedBurnRateService;
+import io.geordi.slos.application.BoundedWindowedBurnRateUseCase;
 import io.geordi.slos.application.SloEvaluationService;
 import io.geordi.slos.application.SloEvaluationUseCase;
 import io.geordi.slos.application.SloQueryService;
@@ -61,6 +63,12 @@ public class SlosModuleConfiguration {
                 SloDefinitionCatalog catalog, RequestOutcomeMeasurementPort measurementPort, Clock sloClock) {
             SloEvaluationService delegate = new SloEvaluationService(catalog, measurementPort, sloClock);
             return new ObservedSloEvaluationUseCase(delegate);
+        }
+
+        @Bean
+        BoundedWindowedBurnRateUseCase boundedWindowedBurnRateUseCase(
+                SloDefinitionCatalog catalog, RequestOutcomeMeasurementPort measurementPort, Clock sloClock) {
+            return new BoundedWindowedBurnRateService(catalog, measurementPort, sloClock);
         }
     }
 }

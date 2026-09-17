@@ -1,6 +1,6 @@
 # Geordi Product Requirements Document
 
-Status: MILESTONES 1 THROUGH 17 COMPLETE
+Status: MILESTONES 1 THROUGH 17 COMPLETE; M18 IMPLEMENTATION IN PROGRESS
 
 ## Vision
 
@@ -442,3 +442,27 @@ M9 evaluation, M10 lifecycle authority, M11 delivery processing, M12 scheduling,
 routing, M14 history authority, or M16 acknowledgement behavior. Local implementation,
 quality gates, semantic validation, and independent implementation review are complete;
 authoritative GitLab revalidation remains pending.
+
+## Milestone 18 scope
+
+Status: IMPLEMENTATION IN PROGRESS
+
+M18 adds bounded multiwindow burn-rate evaluation to deployment-managed Alerts
+policies. It preserves `BURN_RATE_ABOVE` and adds `MULTIWINDOW_BURN_RATE` with one or
+two supported bands only: `PT1H` plus `PT5M`, and `PT6H` plus `PT30M`. A band uses one
+inclusive threshold and strong three-valued conjunction; canonical bands combine by
+strong disjunction. The policy evaluation retains every requested observation and its
+exact time range, burn value, or bounded unavailable reason.
+
+The configured SLO window remains singular and continues to use the M7 closed window
+set. `PT30M` is confined to the Alerts observation boundary. Multiwindow evidence is a
+durable aggregate, not a representative scalar value. Legacy lifecycle and transition
+data remains v1-readable; multiwindow durable data uses an explicit v2 codec. Webhook
+version derives from stored transition representation, not current policy configuration.
+
+M18 adds no arbitrary bands or expressions, configured SLO windows, policy reload or
+CRUD, additional routes, history backfill, SQL migration, long-period accounting,
+severity, silences, incidents, or multi-node scheduling. Its first-v2-write rollout
+boundary means an M17 binary is no longer a supported reader after v2 data exists;
+rollback then requires an M18-compatible reader or coordinated pre-upgrade storage
+restore with matching configuration.

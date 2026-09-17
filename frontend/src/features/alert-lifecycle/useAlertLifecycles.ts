@@ -6,6 +6,7 @@ import {
   type AlertStatesResponse,
 } from '../../api/alertLifecycles'
 import type { AlertPolicy } from '../../api/alertEvaluations'
+import { alertConditionKey } from '../../api/alertEvaluations'
 
 export const alertStatesQueryKey = ['alert-lifecycle', 'states'] as const
 
@@ -18,8 +19,7 @@ export function alertLifecyclePolicyKey(policy: AlertPolicy) {
     policy.description,
     policy.enabled,
     policy.sloId,
-    policy.condition.type,
-    policy.condition.threshold,
+    alertConditionKey(policy.condition),
   ] as const
 }
 
@@ -43,8 +43,8 @@ function replaceExactSnapshot(
     && cachedPolicy.description === currentPolicy.description
     && cachedPolicy.enabled === currentPolicy.enabled
     && cachedPolicy.sloId === currentPolicy.sloId
-    && cachedPolicy.condition.type === currentPolicy.condition.type
-    && cachedPolicy.condition.threshold === currentPolicy.condition.threshold
+    && JSON.stringify(alertConditionKey(cachedPolicy.condition))
+      === JSON.stringify(alertConditionKey(currentPolicy.condition))
   if (!samePolicy) return response
   return {
     alertStates: response.alertStates.map((snapshot, snapshotIndex) => snapshotIndex === index ? current : snapshot),

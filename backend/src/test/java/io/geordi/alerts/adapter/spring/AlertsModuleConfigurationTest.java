@@ -10,6 +10,10 @@ import io.geordi.alerts.application.AlertLifecyclePersistenceException;
 import io.geordi.alerts.application.port.out.AlertLifecyclePersistenceHealthProbe;
 import io.geordi.alerts.application.port.out.AlertLifecycleRepository;
 import io.geordi.alerts.application.port.out.AlertPolicyCatalog;
+import io.geordi.alerts.domain.AlertObservationWindow;
+import io.geordi.alerts.domain.BurnRateAboveCondition;
+import io.geordi.alerts.domain.MultiwindowBurnRateCondition;
+import io.geordi.alerts.adapter.out.config.AlertPolicyConfigurationFields;
 import io.geordi.bootstrap.ModuleConfiguration;
 import io.geordi.core.module.ModuleInventory;
 import io.geordi.core.module.ModuleRegistry;
@@ -27,6 +31,10 @@ import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.boot.env.YamlPropertySourceLoader;
+import org.springframework.core.env.StandardEnvironment;
+import org.springframework.core.env.SystemEnvironmentPropertySource;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 class AlertsModuleConfigurationTest {
@@ -61,7 +69,9 @@ class AlertsModuleConfigurationTest {
                             .singleElement().satisfies(policy -> {
                                 assertThat(policy.id()).isEqualTo("checkout-burn");
                                 assertThat(policy.sloId()).isEqualTo("checkout-availability");
-                                assertThat(policy.condition().threshold()).isEqualByComparingTo("2");
+                                assertThat(policy.condition()).isInstanceOfSatisfying(
+                                        BurnRateAboveCondition.class,
+                                        condition -> assertThat(condition.threshold()).isEqualByComparingTo("2"));
                             });
                     assertThat(context.getBean(ModuleRegistry.class).modules())
                             .contains(new ModuleInventory("alerts", "Alert Evaluation", true));
@@ -79,6 +89,88 @@ class AlertsModuleConfigurationTest {
         runner.withPropertyValues(policyProperties("checkout-availability"))
                 .withPropertyValues("geordi.alert.policies[0].enabeld=false")
                 .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void bindsTheClosedMultiwindowYamlShape() {
+        runner.withPropertyValues(multiwindowPolicyProperties("checkout-availability"))
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.getBean(AlertPolicyCatalog.class).findAll())
+                            .singleElement().satisfies(policy -> assertThat(policy.condition())
+                                    .isInstanceOfSatisfying(MultiwindowBurnRateCondition.class, condition -> {
+                                        assertThat(condition.bands()).extracting(band -> band.longWindow())
+                                                .containsExactly(
+                                                        AlertObservationWindow.PT1H,
+                                                        AlertObservationWindow.PT6H);
+                                        assertThat(condition.bands()).extracting(band -> band.threshold())
+                                                .containsExactly(
+                                                        new java.math.BigDecimal("14.4"),
+                                                        new java.math.BigDecimal("6"));
+                                    }));
+                });
+    }
+
+    @Test
+    void rejectsUnknownNestedMultiwindowFields() {
+        for (String field : List.of(
+                "geordi.alert.policies[0].condition.thresholdd=2",
+                "geordi.alert.policies[0].condition.bands[0].long-windwo=PT1H")) {
+            runner.withPropertyValues(multiwindowPolicyProperties("checkout-availability"))
+                    .withPropertyValues(field)
+                    .run(context -> assertThat(context).hasFailed());
+        }
+    }
+
+    @Test
+    void acceptsStructuralPropertyNamesProducedByTheDeploymentYaml() throws java.io.IOException {
+        StandardEnvironment environment = new StandardEnvironment();
+        var sources = new YamlPropertySourceLoader().load(
+                "alert-policies", new ByteArrayResource("""
+                        geordi:
+                          alert:
+                            policies:
+                              - id: multiwindow-burn
+                                name: Multiwindow burn
+                                enabled: true
+                                slo-id: checkout-availability
+                                condition:
+                                  type: MULTIWINDOW_BURN_RATE
+                                  bands:
+                                    - long-window: PT1H
+                                      short-window: PT5M
+                                      threshold: 14.4
+                        """.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        sources.forEach(source -> environment.getPropertySources().addLast(source));
+
+        AlertPolicyConfigurationFields.rejectUnknownFields(environment);
+    }
+
+    @Test
+    void ignoresSiblingAlertConfigurationFromSystemEnvironment() {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(new SystemEnvironmentPropertySource(
+                StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                java.util.Map.of(
+                        "GEORDI_ALERT_LIFECYCLE_DB_URL", "jdbc:h2:mem:test",
+                        "GEORDI_ALERT_LIFECYCLE_DB_USERNAME", "sa",
+                        "GEORDI_ALERT_LIFECYCLE_DB_PASSWORD", "secret")));
+
+        AlertPolicyConfigurationFields.rejectUnknownFields(environment);
+    }
+
+    @Test
+    void acceptsRelaxedCamelCasePolicyFieldNames() {
+        runner.withPropertyValues(
+                        "geordi.alert.policies[0].id=checkout-burn",
+                        "geordi.alert.policies[0].name=Checkout burn",
+                        "geordi.alert.policies[0].enabled=true",
+                        "geordi.alert.policies[0].sloId=checkout-availability",
+                        "geordi.alert.policies[0].condition.type=MULTIWINDOW_BURN_RATE",
+                        "geordi.alert.policies[0].condition.bands[0].longWindow=PT1H",
+                        "geordi.alert.policies[0].condition.bands[0].shortWindow=PT5M",
+                        "geordi.alert.policies[0].condition.bands[0].threshold=14.4")
+                .run(context -> assertThat(context).hasNotFailed());
     }
 
     @Test
@@ -183,6 +275,22 @@ class AlertsModuleConfigurationTest {
             "geordi.alert.policies[0].slo-id=" + sloId,
             "geordi.alert.policies[0].condition.type=BURN_RATE_ABOVE",
             "geordi.alert.policies[0].condition.threshold=" + threshold
+        };
+    }
+
+    private static String[] multiwindowPolicyProperties(String sloId) {
+        return new String[] {
+            "geordi.alert.policies[0].id=checkout-burn",
+            "geordi.alert.policies[0].name=Checkout burn",
+            "geordi.alert.policies[0].enabled=true",
+            "geordi.alert.policies[0].slo-id=" + sloId,
+            "geordi.alert.policies[0].condition.type=MULTIWINDOW_BURN_RATE",
+            "geordi.alert.policies[0].condition.bands[0].long-window=PT6H",
+            "geordi.alert.policies[0].condition.bands[0].short-window=PT30M",
+            "geordi.alert.policies[0].condition.bands[0].threshold=6",
+            "geordi.alert.policies[0].condition.bands[1].long-window=PT1H",
+            "geordi.alert.policies[0].condition.bands[1].short-window=PT5M",
+            "geordi.alert.policies[0].condition.bands[1].threshold=14.4"
         };
     }
 

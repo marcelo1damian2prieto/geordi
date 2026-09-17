@@ -41,7 +41,7 @@ class AlertRoutingRuleTest {
 
     private static AlertTransition started(String policyId, String namespace, String name, String environment) {
         Instant now = Instant.parse("2026-09-01T12:00:00Z");
-        AlertCondition condition = new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, BigDecimal.ONE);
+        AlertCondition condition = new BurnRateAboveCondition(BigDecimal.ONE);
         AlertEvaluation evaluation = new AlertEvaluation(
                 policyId, "Policy", "slo", condition, AlertEvaluationStatus.CONDITION_MET, null,
                 new BurnRateEvidence("slo", new ServiceIdentity(name, namespace, environment), EvaluationWindow.PT5M,

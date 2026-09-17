@@ -1,6 +1,5 @@
 package io.geordi.alerts.adapter.out.persistence;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.geordi.alerts.application.AlertHistoryPersistenceException;
 import io.geordi.alerts.application.AlertNotificationEvidence;
@@ -173,7 +172,7 @@ public final class H2AlertLifecycleRepository
             """;
 
     private final JdbcTemplate jdbc;
-    private final ObjectMapper objectMapper;
+    private final AlertPersistenceJsonCodec jsonCodec;
     private final TransactionTemplate transactions;
     private final EpisodeLockObserver episodeLockObserver;
 
@@ -190,7 +189,7 @@ public final class H2AlertLifecycleRepository
             JdbcTemplate jdbc, ObjectMapper objectMapper, TransactionTemplate transactions,
             EpisodeLockObserver episodeLockObserver) {
         this.jdbc = Objects.requireNonNull(jdbc, "JDBC template must not be null");
-        this.objectMapper = Objects.requireNonNull(objectMapper, "object mapper must not be null");
+        this.jsonCodec = new AlertPersistenceJsonCodec(objectMapper);
         this.transactions = transactions;
         this.episodeLockObserver = Objects.requireNonNull(episodeLockObserver, "episode lock observer must not be null");
     }
@@ -394,13 +393,14 @@ public final class H2AlertLifecycleRepository
                     throw new IllegalArgumentException("missing delivery attempts");
                 }
                 delivery = new AlertNotificationEvidence.Delivery(deliveryId,
-                        Objects.requireNonNull(objectMapper.readValue(result.getString("payload_json"), AlertTransition.class)),
+                        jsonCodec.readTransition(result.getString("payload_json")),
                         state, attempts,
                         instant(result, "created_at"), instant(result, "next_attempt_at"), instant(result, "completed_at"));
             }
             return new AlertNotificationEvidence(new AlertTransitionId(result.getString("transition_id")),
                     disposition == null ? null : NotificationDisposition.valueOf(disposition), delivery);
-        } catch (JsonProcessingException | IllegalArgumentException | NullPointerException exception) {
+        } catch (AlertPersistenceJsonCodec.InvalidPersistenceJsonException
+                | IllegalArgumentException | NullPointerException exception) {
             throw new AlertNotificationIntegrityException(AlertNotificationIntegrityException.Reason.STORED_VALUE_INVALID);
         }
     }
@@ -464,9 +464,9 @@ public final class H2AlertLifecycleRepository
     private VersionedAlertLifecycle read(ResultSet result) throws SQLException {
         try {
             return new VersionedAlertLifecycle(
-                    objectMapper.readValue(result.getString("aggregate_json"), AlertLifecycle.class),
+                    jsonCodec.readLifecycle(result.getString("aggregate_json")),
                     result.getLong("version"));
-        } catch (JsonProcessingException exception) {
+        } catch (AlertPersistenceJsonCodec.InvalidPersistenceJsonException exception) {
             throw new AlertLifecyclePersistenceException("stored alert lifecycle is invalid", exception);
         }
     }
@@ -486,12 +486,13 @@ public final class H2AlertLifecycleRepository
 
     private AlertTransitionRecord readTransitionRecord(ResultSet result) throws SQLException {
         try {
-            AlertTransition transition = objectMapper.readValue(result.getString("transition_json"), AlertTransition.class);
+            AlertTransition transition = jsonCodec.readTransition(result.getString("transition_json"));
             requireCanonicalTransitionColumns(result, transition);
             return new AlertTransitionRecord(
                     new AlertTransitionId(result.getString("transition_id")),
                     new AlertEpisodeId(result.getString("episode_id")), transition);
-        } catch (JsonProcessingException | IllegalArgumentException | NullPointerException exception) {
+        } catch (AlertPersistenceJsonCodec.InvalidPersistenceJsonException
+                | IllegalArgumentException | NullPointerException exception) {
             throw new AlertHistoryPersistenceException(
                     Kind.INVARIANT, "stored alert transition history is invalid", exception);
         }
@@ -646,8 +647,8 @@ public final class H2AlertLifecycleRepository
                     Timestamp.from(transition.occurredAt()),
                     transition.previousState().name(),
                     transition.currentState().name(),
-                    objectMapper.writeValueAsString(transition));
-        } catch (JsonProcessingException exception) {
+                    jsonCodec.writeTransition(transition));
+        } catch (AlertPersistenceJsonCodec.InvalidPersistenceJsonException exception) {
             throw new AlertHistoryPersistenceException(
                     Kind.PERSISTENCE, "alert transition history could not be serialized", exception);
         }
@@ -675,8 +676,8 @@ public final class H2AlertLifecycleRepository
 
     private String write(AlertLifecycle lifecycle) {
         try {
-            return objectMapper.writeValueAsString(lifecycle);
-        } catch (JsonProcessingException exception) {
+            return jsonCodec.writeLifecycle(lifecycle);
+        } catch (AlertPersistenceJsonCodec.InvalidPersistenceJsonException exception) {
             throw new AlertLifecyclePersistenceException("alert lifecycle could not be serialized", exception);
         }
     }
@@ -691,7 +692,7 @@ public final class H2AlertLifecycleRepository
                     Timestamp.from(delivery.transition().occurredAt()),
                     delivery.destination().id(),
                     delivery.destination().configurationFingerprint(),
-                    objectMapper.writeValueAsString(delivery.transition()),
+                    jsonCodec.writeTransition(delivery.transition()),
                     delivery.state().name(),
                     delivery.attempts(),
                     Timestamp.from(delivery.createdAt()),
@@ -699,7 +700,7 @@ public final class H2AlertLifecycleRepository
                     delivery.claimToken(),
                     timestamp(delivery.leaseExpiresAt()),
                     timestamp(delivery.completedAt()));
-        } catch (JsonProcessingException exception) {
+        } catch (AlertPersistenceJsonCodec.InvalidPersistenceJsonException exception) {
             throw new AlertLifecyclePersistenceException("notification delivery could not be serialized", exception);
         } catch (DataAccessException exception) {
             throw persistenceFailure(exception);
@@ -721,7 +722,7 @@ public final class H2AlertLifecycleRepository
         try {
             return new NotificationDelivery(
                     result.getString("delivery_id"),
-                    objectMapper.readValue(result.getString("payload_json"), AlertTransition.class),
+                    jsonCodec.readTransition(result.getString("payload_json")),
                     new NotificationDestination(
                             result.getString("destination_id"), result.getString("destination_fingerprint")),
                     NotificationDeliveryState.valueOf(result.getString("state")),
@@ -731,7 +732,7 @@ public final class H2AlertLifecycleRepository
                     result.getString("claim_token"),
                     instant(result, "lease_expires_at"),
                     instant(result, "completed_at"));
-        } catch (JsonProcessingException | IllegalArgumentException exception) {
+        } catch (AlertPersistenceJsonCodec.InvalidPersistenceJsonException | IllegalArgumentException exception) {
             throw new AlertLifecyclePersistenceException("stored notification delivery is invalid", exception);
         }
     }

@@ -20,6 +20,14 @@ public record AlertPoliciesProperties(List<PolicySettings> policies) {
             ConditionSettings condition) {
     }
 
-    public record ConditionSettings(String type, BigDecimal threshold) {
+    public record ConditionSettings(String type, BigDecimal threshold, List<BandSettings> bands) {
+
+        public ConditionSettings {
+            bands = bands == null ? null : List.copyOf(bands);
+        }
+
+    }
+
+    public record BandSettings(String longWindow, String shortWindow, BigDecimal threshold) {
     }
 }

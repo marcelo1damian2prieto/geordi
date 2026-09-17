@@ -5,10 +5,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.geordi.metrics.application.RequestOutcomeQuery;
+import io.geordi.metrics.application.RequestOutcomeBatchQuery;
 import io.geordi.metrics.application.RequestOutcomeQueryException;
 import io.geordi.metrics.domain.ServiceIdentity;
 import io.geordi.metrics.domain.TimeRange;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class VictoriaMetricsRequestOutcomeTest {
@@ -71,5 +74,78 @@ class VictoriaMetricsRequestOutcomeTest {
                 .isInstanceOf(RequestOutcomeQueryException.class)
                 .extracting(exception -> ((RequestOutcomeQueryException) exception).reason())
                 .isEqualTo(RequestOutcomeQueryException.Reason.INVALID_TELEMETRY);
+    }
+
+    @Test
+    void queriesEveryBoundedWindowInOneCorrelatedExpression() {
+        RequestOutcomeBatchQuery query = new RequestOutcomeBatchQuery(
+                QUERY.service(),
+                List.of(
+                        new RequestOutcomeBatchQuery.Window("PT5M", QUERY.range()),
+                        new RequestOutcomeBatchQuery.Window(
+                                "PT1H", new TimeRange(NOW.minus(Duration.ofHours(1)), NOW))));
+
+        String expression = new VictoriaMetricsQueryTranslator().translateRequestOutcomeBatch(query);
+
+        assertThat(expression)
+                .contains("\"geordi.slo.window\",\"PT5M\"")
+                .contains("\"geordi.slo.window\",\"PT1H\"")
+                .contains("[300s]")
+                .contains("[3600s]");
+    }
+
+    @Test
+    void rejectsAnUnsafeBoundedCorrelationKeyBeforeItCanReachMetricsQl() {
+        assertThatThrownBy(() -> new RequestOutcomeBatchQuery.Window("PT5M\" or vector(1)", QUERY.range()))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void mapsMissingWindowsLocallyButRejectsDuplicateOrUnknownCorrelation() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        var missing = new VictoriaMetricsResponseParser().requestOutcomeBatch(mapper.readTree("""
+                {"status":"success","data":{"result":[
+                  {"metric":{"geordi.slo.window":"PT5M","geordi.slo.component":"requests"},"value":[1,"10"]}
+                ]}}
+                """), List.of("PT5M", "PT1H"));
+        assertThat(missing.measurements().get("PT5M").requestCount()).isEqualTo(10d);
+        assertThat(missing.measurements().get("PT5M").errorCount()).isZero();
+        assertThat(missing.measurements().get("PT1H").requestCount()).isNull();
+
+        var nonFiniteRequest = new VictoriaMetricsResponseParser().requestOutcomeBatch(mapper.readTree("""
+                {"status":"success","data":{"result":[
+                  {"metric":{"geordi.slo.window":"PT5M","geordi.slo.component":"requests"},"value":[1,"NaN"]}
+                ]}}
+                """), List.of("PT5M", "PT1H"));
+        assertThat(nonFiniteRequest.measurements().get("PT5M").requestCount()).isNaN();
+        assertThat(nonFiniteRequest.measurements().get("PT5M").errorCount()).isZero();
+
+        assertThatThrownBy(() -> new VictoriaMetricsResponseParser().requestOutcomeBatch(mapper.readTree("""
+                {"status":"success","data":{"result":[
+                  {"metric":{"geordi.slo.window":"PT5M","geordi.slo.component":"requests"},"value":[1,"10"]},
+                  {"metric":{"geordi.slo.window":"PT5M","geordi.slo.component":"requests"},"value":[1,"10"]}
+                ]}}
+                """), List.of("PT5M", "PT1H")))
+                .isInstanceOf(RequestOutcomeQueryException.class)
+                .extracting(exception -> ((RequestOutcomeQueryException) exception).reason())
+                .isEqualTo(RequestOutcomeQueryException.Reason.INTEGRITY);
+
+        assertThatThrownBy(() -> new VictoriaMetricsResponseParser().requestOutcomeBatch(mapper.readTree("""
+                {"status":"success","data":{"result":[
+                  {"metric":{"geordi.slo.window":"unknown","geordi.slo.component":"requests"},"value":[1,"10"]}
+                ]}}
+                """), List.of("PT5M", "PT1H")))
+                .isInstanceOf(RequestOutcomeQueryException.class)
+                .extracting(exception -> ((RequestOutcomeQueryException) exception).reason())
+                .isEqualTo(RequestOutcomeQueryException.Reason.INTEGRITY);
+
+        assertThatThrownBy(() -> new VictoriaMetricsResponseParser().requestOutcomeBatch(mapper.readTree("""
+                {"status":"success","data":{"result":[
+                  {"metric":{"geordi.slo.component":"requests"},"value":[1,"10"]}
+                ]}}
+                """), List.of("PT5M", "PT1H")))
+                .isInstanceOf(RequestOutcomeQueryException.class)
+                .extracting(exception -> ((RequestOutcomeQueryException) exception).reason())
+                .isEqualTo(RequestOutcomeQueryException.Reason.INTEGRITY);
     }
 }

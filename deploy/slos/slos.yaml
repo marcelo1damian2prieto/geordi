@@ -34,6 +34,17 @@ geordi:
         target: 0.10
         window: PT5M
         enabled: true
+      - id: m18-multiwindow-error-rate
+        name: M18 multiwindow error rate
+        description: Isolated imported-counter objective for deterministic multiwindow burn-rate verification.
+        service:
+          name: geordi-m18-multiwindow-service
+          namespace: geordi-m18-smoke
+          environment: development
+        sli-type: ERROR_RATE
+        target: 0.10
+        window: PT5M
+        enabled: true
       - id: m12-scheduling-error-rate
         name: M12 scheduling error rate
         description: Isolated workload objective for automatic scheduling verification.

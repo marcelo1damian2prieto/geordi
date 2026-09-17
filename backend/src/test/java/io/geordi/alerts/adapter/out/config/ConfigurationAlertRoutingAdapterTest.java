@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.geordi.alerts.application.port.out.AlertPolicyCatalog;
 import io.geordi.alerts.domain.AlertCondition;
-import io.geordi.alerts.domain.AlertConditionType;
 import io.geordi.alerts.domain.AlertEvaluation;
 import io.geordi.alerts.domain.AlertEvaluationStatus;
 import io.geordi.alerts.domain.AlertLifecycleState;
@@ -176,7 +175,7 @@ class ConfigurationAlertRoutingAdapterTest {
 
     private static AlertPolicyCatalog catalog() {
         AlertPolicy policy = new AlertPolicy("checkout-burn", "Checkout", null, true, "slo",
-                new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, BigDecimal.ONE));
+                new io.geordi.alerts.domain.BurnRateAboveCondition(BigDecimal.ONE));
         return new AlertPolicyCatalog() {
             @Override
             public List<AlertPolicy> findAll() {
@@ -204,7 +203,7 @@ class ConfigurationAlertRoutingAdapterTest {
             String policyId, String namespace, String service, String environment, AlertEvaluationStatus status,
             AlertTransitionType type, AlertLifecycleState previous, AlertLifecycleState current) {
         Instant now = Instant.parse("2026-09-01T12:00:00Z");
-        AlertCondition condition = new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, BigDecimal.ONE);
+        AlertCondition condition = new io.geordi.alerts.domain.BurnRateAboveCondition(BigDecimal.ONE);
         BigDecimal observedBurnRate = status == AlertEvaluationStatus.CONDITION_MET ? BigDecimal.TEN : BigDecimal.ZERO;
         AlertEvaluation evaluation = new AlertEvaluation(policyId, "Policy", "slo", condition, status, null,
                 new BurnRateEvidence("slo", new ServiceIdentity(service, namespace, environment), EvaluationWindow.PT5M,

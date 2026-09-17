@@ -9,7 +9,7 @@ import static org.mockito.Mockito.when;
 
 import io.geordi.alerts.application.port.out.AlertRoutingPort;
 import io.geordi.alerts.domain.AlertCondition;
-import io.geordi.alerts.domain.AlertConditionType;
+import io.geordi.alerts.domain.BurnRateAboveCondition;
 import io.geordi.alerts.domain.AlertEvaluation;
 import io.geordi.alerts.domain.AlertEvaluationStatus;
 import io.geordi.alerts.domain.AlertLifecycleState;
@@ -114,7 +114,7 @@ class ObservedAlertRoutingPortTest {
             AlertEvaluationStatus status) {
         Instant now = Instant.parse("2026-09-01T12:00:00Z");
         AlertEvaluation evaluation = new AlertEvaluation("policy-id", "Policy", "slo-id",
-                new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, BigDecimal.ONE), status, null,
+                new BurnRateAboveCondition(BigDecimal.ONE), status, null,
                 new BurnRateEvidence("slo-id", new ServiceIdentity("service", "namespace", "environment"),
                         EvaluationWindow.PT5M, new TimeRange(now.minusSeconds(300), now), now, BigDecimal.ONE, null));
         return new AlertTransition("policy-id", type, previous, current, now, evaluation);

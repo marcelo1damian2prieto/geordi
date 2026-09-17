@@ -120,7 +120,7 @@ class AlertNotificationProjectionServiceTest {
 
     private static AlertTransitionRecord record(Instant time) {
         var evaluation = new AlertEvaluation("checkout-burn", "Checkout burn", "checkout-availability",
-                new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, new BigDecimal("2")),
+                new io.geordi.alerts.domain.BurnRateAboveCondition(new BigDecimal("2")),
                 AlertEvaluationStatus.CONDITION_MET, null,
                 new BurnRateEvidence("checkout-availability", new ServiceIdentity("checkout", "commerce", "production"),
                         EvaluationWindow.PT5M, new TimeRange(time.minusSeconds(300), time), time, new BigDecimal("3"), null));

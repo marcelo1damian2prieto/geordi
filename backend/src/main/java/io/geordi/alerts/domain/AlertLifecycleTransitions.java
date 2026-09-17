@@ -18,7 +18,7 @@ public final class AlertLifecycleTransitions {
         AlertLifecycle previous = previousValue.orElse(null);
         validateBinding(previous, evaluation);
 
-        BurnRateEvidence evidence = evaluation.evidence();
+        AlertEvidence evidence = evaluation.evidence();
         Instant evidenceAt = evidence == null ? null : evidence.evaluatedAt();
         if (evidenceAt == null && evaluation.reason() != AlertUnavailableReason.DISABLED) {
             throw new IllegalArgumentException("only a disabled evaluation may omit evidence time");
@@ -36,7 +36,7 @@ public final class AlertLifecycleTransitions {
         AlertTransition transition = transition(evaluation, previousState, currentState, evidenceAt);
         ServiceIdentity boundService = bindingService(previous, evidence);
         EvaluationWindow boundWindow = bindingWindow(previous, evidence);
-        BurnRateEvidence activeEvidence = activeEvidence(previous, evaluation, currentState);
+        AlertEvidence activeEvidence = activeEvidence(previous, evaluation, currentState);
         Instant startedAt = startedAt(previous, currentState, transition);
         Instant resolvedAt = resolvedAt(previous, currentState, transition);
         Instant stateChangedAt = transition == null
@@ -101,19 +101,19 @@ public final class AlertLifecycleTransitions {
         return null;
     }
 
-    private static ServiceIdentity bindingService(AlertLifecycle previous, BurnRateEvidence evidence) {
+    private static ServiceIdentity bindingService(AlertLifecycle previous, AlertEvidence evidence) {
         return previous != null && previous.boundService() != null
                 ? previous.boundService()
                 : evidence == null ? null : evidence.service();
     }
 
-    private static EvaluationWindow bindingWindow(AlertLifecycle previous, BurnRateEvidence evidence) {
+    private static EvaluationWindow bindingWindow(AlertLifecycle previous, AlertEvidence evidence) {
         return previous != null && previous.boundWindow() != null
                 ? previous.boundWindow()
-                : evidence == null ? null : evidence.window();
+                : evidence == null ? null : evidence.configuredSloWindow();
     }
 
-    private static BurnRateEvidence activeEvidence(
+    private static AlertEvidence activeEvidence(
             AlertLifecycle previous, AlertEvaluation evaluation, AlertLifecycleState current) {
         if (current == AlertLifecycleState.INACTIVE) {
             return null;
@@ -144,8 +144,7 @@ public final class AlertLifecycleTransitions {
         if (previous == null) {
             return;
         }
-        boolean sameCondition = previous.condition().type() == evaluation.condition().type()
-                && previous.condition().threshold().compareTo(evaluation.condition().threshold()) == 0;
+        boolean sameCondition = previous.condition().equals(evaluation.condition());
         if (!previous.policyId().equals(evaluation.policyId())
                 || !previous.sloId().equals(evaluation.sloId())
                 || !sameCondition) {
@@ -153,7 +152,7 @@ public final class AlertLifecycleTransitions {
         }
         if (evaluation.evidence() != null && previous.boundService() != null
                 && (!previous.boundService().equals(evaluation.evidence().service())
-                || previous.boundWindow() != evaluation.evidence().window())) {
+                || previous.boundWindow() != evaluation.evidence().configuredSloWindow())) {
             throw new AlertLifecycleBindingMismatchException();
         }
     }

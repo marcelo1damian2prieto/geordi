@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
@@ -41,7 +42,7 @@ class AlertLifecycleTransitionsTest {
     @Test
     void retainsActiveEvidenceAndStartAcrossUnavailableAndDisabledChecks() {
         AlertLifecycle firing = apply(Optional.empty(), evaluation(AlertEvaluationStatus.CONDITION_MET, FIRST));
-        BurnRateEvidence activeEvidence = firing.activeEvidence();
+        AlertEvidence activeEvidence = firing.activeEvidence();
         AlertLifecycle unavailable = apply(
                 Optional.of(firing), unavailable(FIRST.plusSeconds(1), AlertUnavailableReason.METRICS_UNAVAILABLE));
         Instant disabledAt = FIRST.plusSeconds(2);
@@ -118,7 +119,7 @@ class AlertLifecycleTransitionsTest {
         AlertLifecycle firing = apply(Optional.empty(), evaluation(AlertEvaluationStatus.CONDITION_MET, FIRST));
         AlertEvaluation otherCondition = new AlertEvaluation(
                 "checkout-burn", "Checkout burn", "checkout-availability",
-                new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, new BigDecimal("3")),
+                new BurnRateAboveCondition(new BigDecimal("3")),
                 AlertEvaluationStatus.CONDITION_MET, null, evidence(FIRST.plusSeconds(1), "3", SERVICE));
         AlertEvaluation otherService = new AlertEvaluation(
                 "checkout-burn", "Checkout burn", "checkout-availability", condition(),
@@ -128,6 +129,42 @@ class AlertLifecycleTransitionsTest {
         assertThatThrownBy(() -> AlertLifecycleTransitions.apply(Optional.of(firing), otherCondition, null))
                 .isInstanceOf(AlertLifecycleBindingMismatchException.class);
         assertThatThrownBy(() -> AlertLifecycleTransitions.apply(Optional.of(firing), otherService, null))
+                .isInstanceOf(AlertLifecycleBindingMismatchException.class);
+    }
+
+    @Test
+    void retainsCompleteMultiwindowActiveEvidenceAcrossFreezeAndResolvesNormally() {
+        MultiwindowBurnRateCondition condition = multiwindowCondition();
+        AlertEvaluation firingEvaluation = multiwindowEvaluation(
+                condition, FIRST, "3", "3", "1", "3", null);
+        AlertLifecycle firing = apply(Optional.empty(), firingEvaluation);
+        MultiwindowBurnRateEvidence active = (MultiwindowBurnRateEvidence) firing.activeEvidence();
+
+        AlertEvaluation unavailable = multiwindowEvaluation(
+                condition, FIRST.plusSeconds(1), "3", null, "1", "3",
+                AlertUnavailableReason.MISSING_REQUEST_COUNT);
+        AlertLifecycle frozen = apply(Optional.of(firing), unavailable);
+        AlertEvaluation resolving = multiwindowEvaluation(
+                condition, FIRST.plusSeconds(2), "1", "3", "1", "3", null);
+        var resolved = AlertLifecycleTransitions.apply(Optional.of(frozen), resolving, null);
+
+        assertThat(active.observations()).hasSize(4);
+        assertThat(frozen.state()).isEqualTo(AlertLifecycleState.FIRING);
+        assertThat(frozen.activeEvidence()).isSameAs(active);
+        assertThat(((MultiwindowBurnRateEvidence) frozen.latestEvaluation().evidence()).observations()).hasSize(4);
+        assertThat(frozen.latestEvaluation().bandResults()).extracting(BurnRateBandResult::outcome)
+                .containsExactly(BurnRateBandOutcome.UNAVAILABLE, BurnRateBandOutcome.NOT_MET);
+        assertThat(resolved.current().state()).isEqualTo(AlertLifecycleState.INACTIVE);
+        assertThat(resolved.transition().type()).isEqualTo(AlertTransitionType.ALERT_RESOLVED);
+    }
+
+    @Test
+    void rejectsChangingALegacyLifecycleToMultiwindowUnderTheSamePolicyId() {
+        AlertLifecycle legacy = apply(Optional.empty(), evaluation(AlertEvaluationStatus.CONDITION_MET, FIRST));
+        AlertEvaluation multiwindow = multiwindowEvaluation(
+                multiwindowCondition(), FIRST.plusSeconds(1), "3", "3", "1", "3", null);
+
+        assertThatThrownBy(() -> AlertLifecycleTransitions.apply(Optional.of(legacy), multiwindow, null))
                 .isInstanceOf(AlertLifecycleBindingMismatchException.class);
     }
 
@@ -181,6 +218,58 @@ class AlertLifecycleTransitionsTest {
     }
 
     private static AlertCondition condition() {
-        return new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, new BigDecimal("2"));
+        return new BurnRateAboveCondition(new BigDecimal("2"));
+    }
+
+    private static MultiwindowBurnRateCondition multiwindowCondition() {
+        return new MultiwindowBurnRateCondition(List.of(
+                new BurnRateBand(
+                        AlertObservationWindow.PT1H, AlertObservationWindow.PT5M, new BigDecimal("2")),
+                new BurnRateBand(
+                        AlertObservationWindow.PT6H, AlertObservationWindow.PT30M, new BigDecimal("2"))));
+    }
+
+    private static AlertEvaluation multiwindowEvaluation(
+            MultiwindowBurnRateCondition condition,
+            Instant evaluatedAt,
+            String oneHour,
+            String fiveMinutes,
+            String sixHours,
+            String thirtyMinutes,
+            AlertUnavailableReason unavailableReason) {
+        MultiwindowBurnRateEvidence evidence = MultiwindowBurnRateEvidence.of(
+                "checkout-availability",
+                SERVICE,
+                EvaluationWindow.PT5M,
+                evaluatedAt,
+                condition.observationWindows(),
+                List.of(
+                        observation(AlertObservationWindow.PT1H, evaluatedAt, oneHour, null),
+                        observation(
+                                AlertObservationWindow.PT5M,
+                                evaluatedAt,
+                                fiveMinutes,
+                                fiveMinutes == null ? unavailableReason : null),
+                        observation(AlertObservationWindow.PT6H, evaluatedAt, sixHours, null),
+                        observation(AlertObservationWindow.PT30M, evaluatedAt, thirtyMinutes, null)));
+        AlertEvaluationStatus status = condition.evaluateStatus(evidence);
+        return new AlertEvaluation(
+                "checkout-burn", "Checkout burn", "checkout-availability", condition,
+                status,
+                status == AlertEvaluationStatus.UNAVAILABLE
+                        ? AlertUnavailableReason.MULTIWINDOW_EVIDENCE_UNAVAILABLE : null,
+                evidence);
+    }
+
+    private static WindowBurnRateObservation observation(
+            AlertObservationWindow window,
+            Instant evaluatedAt,
+            String value,
+            AlertUnavailableReason unavailableReason) {
+        return new WindowBurnRateObservation(
+                window,
+                new TimeRange(evaluatedAt.minus(window.duration()), evaluatedAt),
+                value == null ? null : new BigDecimal(value),
+                unavailableReason);
     }
 }

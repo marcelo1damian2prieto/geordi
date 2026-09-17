@@ -1,6 +1,6 @@
 # Alert Lifecycle Architecture
 
-Status: MILESTONES 10, 14, 15, AND 16 COMPLETE
+Status: MILESTONES 10, 14, 15, AND 16 COMPLETE; M18 MULTIWINDOW IMPLEMENTATION IN PROGRESS
 
 ## Scope
 
@@ -225,3 +225,18 @@ History detail is selected independently by episode ID in the URL. Since every l
 request includes bounds, unknown-start legacy episodes are accessible only through a
 known-ID bookmark. Their real resolution time remains visible; start and duration stay
 unavailable. No extra unbounded query, synthetic start or retention deletion is added.
+
+## M18 aggregate evidence and upgrade compatibility
+
+M18 does not change the `INACTIVE`/`FIRING` state table: `CONDITION_MET` fires,
+`CONDITION_NOT_MET` inactivates, and `UNAVAILABLE` freezes the state. The immutable
+lifecycle binding accepts either closed condition variant and includes the canonical
+condition, SLO, service, and configured-SLO provenance window. A legacy/multiwindow
+condition change under one policy ID is a binding mismatch and requires a new policy.
+
+A multiwindow firing lifecycle retains its complete aggregate evidence and canonical
+band results. Its common `evaluatedAt` remains the stale/duplicate ordering point; no
+single observation or representative burn value substitutes for the aggregate. A
+legacy firing lifecycle remains legacy after an upgrade: it reads v1 data, freezes on
+legacy unavailable evidence, and resolves only from genuine legacy not-met evidence.
+Reading legacy data does not rewrite it.

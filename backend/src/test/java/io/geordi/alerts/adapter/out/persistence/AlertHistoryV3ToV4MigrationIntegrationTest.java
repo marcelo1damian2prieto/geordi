@@ -97,8 +97,9 @@ class AlertHistoryV3ToV4MigrationIntegrationTest {
                 .build();
         AlertTransition started = transition(AlertTransitionType.ALERT_STARTED, NANOSECONDS);
         AlertTransition resolved = transition(AlertTransitionType.ALERT_RESOLVED, MICROSECONDS);
-        String startJson = jsonMapper.writeValueAsString(started);
-        String resolveJson = jsonMapper.writeValueAsString(resolved);
+        AlertPersistenceJsonCodec codec = new AlertPersistenceJsonCodec(jsonMapper);
+        String startJson = codec.writeTransition(started);
+        String resolveJson = codec.writeTransition(resolved);
         String startId = AlertTransitionId.from(started).value();
         String resolveId = AlertTransitionId.from(resolved).value();
 
@@ -254,12 +255,8 @@ class AlertHistoryV3ToV4MigrationIntegrationTest {
                 .findAndAddModules()
                 .build();
         AlertTransition transition = transition(AlertTransitionType.ALERT_STARTED, NANOSECONDS);
-        try {
-            return new CorruptFixture(dataSource, jdbc, jsonMapper, transition,
-                    jsonMapper.writeValueAsString(transition));
-        } catch (JsonProcessingException exception) {
-            throw new AssertionError("production transition must serialize", exception);
-        }
+        return new CorruptFixture(dataSource, jdbc, jsonMapper, transition,
+                new AlertPersistenceJsonCodec(jsonMapper).writeTransition(transition));
     }
 
     private static void assertV4MigrationFails(CorruptFixture fixture) {
@@ -289,7 +286,7 @@ class AlertHistoryV3ToV4MigrationIntegrationTest {
                 POLICY_ID,
                 "Migration policy A",
                 "migration-slo-a",
-                new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, new BigDecimal("2")),
+                new io.geordi.alerts.domain.BurnRateAboveCondition(new BigDecimal("2")),
                 status,
                 null,
                 evidence);

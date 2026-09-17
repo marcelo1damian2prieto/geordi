@@ -7,7 +7,7 @@ import io.geordi.alerts.application.AlertLifecycleEvaluationInProgressException;
 import io.geordi.alerts.application.AlertLifecycleEvaluationUseCase;
 import io.geordi.alerts.application.port.out.AlertPolicyCatalog;
 import io.geordi.alerts.domain.AlertCondition;
-import io.geordi.alerts.domain.AlertConditionType;
+import io.geordi.alerts.domain.BurnRateAboveCondition;
 import io.geordi.alerts.domain.AlertPolicy;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -273,6 +273,6 @@ class AlertEvaluationSchedulerTest {
                 null,
                 enabled,
                 "checkout-availability",
-                new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, BigDecimal.ONE));
+                new BurnRateAboveCondition(BigDecimal.ONE));
     }
 }

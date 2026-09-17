@@ -1,5 +1,6 @@
 import { useQueries, useQuery } from '@tanstack/react-query'
 import {
+  alertConditionKey,
   getAlertEvaluation,
   getAlertPolicies,
   type AlertPolicy,
@@ -18,8 +19,7 @@ export function alertEvaluationQueryKey(policy: AlertPolicy) {
     policy.description,
     policy.enabled,
     policy.sloId,
-    policy.condition.type,
-    policy.condition.threshold,
+    alertConditionKey(policy.condition),
   ] as const
 }
 

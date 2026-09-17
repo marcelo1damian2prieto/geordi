@@ -17,7 +17,7 @@ import io.geordi.alerts.application.port.out.AlertHistoryRepository;
 import io.geordi.alerts.application.port.out.AlertLifecycleRepository;
 import io.geordi.alerts.application.port.out.AlertTransitionHistoryQuery;
 import io.geordi.alerts.domain.AlertCondition;
-import io.geordi.alerts.domain.AlertConditionType;
+import io.geordi.alerts.domain.BurnRateAboveCondition;
 import io.geordi.alerts.domain.AlertEpisodeId;
 import io.geordi.alerts.domain.AlertEvaluation;
 import io.geordi.alerts.domain.AlertEvaluationStatus;
@@ -209,7 +209,7 @@ class ObservedAlertHistoryRepositoryTest {
     }
 
     private static AlertTransition started() {
-        AlertCondition condition = new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, BigDecimal.ONE);
+        AlertCondition condition = new BurnRateAboveCondition(BigDecimal.ONE);
         BurnRateEvidence evidence = new BurnRateEvidence(
                 "slo-id",
                 new ServiceIdentity("service", "namespace", "environment"),

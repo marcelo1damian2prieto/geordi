@@ -13,11 +13,17 @@ import io.geordi.alerts.domain.AlertConditionType;
 import io.geordi.alerts.domain.AlertEvaluation;
 import io.geordi.alerts.domain.AlertEvaluationStatus;
 import io.geordi.alerts.domain.AlertLifecycleTransitions;
+import io.geordi.alerts.domain.AlertObservationWindow;
+import io.geordi.alerts.domain.AlertUnavailableReason;
+import io.geordi.alerts.domain.BurnRateBand;
 import io.geordi.alerts.domain.BurnRateEvidence;
 import io.geordi.alerts.domain.EvaluationWindow;
+import io.geordi.alerts.domain.MultiwindowBurnRateCondition;
+import io.geordi.alerts.domain.MultiwindowBurnRateEvidence;
 import io.geordi.alerts.domain.NotificationDelivery;
 import io.geordi.alerts.domain.ServiceIdentity;
 import io.geordi.alerts.domain.TimeRange;
+import io.geordi.alerts.domain.WindowBurnRateObservation;
 import java.math.BigDecimal;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -60,6 +66,11 @@ class HttpWebhookNotificationSenderTest {
         assertThat(body.get()).contains("geordi.notification.v1", delivery.id(), "ALERT_STARTED")
                 .contains("observedBurnRate")
                 .doesNotContain("test-token");
+        var legacyPayload = new ObjectMapper().readTree(body.get());
+        assertThat(legacyPayload.size()).isEqualTo(12);
+        assertThat(legacyPayload.path("condition").path("type").asText()).isEqualTo("BURN_RATE_ABOVE");
+        assertThat(legacyPayload.has("evaluationStatus")).isFalse();
+        assertThat(legacyPayload.has("bandResults")).isFalse();
 
         status.set(429);
         assertThat(sender.send(delivery)).isEqualTo(NotificationDeliverySender.Result.RETRYABLE_FAILURE);
@@ -67,6 +78,38 @@ class HttpWebhookNotificationSenderTest {
         assertThat(sender.send(delivery)).isEqualTo(NotificationDeliverySender.Result.RETRYABLE_FAILURE);
         status.set(400);
         assertThat(sender.send(delivery)).isEqualTo(NotificationDeliverySender.Result.TERMINAL_FAILURE);
+    }
+
+    @Test
+    void emitsBoundedMultiwindowV2OnlyFromThePersistedTransitionVariant() throws Exception {
+        AtomicReference<String> idempotency = new AtomicReference<>();
+        AtomicReference<String> body = new AtomicReference<>();
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/hook", exchange -> {
+            idempotency.set(exchange.getRequestHeaders().getFirst("Idempotency-Key"));
+            body.set(new String(exchange.getRequestBody().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+            exchange.sendResponseHeaders(204, -1);
+            exchange.close();
+        });
+        server.start();
+        var properties = properties(server.getAddress().getPort());
+        NotificationDelivery delivery = multiwindowDelivery(properties);
+
+        assertThat(sender(properties).send(delivery)).isEqualTo(NotificationDeliverySender.Result.DELIVERED);
+
+        var payload = new ObjectMapper().readTree(body.get());
+        assertThat(idempotency).hasValue(delivery.id());
+        assertThat(payload.size()).isEqualTo(14);
+        assertThat(payload.path("schemaVersion").asText()).isEqualTo("geordi.notification.v2");
+        assertThat(payload.path("condition").path("type").asText()).isEqualTo("MULTIWINDOW_BURN_RATE");
+        assertThat(payload.path("configuredSloWindow").asText()).isEqualTo("PT15M");
+        assertThat(payload.path("observations").size()).isEqualTo(4);
+        assertThat(payload.path("bandResults").size()).isEqualTo(2);
+        assertThat(payload.path("bandResults").get(0).path("outcome").asText()).isEqualTo("MET");
+        assertThat(payload.path("bandResults").get(1).path("outcome").asText()).isEqualTo("NOT_MET");
+        assertThat(body.get()).doesNotContain(
+                "test-token", "destination", "fingerprint", "claimToken", "leaseExpiresAt",
+                "requestCount", "errorCount", "providerQuery", "responseBody");
     }
 
     @Test
@@ -107,7 +150,7 @@ class HttpWebhookNotificationSenderTest {
 
     private static NotificationDelivery delivery(WebhookNotificationProperties properties) {
         Instant now = Instant.parse("2026-08-28T12:00:00Z");
-        AlertCondition condition = new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, BigDecimal.ONE);
+        AlertCondition condition = new io.geordi.alerts.domain.BurnRateAboveCondition(BigDecimal.ONE);
         BurnRateEvidence evidence = new BurnRateEvidence("slo", new ServiceIdentity("service", "namespace", "prod"),
                 EvaluationWindow.PT5M, new TimeRange(now.minusSeconds(300), now), now, BigDecimal.TEN, null);
         AlertEvaluation evaluation = new AlertEvaluation("policy", "Policy", "slo", condition,
@@ -116,6 +159,36 @@ class HttpWebhookNotificationSenderTest {
         var destination = ((io.geordi.alerts.domain.RoutingDecision.Matched) adapter(properties)
                 .route(transition)).destination();
         return NotificationDelivery.pending(transition, destination, now);
+    }
+
+    private static NotificationDelivery multiwindowDelivery(WebhookNotificationProperties properties) {
+        Instant now = Instant.parse("2026-08-28T12:00:00Z");
+        MultiwindowBurnRateCondition condition = new MultiwindowBurnRateCondition(List.of(
+                new BurnRateBand(AlertObservationWindow.PT6H, AlertObservationWindow.PT30M,
+                        new BigDecimal("6")),
+                new BurnRateBand(AlertObservationWindow.PT1H, AlertObservationWindow.PT5M,
+                        new BigDecimal("14.4"))));
+        MultiwindowBurnRateEvidence evidence = MultiwindowBurnRateEvidence.of(
+                "slo", new ServiceIdentity("service", "namespace", "prod"), EvaluationWindow.PT15M,
+                now, condition.observationWindows(), List.of(
+                        observation(now, AlertObservationWindow.PT6H, "5", null),
+                        observation(now, AlertObservationWindow.PT1H, "15", null),
+                        observation(now, AlertObservationWindow.PT30M, null,
+                                AlertUnavailableReason.METRICS_UNAVAILABLE),
+                        observation(now, AlertObservationWindow.PT5M, "20", null)));
+        AlertEvaluation evaluation = new AlertEvaluation(
+                "policy", "Policy", "slo", condition, AlertEvaluationStatus.CONDITION_MET, null, evidence);
+        var transition = AlertLifecycleTransitions.apply(Optional.empty(), evaluation, null).transition();
+        var destination = ((io.geordi.alerts.domain.RoutingDecision.Matched) adapter(properties)
+                .route(transition)).destination();
+        return NotificationDelivery.pending(transition, destination, now);
+    }
+
+    private static WindowBurnRateObservation observation(
+            Instant now, AlertObservationWindow window, String burnRate, AlertUnavailableReason reason) {
+        return new WindowBurnRateObservation(
+                window, new TimeRange(now.minus(window.duration()), now),
+                burnRate == null ? null : new BigDecimal(burnRate), reason);
     }
 
     private static HttpWebhookNotificationSender sender(WebhookNotificationProperties properties) {

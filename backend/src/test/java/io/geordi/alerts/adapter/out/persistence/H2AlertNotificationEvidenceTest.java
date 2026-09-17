@@ -49,8 +49,8 @@ class H2AlertNotificationEvidenceTest {
     void sameIdLegacyPayloadMismatchFailsInsteadOfHidingDelivery() throws Exception {
         Fixture fixture = matched(Instant.parse("2026-08-28T18:00:00Z"));
         jdbc.update("DELETE FROM alert_notification_disposition WHERE transition_id = ?", fixture.record().id().value());
-        String changed = JsonMapper.builder().findAndAddModules().build().writeValueAsString(
-                lifecycle(Instant.parse("2026-08-28T18:00:01Z")).latestTransition());
+        String changed = new AlertPersistenceJsonCodec(JsonMapper.builder().findAndAddModules().build())
+                .writeTransition(lifecycle(Instant.parse("2026-08-28T18:00:01Z")).latestTransition());
         jdbc.update("UPDATE alert_notification_outbox SET payload_json = ? WHERE delivery_id = ?", changed,
                 fixture.record().id().value());
         assertThatThrownBy(fixture::project).isInstanceOfSatisfying(AlertNotificationIntegrityException.class,
@@ -202,7 +202,7 @@ class H2AlertNotificationEvidenceTest {
 
     private static AlertLifecycle lifecycle(Instant time) {
         var evaluation = new AlertEvaluation("evidence-burn", "Evidence burn", "checkout-availability",
-                new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, new BigDecimal("2")),
+                new BurnRateAboveCondition(new BigDecimal("2")),
                 AlertEvaluationStatus.CONDITION_MET, null,
                 new BurnRateEvidence("checkout-availability", new ServiceIdentity("checkout", "commerce", "production"),
                         EvaluationWindow.PT5M, new TimeRange(time.minusSeconds(300), time), time, new BigDecimal("3"), null));

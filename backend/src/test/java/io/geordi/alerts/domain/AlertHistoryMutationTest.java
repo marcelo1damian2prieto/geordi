@@ -57,7 +57,7 @@ class AlertHistoryMutationTest {
         AlertLifecycleState current = type == AlertTransitionType.ALERT_STARTED
                 ? AlertLifecycleState.FIRING
                 : AlertLifecycleState.INACTIVE;
-        AlertCondition condition = new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, new BigDecimal("2"));
+        AlertCondition condition = new BurnRateAboveCondition(new BigDecimal("2"));
         BurnRateEvidence evidence = new BurnRateEvidence(
                 "checkout-availability", new ServiceIdentity("checkout", "commerce", "production"),
                 EvaluationWindow.PT5M, new TimeRange(OCCURRED_AT.minusSeconds(300), OCCURRED_AT), OCCURRED_AT,

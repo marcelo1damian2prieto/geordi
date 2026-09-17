@@ -2,12 +2,14 @@ package io.geordi.metrics.adapter.out.victoriametrics;
 
 import io.geordi.metrics.application.MetricsQuery;
 import io.geordi.metrics.application.RequestOutcomeQuery;
+import io.geordi.metrics.application.RequestOutcomeBatchQuery;
 import io.geordi.metrics.domain.OperationalMetric;
 import java.time.Duration;
 
 final class VictoriaMetricsQueryTranslator {
 
     private static final String SLO_COMPONENT = "geordi.slo.component";
+    private static final String SLO_WINDOW = "geordi.slo.window";
 
     String translate(MetricsQuery query, OperationalMetric metric) {
         String selectors = selectors(query);
@@ -41,6 +43,26 @@ final class VictoriaMetricsQueryTranslator {
                 selectors + ",\"http.response.status_code\"=~\"5..\"") + "[" + window + "s]))";
         return "label_set(" + requests + ",\"" + SLO_COMPONENT + "\",\"requests\") or label_set("
                 + errors + ",\"" + SLO_COMPONENT + "\",\"errors\")";
+    }
+
+    String translateRequestOutcomeBatch(RequestOutcomeBatchQuery query) {
+        return query.windows().stream()
+                .map(window -> correlatedOutcomeExpression(query.service(), window))
+                .reduce((left, right) -> left + " or " + right)
+                .orElseThrow();
+    }
+
+    private static String correlatedOutcomeExpression(
+            io.geordi.metrics.domain.ServiceIdentity service, RequestOutcomeBatchQuery.Window window) {
+        String selectors = selectors(service);
+        long seconds = Duration.between(window.range().from(), window.range().to()).toSeconds();
+        String requests = "sum(increase(" + vector("http.server.request.duration_count", selectors)
+                + "[" + seconds + "s]))";
+        String errors = "sum(increase(" + vector("http.server.request.duration_count",
+                selectors + ",\"http.response.status_code\"=~\"5..\"") + "[" + seconds + "s]))";
+        String correlation = ",\"" + SLO_WINDOW + "\",\"" + window.correlationKey() + "\"";
+        return "label_set(" + requests + ",\"" + SLO_COMPONENT + "\",\"requests\"" + correlation
+                + ") or label_set(" + errors + ",\"" + SLO_COMPONENT + "\",\"errors\"" + correlation + ")";
     }
 
     private static String errorRate(String selectors, long window) {

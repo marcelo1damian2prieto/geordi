@@ -1,6 +1,6 @@
 # Notification Delivery
 
-Status: M11 COMPLETE; M17 implementation in progress
+Status: M11 COMPLETE; M17 COMPLETE; M18 MULTIWINDOW IMPLEMENTATION IN PROGRESS
 
 ## Scope
 
@@ -107,3 +107,18 @@ creates M11 outbox work atomically and this worker remains unchanged. Local M12 
 evidence observed exactly one STARTED and one RESOLVED webhook across automatic
 evaluation, provider outage/recovery, and backend restart. This does not change the
 single-node, at-least-once delivery contract.
+
+## M18 persisted webhook schema selection
+
+The webhook sender selects its schema only from the decoded persisted transition.
+Legacy scalar transitions continue to emit the exact `geordi.notification.v1` payload,
+including pending work created before an upgrade. Persisted multiwindow transitions emit
+`geordi.notification.v2` with the canonical condition, aggregate evidence, exact
+observations, and derived band results. The sender never reads current policy
+configuration to select a version.
+
+This does not change delivery ID, `Idempotency-Key`, durable destination binding,
+retry/backoff, restart recovery, worker ownership, or terminal-state semantics. V2 has
+the same safety boundary as v1: it excludes destination and URL data, headers,
+credentials, tokens, provider queries, raw request/error counts, claims, leases,
+response bodies, and arbitrary errors.

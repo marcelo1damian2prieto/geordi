@@ -1,13 +1,14 @@
 import { useState, type RefObject } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
 import type { UseQueryResult } from '@tanstack/react-query'
 import type { AlertEpisodeDetailResponse } from '../../api/alertHistory'
 import { acknowledgeAlertEpisode } from '../../api/alertHistory'
+import { isMultiwindowAlertEvaluation } from '../../api/alertEvaluations'
 import { ApiError } from '../../api/client'
 import { hasAtMostCodePoints, stripJavaWhitespace } from './acknowledgementInput'
-import { episodeDuration, episodeStatus, historyFailure, investigationTarget, notificationDeliveryLabel, notificationDispositionLabel, notificationTimestamps, transitionLabel } from './alertHistoryPresentation'
-import { alertConditionLabel, alertStatusLabel, alertWindowLabel, formatAlertBurnRate } from '../alert-evaluations/alertEvaluationPresentation'
+import { episodeDuration, episodeStatus, historyFailure, notificationDeliveryLabel, notificationDispositionLabel, notificationTimestamps, transitionLabel } from './alertHistoryPresentation'
+import { alertStatusLabel, alertUnavailableReason } from '../alert-evaluations/alertEvaluationPresentation'
+import { AlertConditionDetails, AlertEvidenceDetails } from '../alert-evaluations/AlertEvidenceDetails'
 
 export function AlertEpisodeDetail({ query, headingRef, onClose }: {
   query: UseQueryResult<AlertEpisodeDetailResponse, Error>; headingRef: RefObject<HTMLHeadingElement | null>; onClose: () => void
@@ -59,7 +60,6 @@ export function AlertEpisodeDetail({ query, headingRef, onClose }: {
       {query.data?.transitions.map((transition) => {
         const evaluation = transition.evaluation
         const evidence = evaluation.evidence
-        const target = investigationTarget(evidence)
         const delivery = transition.notification.delivery
         const timestamps = delivery === null ? null : notificationTimestamps(delivery)
         return <article key={transition.id}>
@@ -68,17 +68,21 @@ export function AlertEpisodeDetail({ query, headingRef, onClose }: {
           <dl className="alert-evaluation-facts">
             <div><dt>Historical policy</dt><dd>{evaluation.policyName}</dd></div>
             <div><dt>SLO</dt><dd>{evaluation.sloId}</dd></div>
-            <div><dt>Condition</dt><dd>{alertConditionLabel(evaluation.condition.type)} {formatAlertBurnRate(evaluation.condition.threshold)}</dd></div>
+            <div><dt>Condition</dt><dd><AlertConditionDetails condition={evaluation.condition} /></dd></div>
             <div><dt>Evaluation status</dt><dd>{alertStatusLabel(evaluation.status)}</dd></div>
-            {evidence && <>
-              <div><dt>Service</dt><dd>{evidence.service.name}</dd></div><div><dt>Namespace</dt><dd>{evidence.service.namespace ?? 'No namespace'}</dd></div><div><dt>Environment</dt><dd>{evidence.service.environment}</dd></div>
-              <div><dt>Evidence window</dt><dd>{alertWindowLabel(evidence.window)}</dd></div>
-              <div><dt>Evidence from (UTC)</dt><dd><time dateTime={evidence.range.from}>{evidence.range.from}</time></dd></div>
-              <div><dt>Evidence to (UTC)</dt><dd><time dateTime={evidence.range.to}>{evidence.range.to}</time></dd></div>
-              <div><dt>Evaluated at (UTC)</dt><dd><time dateTime={evidence.evaluatedAt}>{evidence.evaluatedAt}</time></dd></div>
-              <div><dt>Observed burn rate</dt><dd>{evidence.observedBurnRate === null ? 'Unavailable' : formatAlertBurnRate(evidence.observedBurnRate)}</dd></div>
-            </>}
+            <div><dt>Aggregate result</dt><dd>{alertStatusLabel(evaluation.status)}</dd></div>
           </dl>
+          {evaluation.status === 'UNAVAILABLE' && <p>{alertUnavailableReason(evaluation.reason)}</p>}
+          {evidence && <AlertEvidenceDetails
+            evidence={evidence}
+            bandResults={isMultiwindowAlertEvaluation(evaluation) ? evaluation.bandResults : undefined}
+            headingId={`transition-${transition.id}-evidence`}
+            heading="Persisted evaluation evidence"
+            headingLevel={5}
+            investigationLabel={(windowLabel) => evaluation.condition.type === 'MULTIWINDOW_BURN_RATE'
+              ? `Investigate ${transitionLabel(transition.type)} ${windowLabel} observation for transition ${transition.id}`
+              : `Investigate ${transitionLabel(transition.type)} evidence`}
+          />}
           <section aria-label="Notification">
             <h5>Notification</h5>
             <dl className="alert-evaluation-facts">
@@ -92,7 +96,6 @@ export function AlertEpisodeDetail({ query, headingRef, onClose }: {
               </>}
             </dl>
           </section>
-          {target ? <Link to={target}>Investigate {transitionLabel(transition.type)} evidence</Link> : <p>Investigation unavailable for this persisted evidence</p>}
         </article>
       })}
     </>}

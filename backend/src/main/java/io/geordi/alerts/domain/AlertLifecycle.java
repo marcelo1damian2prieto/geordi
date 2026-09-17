@@ -11,7 +11,7 @@ public record AlertLifecycle(
         EvaluationWindow boundWindow,
         AlertLifecycleState state,
         AlertEvaluation latestEvaluation,
-        BurnRateEvidence activeEvidence,
+        AlertEvidence activeEvidence,
         Instant startedAt,
         Instant resolvedAt,
         Instant lastStateChangeAt,
@@ -45,7 +45,7 @@ public record AlertLifecycle(
         if (state == AlertLifecycleState.FIRING) {
             Objects.requireNonNull(startedAt, "firing lifecycle must have a start time");
             Objects.requireNonNull(activeEvidence, "firing lifecycle must retain active evidence");
-            if (!activeEvidence.available()) {
+            if (!conditionMet(condition, activeEvidence)) {
                 throw new IllegalArgumentException("active lifecycle evidence must be available");
             }
             requireEvidenceBinding(activeEvidence, boundService, boundWindow);
@@ -65,15 +65,26 @@ public record AlertLifecycle(
     }
 
     private static void requireEvidenceBinding(
-            BurnRateEvidence evidence, ServiceIdentity boundService, EvaluationWindow boundWindow) {
-        if (!evidence.service().equals(boundService) || evidence.window() != boundWindow) {
+            AlertEvidence evidence, ServiceIdentity boundService, EvaluationWindow boundWindow) {
+        if (!evidence.service().equals(boundService) || evidence.configuredSloWindow() != boundWindow) {
             throw new IllegalArgumentException("lifecycle evidence must match its immutable binding");
         }
     }
 
     private static void requireConditionBinding(AlertCondition expected, AlertCondition actual) {
-        if (expected.type() != actual.type() || expected.threshold().compareTo(actual.threshold()) != 0) {
+        if (!expected.equals(actual)) {
             throw new IllegalArgumentException("lifecycle condition binding must remain immutable");
         }
+    }
+
+    private static boolean conditionMet(AlertCondition condition, AlertEvidence evidence) {
+        if (condition instanceof BurnRateAboveCondition && evidence instanceof BurnRateEvidence scalar) {
+            return scalar.available();
+        }
+        if (condition instanceof MultiwindowBurnRateCondition multiwindow
+                && evidence instanceof MultiwindowBurnRateEvidence aggregate) {
+            return multiwindow.evaluateStatus(aggregate) == AlertEvaluationStatus.CONDITION_MET;
+        }
+        return false;
     }
 }

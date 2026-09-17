@@ -1,6 +1,6 @@
 # SLO Architecture
 
-Status: MILESTONES 7–9 COMPLETE
+Status: MILESTONES 7–9 COMPLETE; M18 BOUNDED INTERNAL CAPABILITY IMPLEMENTED
 
 ## Scope
 
@@ -185,6 +185,21 @@ An available valid zero burn remains evidence; unavailable M8 burn evidence rema
 unavailable for Alert Evaluation, including `NO_TRAFFIC`, `METRICS_UNAVAILABLE`, and
 `ZERO_ALLOWED_BAD_RATIO`. M9 policy/result semantics, notification delivery, alert
 lifecycle, and incidents are not SLO responsibilities.
+
+## M18 bounded observation capability
+
+M18 does not widen the public configured-SLO window contract: it remains `PT5M`,
+`PT15M`, `PT1H`, and `PT6H`, and each definition retains one configured provenance
+window. `PT30M` is therefore rejected by SLO YAML.
+
+The SLO application additionally owns an internal provider-neutral bounded evaluation
+capability for two through four requested observation durations. It resolves the SLO
+once, captures one `evaluatedAt`, derives every exact half-open range, and returns one
+result per requested window under one bounded provider deadline. It preserves the
+canonical M7/M8 request/error, no-traffic, invalid-telemetry, and zero-allowed-bad-ratio
+semantics for each observation. It does not expose provider query types and does not
+depend on the Alerts module. The Alerts composition adapter alone translates its
+provider-neutral result into Alerts observation evidence.
 
 ## REST and frontend
 

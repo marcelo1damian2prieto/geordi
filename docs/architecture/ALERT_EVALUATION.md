@@ -1,6 +1,6 @@
 # Alert Evaluation Architecture
 
-Status: MILESTONE 9 COMPLETE
+Status: MILESTONE 9 COMPLETE; M18 MULTIWINDOW IMPLEMENTATION IN PROGRESS
 
 ## Scope
 
@@ -117,3 +117,27 @@ use case exactly once for each accepted policy evaluation. Scheduler configurati
 outside the strict policy namespace at `geordi.scheduling.alert`; it is disabled by
 default. Provider unavailability remains M9 `UNAVAILABLE` evidence and cannot itself
 manufacture a lifecycle transition or notification.
+
+## M18 bounded multiwindow conditions and evidence
+
+M18 preserves the legacy scalar `BURN_RATE_ABOVE` condition and adds closed
+`MULTIWINDOW_BURN_RATE`. A multiwindow condition has one or two canonical bands only:
+`PT1H`/`PT5M` and `PT6H`/`PT30M`. Each band has a single finite non-negative threshold
+shared by its long and short observations, and comparison is inclusive. Input order is
+not semantic; canonical bands and observations have stable ordering.
+
+Alert observation windows are distinct from the configured-SLO provenance window.
+They are limited to `PT5M`, `PT30M`, `PT1H`, and `PT6H`; `PT30M` cannot become a
+configured SLO or provenance value. The evidence aggregate has one SLO, service,
+configured provenance window, and `evaluatedAt`, plus two through four exact
+observations. Each observation is exactly `[evaluatedAt - observationWindow,
+evaluatedAt)` and contains either a finite non-negative burn rate or a bounded leaf
+reason.
+
+Within a band, a below-threshold available observation produces `NOT_MET`; two
+available observations at/above threshold produce `MET`; all remaining combinations
+are `UNAVAILABLE`. Across bands, any `MET` yields `CONDITION_MET`, all `NOT_MET` yields
+`CONDITION_NOT_MET`, and the remaining case is `UNAVAILABLE` with
+`MULTIWINDOW_EVIDENCE_UNAVAILABLE`. All requested observations are collected before
+the result is computed. A disabled policy remains `UNAVAILABLE/DISABLED`, has null
+evidence, and does not call the SLO evaluator.

@@ -3,8 +3,6 @@ package io.geordi.alerts.application;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.geordi.alerts.domain.AlertCondition;
-import io.geordi.alerts.domain.AlertConditionType;
 import io.geordi.alerts.domain.AlertPolicy;
 import java.math.BigDecimal;
 import java.util.List;
@@ -28,6 +26,6 @@ class AlertPolicyReferenceValidatorTest {
     private static AlertPolicy policy(String id, boolean enabled, String sloId) {
         return new AlertPolicy(
                 id, "Policy " + id, null, enabled, sloId,
-                new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, BigDecimal.ONE));
+                new io.geordi.alerts.domain.BurnRateAboveCondition(BigDecimal.ONE));
     }
 }

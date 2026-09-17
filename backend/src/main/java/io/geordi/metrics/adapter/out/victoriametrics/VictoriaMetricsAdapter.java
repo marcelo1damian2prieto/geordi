@@ -4,11 +4,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.geordi.metrics.application.MetricsBackendException;
 import io.geordi.metrics.application.MetricsQuery;
 import io.geordi.metrics.application.RequestOutcomeMeasurement;
+import io.geordi.metrics.application.RequestOutcomeBatchMeasurement;
+import io.geordi.metrics.application.RequestOutcomeBatchQuery;
 import io.geordi.metrics.application.RequestOutcomeQuery;
 import io.geordi.metrics.application.RequestOutcomeQueryException;
 import io.geordi.metrics.application.port.out.MetricsBackendProbe;
 import io.geordi.metrics.application.port.out.MetricsQueryPort;
 import io.geordi.metrics.application.port.out.RequestOutcomeQueryPort;
+import io.geordi.metrics.application.port.out.RequestOutcomeBatchQueryPort;
 import io.geordi.metrics.domain.MetricSeries;
 import io.geordi.metrics.domain.ServiceIdentity;
 import io.geordi.metrics.domain.TimeRange;
@@ -19,7 +22,8 @@ import java.util.Map;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
-public final class VictoriaMetricsAdapter implements MetricsQueryPort, MetricsBackendProbe, RequestOutcomeQueryPort {
+public final class VictoriaMetricsAdapter
+        implements MetricsQueryPort, MetricsBackendProbe, RequestOutcomeQueryPort, RequestOutcomeBatchQueryPort {
 
     private final RestClient client;
     private final VictoriaMetricsQueryTranslator translator = new VictoriaMetricsQueryTranslator();
@@ -81,6 +85,27 @@ public final class VictoriaMetricsAdapter implements MetricsQueryPort, MetricsBa
             throw new RequestOutcomeQueryException(
                     RequestOutcomeQueryException.Reason.UNAVAILABLE,
                     "Metrics backend request outcome query failed",
+                    exception);
+        }
+    }
+
+    @Override
+    public RequestOutcomeBatchMeasurement queryBatch(RequestOutcomeBatchQuery query) {
+        try {
+            JsonNode body = client.get().uri(builder -> builder.path("/api/v1/query")
+                            .queryParam("query", "{expression}")
+                            .queryParam("time", DateTimeFormatter.ISO_INSTANT.format(
+                                    query.windows().getFirst().range().to().minusNanos(1)))
+                            .build(Map.of("expression", translator.translateRequestOutcomeBatch(query))))
+                    .retrieve().body(JsonNode.class);
+            return parser.requestOutcomeBatch(
+                    body, query.windows().stream().map(RequestOutcomeBatchQuery.Window::correlationKey).toList());
+        } catch (RequestOutcomeQueryException exception) {
+            throw exception;
+        } catch (RestClientException | IllegalArgumentException exception) {
+            throw new RequestOutcomeQueryException(
+                    RequestOutcomeQueryException.Reason.UNAVAILABLE,
+                    "Metrics backend bounded request outcome query failed",
                     exception);
         }
     }

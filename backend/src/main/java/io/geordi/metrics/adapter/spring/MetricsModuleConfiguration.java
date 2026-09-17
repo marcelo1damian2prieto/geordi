@@ -63,12 +63,13 @@ public class MetricsModuleConfiguration {
 
         @Bean
         ObservedRequestOutcomeQueryAdapter observedRequestOutcomeQueryAdapter(VictoriaMetricsAdapter adapter) {
-            return new ObservedRequestOutcomeQueryAdapter(adapter);
+            return new ObservedRequestOutcomeQueryAdapter(adapter, adapter);
         }
 
         @Bean
-        RequestOutcomeQueryService requestOutcomeQueryService(ObservedRequestOutcomeQueryAdapter adapter) {
-            return new RequestOutcomeQueryService(adapter);
+        RequestOutcomeQueryService requestOutcomeQueryService(
+                ObservedRequestOutcomeQueryAdapter adapter, VictoriaMetricsProperties properties) {
+            return new RequestOutcomeQueryService(adapter, adapter, properties.readTimeout());
         }
     }
 }

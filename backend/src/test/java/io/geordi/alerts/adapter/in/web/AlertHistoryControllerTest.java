@@ -14,10 +14,9 @@ import io.geordi.alerts.application.AcknowledgeAlertEpisodeUseCase;
 import io.geordi.alerts.application.port.out.AlertEpisodeHistoryQuery;
 import io.geordi.alerts.application.port.out.AlertHistoryRepository;
 import io.geordi.alerts.application.port.out.AlertTransitionHistoryQuery;
-import io.geordi.alerts.domain.AlertCondition;
-import io.geordi.alerts.domain.AlertConditionType;
 import io.geordi.alerts.domain.AlertEpisode;
 import io.geordi.alerts.domain.AlertEpisodeId;
+import io.geordi.alerts.domain.AlertObservationWindow;
 import io.geordi.alerts.domain.AlertEvaluation;
 import io.geordi.alerts.domain.AlertEvaluationStatus;
 import io.geordi.alerts.domain.AlertLifecycleState;
@@ -25,13 +24,19 @@ import io.geordi.alerts.domain.AlertTransition;
 import io.geordi.alerts.domain.AlertTransitionRecord;
 import io.geordi.alerts.domain.AlertTransitionType;
 import io.geordi.alerts.domain.BurnRateEvidence;
+import io.geordi.alerts.domain.BurnRateAboveCondition;
+import io.geordi.alerts.domain.BurnRateBand;
 import io.geordi.alerts.domain.EvaluationWindow;
+import io.geordi.alerts.domain.MultiwindowBurnRateCondition;
+import io.geordi.alerts.domain.MultiwindowBurnRateEvidence;
 import io.geordi.alerts.domain.ServiceIdentity;
 import io.geordi.alerts.domain.TimeRange;
+import io.geordi.alerts.domain.WindowBurnRateObservation;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -140,6 +145,23 @@ class AlertHistoryControllerTest {
     }
 
     @Test
+    void returnsPersistedMultiwindowEvidenceAndBandResultsWithoutInternalFields() throws Exception {
+        AlertTransitionRecord multiwindow = AlertTransitionRecord.forEpisode(EPISODE, multiwindowTransition());
+
+        mvc(new Repository(List.of(EPISODE), List.of(multiwindow)))
+                .perform(get("/api/alert-episodes/{episodeId}", EPISODE.id().value()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.transitions[0].evaluation.condition.type")
+                        .value("MULTIWINDOW_BURN_RATE"))
+                .andExpect(jsonPath("$.transitions[0].evaluation.evidence.configuredSloWindow").value("PT5M"))
+                .andExpect(jsonPath("$.transitions[0].evaluation.evidence.observations.length()").value(2))
+                .andExpect(jsonPath("$.transitions[0].evaluation.bandResults[0].outcome").value("MET"))
+                .andExpect(jsonPath("$.transitions[0].evaluation.persistenceFormatVersion").doesNotExist())
+                .andExpect(jsonPath("$.transitions[0].evaluation.evidence.providerQuery").doesNotExist())
+                .andExpect(jsonPath("$.transitions[0].evaluation.evidence.requestCount").doesNotExist());
+    }
+
+    @Test
     void acceptsTheDocumentedTransitionLimitBoundaryForAPolicyScopedQuery() throws Exception {
         mvc(new Repository(List.of(), List.of(TRANSITION))).perform(get("/api/alert-transitions")
                         .param("policyId", "checkout-burn")
@@ -182,12 +204,34 @@ class AlertHistoryControllerTest {
     private static AlertTransition transition() {
         AlertEvaluation evaluation = new AlertEvaluation(
                 "checkout-burn", "Checkout burn", "checkout-availability",
-                new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, new BigDecimal("2")),
+                new BurnRateAboveCondition(new BigDecimal("2")),
                 AlertEvaluationStatus.CONDITION_MET, null,
                 new BurnRateEvidence(
                         "checkout-availability", new ServiceIdentity("checkout", "commerce", "production"),
                         EvaluationWindow.PT5M, new TimeRange(STARTED_AT.minusSeconds(300), STARTED_AT), STARTED_AT,
                         new BigDecimal("3"), null));
+        return new AlertTransition(
+                "checkout-burn", AlertTransitionType.ALERT_STARTED, AlertLifecycleState.INACTIVE,
+                AlertLifecycleState.FIRING, STARTED_AT, evaluation);
+    }
+
+    private static AlertTransition multiwindowTransition() {
+        MultiwindowBurnRateCondition condition = new MultiwindowBurnRateCondition(List.of(new BurnRateBand(
+                AlertObservationWindow.PT1H, AlertObservationWindow.PT5M, new BigDecimal("2"))));
+        MultiwindowBurnRateEvidence evidence = MultiwindowBurnRateEvidence.of(
+                "checkout-availability", new ServiceIdentity("checkout", "commerce", "production"),
+                EvaluationWindow.PT5M, STARTED_AT, Set.copyOf(condition.observationWindows()), List.of(
+                        new WindowBurnRateObservation(
+                                AlertObservationWindow.PT1H,
+                                new TimeRange(STARTED_AT.minus(AlertObservationWindow.PT1H.duration()), STARTED_AT),
+                                new BigDecimal("3"), null),
+                        new WindowBurnRateObservation(
+                                AlertObservationWindow.PT5M,
+                                new TimeRange(STARTED_AT.minus(AlertObservationWindow.PT5M.duration()), STARTED_AT),
+                                new BigDecimal("2"), null)));
+        AlertEvaluation evaluation = new AlertEvaluation(
+                "checkout-burn", "Checkout burn", "checkout-availability", condition,
+                AlertEvaluationStatus.CONDITION_MET, null, evidence);
         return new AlertTransition(
                 "checkout-burn", AlertTransitionType.ALERT_STARTED, AlertLifecycleState.INACTIVE,
                 AlertLifecycleState.FIRING, STARTED_AT, evaluation);

@@ -3,6 +3,7 @@ package io.geordi.alerts.adapter.spring;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.geordi.alerts.AlertsPlatformModule;
 import io.geordi.alerts.adapter.out.config.AlertPoliciesProperties;
+import io.geordi.alerts.adapter.out.config.AlertPolicyConfigurationFields;
 import io.geordi.alerts.adapter.out.config.AlertSchedulingProperties;
 import io.geordi.alerts.adapter.in.worker.AlertEvaluationScheduler;
 import io.geordi.alerts.adapter.out.config.ConfigurationAlertPolicyCatalog;
@@ -47,6 +48,7 @@ import io.geordi.alerts.application.port.out.NotificationDeliveryWorkRepository;
 import io.geordi.alerts.application.port.out.SloLifecycleBindingPort;
 import io.geordi.alerts.application.port.out.SloReferencePort;
 import io.geordi.core.module.PlatformModule;
+import io.geordi.slos.application.BoundedWindowedBurnRateUseCase;
 import io.geordi.slos.application.SloEvaluationUseCase;
 import io.geordi.slos.application.port.out.SloDefinitionCatalog;
 import java.time.Clock;
@@ -57,6 +59,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.JdbcTransactionManager;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -86,12 +89,18 @@ public class AlertsModuleConfiguration {
 
         @Bean
         SlosReliabilityAdapter slosReliabilityAdapter(
-                SloEvaluationUseCase evaluations, SloDefinitionCatalog definitions) {
-            return new SlosReliabilityAdapter(evaluations, definitions);
+                SloEvaluationUseCase evaluations,
+                BoundedWindowedBurnRateUseCase boundedEvaluations,
+                SloDefinitionCatalog definitions) {
+            return new SlosReliabilityAdapter(evaluations, boundedEvaluations, definitions);
         }
 
         @Bean
-        AlertPolicyCatalog alertPolicyCatalog(AlertPoliciesProperties properties, SloReferencePort references) {
+        AlertPolicyCatalog alertPolicyCatalog(
+                AlertPoliciesProperties properties,
+                SloReferencePort references,
+                ConfigurableEnvironment environment) {
+            AlertPolicyConfigurationFields.rejectUnknownFields(environment);
             ConfigurationAlertPolicyCatalog catalog = new ConfigurationAlertPolicyCatalog(properties);
             new AlertPolicyReferenceValidator(references).validate(catalog.findAll());
             return catalog;

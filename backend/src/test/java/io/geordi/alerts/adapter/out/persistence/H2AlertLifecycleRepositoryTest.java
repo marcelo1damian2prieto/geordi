@@ -27,19 +27,27 @@ import io.geordi.alerts.domain.AlertEvaluation;
 import io.geordi.alerts.domain.AlertEvaluationStatus;
 import io.geordi.alerts.domain.AlertLifecycle;
 import io.geordi.alerts.domain.AlertLifecycleTransitions;
+import io.geordi.alerts.domain.AlertObservationWindow;
+import io.geordi.alerts.domain.AlertUnavailableReason;
 import io.geordi.alerts.domain.AlertHistoryMutation;
 import io.geordi.alerts.domain.AlertTransitionCommitIntent;
+import io.geordi.alerts.domain.BurnRateAboveCondition;
+import io.geordi.alerts.domain.BurnRateBand;
 import io.geordi.alerts.domain.NotificationDelivery;
 import io.geordi.alerts.domain.NotificationCommitIntent;
 import io.geordi.alerts.domain.NotificationDestination;
 import io.geordi.alerts.domain.BurnRateEvidence;
 import io.geordi.alerts.domain.EvaluationWindow;
+import io.geordi.alerts.domain.MultiwindowBurnRateCondition;
+import io.geordi.alerts.domain.MultiwindowBurnRateEvidence;
 import io.geordi.alerts.domain.ServiceIdentity;
 import io.geordi.alerts.domain.TimeRange;
+import io.geordi.alerts.domain.WindowBurnRateObservation;
 import io.geordi.bootstrap.GeordiApplication;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -244,6 +252,69 @@ class H2AlertLifecycleRepositoryTest {
                     assertThat(value.lifecycle()).isEqualTo(inactive);
                 });
         assertThat(repository.findAll()).hasSize(1);
+    }
+
+    @Test
+    void readsFrozenV1FiringStateWithoutRewritingAndPreservesLegacyFreezeAndRecovery() throws Exception {
+        String frozen = compatibilityFixture("lifecycle-firing-available-v1.json");
+        jdbc.update("INSERT INTO alert_lifecycle_state (policy_id, version, aggregate_json) VALUES (?, 0, ?)",
+                "checkout-burn", frozen);
+
+        AlertLifecycle firing = repository.findByPolicyId("checkout-burn").orElseThrow().lifecycle();
+
+        assertThat(firing.condition()).isInstanceOf(BurnRateAboveCondition.class);
+        assertThat(jdbc.queryForObject("SELECT aggregate_json FROM alert_lifecycle_state", String.class))
+                .isEqualTo(frozen);
+
+        Instant unavailableAt = firing.lastEvidenceAt().plusSeconds(300);
+        AlertEvaluation unavailable = new AlertEvaluation(
+                firing.policyId(), "Checkout burn", firing.sloId(), firing.condition(),
+                AlertEvaluationStatus.UNAVAILABLE, AlertUnavailableReason.METRICS_UNAVAILABLE,
+                legacyEvidence(unavailableAt, null, AlertUnavailableReason.METRICS_UNAVAILABLE));
+        AlertLifecycle frozenFiring = AlertLifecycleTransitions.apply(
+                Optional.of(firing), unavailable, null).current();
+        assertThat(frozenFiring.state()).isEqualTo(io.geordi.alerts.domain.AlertLifecycleState.FIRING);
+        assertThat(frozenFiring.activeEvidence()).isEqualTo(firing.activeEvidence());
+        assertThat(repository.replaceIfVersionMatches(frozenFiring, 0)).isTrue();
+
+        Instant recoveredAt = unavailableAt.plusSeconds(300);
+        AlertEvaluation recovered = new AlertEvaluation(
+                firing.policyId(), "Checkout burn", firing.sloId(), firing.condition(),
+                AlertEvaluationStatus.CONDITION_NOT_MET, null,
+                legacyEvidence(recoveredAt, new BigDecimal("0.5"), null));
+        AlertLifecycle inactive = AlertLifecycleTransitions.apply(
+                Optional.of(repository.findByPolicyId("checkout-burn").orElseThrow().lifecycle()), recovered, null)
+                .current();
+        assertThat(repository.replaceIfVersionMatches(inactive, 1)).isTrue();
+        assertThat(repository.findByPolicyId("checkout-burn").orElseThrow().lifecycle().state())
+                .isEqualTo(io.geordi.alerts.domain.AlertLifecycleState.INACTIVE);
+        assertThat(jdbc.queryForObject("SELECT aggregate_json FROM alert_lifecycle_state", String.class))
+                .doesNotContain("persistenceFormatVersion");
+    }
+
+    @Test
+    void atomicallyWritesAndReadsV2LifecycleHistoryOutboxAndCorrelation() {
+        H2AlertLifecycleRepository transactional = transactionalRepository();
+        AlertLifecycle firing = multiwindowLifecycle();
+        NotificationDelivery delivery = delivery(firing, FIRST);
+
+        assertThat(transactional.commit(
+                firing, Optional.empty(), Optional.of(matchedIntent(firing, delivery)))).isTrue();
+
+        assertThat(jdbc.queryForObject("SELECT aggregate_json FROM alert_lifecycle_state", String.class))
+                .startsWith("{\"persistenceFormatVersion\":2,\"lifecycle\":{");
+        assertThat(jdbc.queryForObject("SELECT transition_json FROM alert_transition_history", String.class))
+                .startsWith("{\"persistenceFormatVersion\":2,\"transition\":{");
+        assertThat(jdbc.queryForObject("SELECT payload_json FROM alert_notification_outbox", String.class))
+                .startsWith("{\"persistenceFormatVersion\":2,\"transition\":{");
+        assertThat(transactional.findByPolicyId(firing.policyId()).orElseThrow().lifecycle()).isEqualTo(firing);
+        var record = transactional.findTransitions(
+                new AlertTransitionHistoryQuery(firing.policyId(), null, null, null, 10)).getFirst();
+        var projection = new io.geordi.alerts.application.AlertNotificationProjectionService(transactional)
+                .project(List.of(record)).getFirst();
+        assertThat(projection.notification().delivery()).isNotNull();
+        assertThat(transactional.claimDue(FIRST, FIRST.plusSeconds(30), 1, 3).getFirst().transition())
+                .isEqualTo(firing.latestTransition());
     }
 
     @Test
@@ -801,25 +872,64 @@ class H2AlertLifecycleRepositoryTest {
     }
 
     private void seedOutbox(NotificationDelivery delivery) {
-        try {
-            jdbc.update(
-                    """
-                    INSERT INTO alert_notification_outbox (
-                        delivery_id, policy_id, transition_type, occurred_at,
-                        destination_id, destination_fingerprint, payload_json,
-                        state, attempts, created_at, next_attempt_at,
-                        claim_token, lease_expires_at, completed_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    delivery.id(), delivery.transition().policyId(), delivery.transition().type().name(),
-                    Timestamp.from(delivery.transition().occurredAt()), delivery.destination().id(),
-                    delivery.destination().configurationFingerprint(),
-                    JsonMapper.builder().findAndAddModules().build().writeValueAsString(delivery.transition()),
-                    delivery.state().name(), delivery.attempts(), Timestamp.from(delivery.createdAt()),
-                    Timestamp.from(delivery.nextAttemptAt()), delivery.claimToken(), delivery.leaseExpiresAt(),
-                    delivery.completedAt());
-        } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
-            throw new AssertionError("canonical transition must serialize", exception);
+        jdbc.update(
+                """
+                INSERT INTO alert_notification_outbox (
+                    delivery_id, policy_id, transition_type, occurred_at,
+                    destination_id, destination_fingerprint, payload_json,
+                    state, attempts, created_at, next_attempt_at,
+                    claim_token, lease_expires_at, completed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                delivery.id(), delivery.transition().policyId(), delivery.transition().type().name(),
+                Timestamp.from(delivery.transition().occurredAt()), delivery.destination().id(),
+                delivery.destination().configurationFingerprint(),
+                new AlertPersistenceJsonCodec(JsonMapper.builder().findAndAddModules().build())
+                        .writeTransition(delivery.transition()),
+                delivery.state().name(), delivery.attempts(), Timestamp.from(delivery.createdAt()),
+                Timestamp.from(delivery.nextAttemptAt()), delivery.claimToken(), delivery.leaseExpiresAt(),
+                delivery.completedAt());
+    }
+
+    private static AlertLifecycle multiwindowLifecycle() {
+        MultiwindowBurnRateCondition condition = new MultiwindowBurnRateCondition(List.of(
+                new BurnRateBand(AlertObservationWindow.PT6H, AlertObservationWindow.PT30M,
+                        new BigDecimal("6")),
+                new BurnRateBand(AlertObservationWindow.PT1H, AlertObservationWindow.PT5M,
+                        new BigDecimal("14.4"))));
+        MultiwindowBurnRateEvidence evidence = MultiwindowBurnRateEvidence.of(
+                "checkout-availability", new ServiceIdentity("checkout", "commerce", "production"),
+                EvaluationWindow.PT15M, FIRST, condition.observationWindows(), List.of(
+                        observation(AlertObservationWindow.PT6H, "5", null),
+                        observation(AlertObservationWindow.PT1H, "15", null),
+                        observation(AlertObservationWindow.PT30M, null, AlertUnavailableReason.METRICS_UNAVAILABLE),
+                        observation(AlertObservationWindow.PT5M, "20", null)));
+        AlertEvaluation evaluation = new AlertEvaluation(
+                "checkout-multiwindow", "Checkout multiwindow", "checkout-availability", condition,
+                AlertEvaluationStatus.CONDITION_MET, null, evidence);
+        return AlertLifecycleTransitions.apply(Optional.empty(), evaluation, null).current();
+    }
+
+    private static WindowBurnRateObservation observation(
+            AlertObservationWindow window, String burnRate, AlertUnavailableReason reason) {
+        return new WindowBurnRateObservation(
+                window, new TimeRange(FIRST.minus(window.duration()), FIRST),
+                burnRate == null ? null : new BigDecimal(burnRate), reason);
+    }
+
+    private static BurnRateEvidence legacyEvidence(
+            Instant evaluatedAt, BigDecimal burnRate, AlertUnavailableReason reason) {
+        return new BurnRateEvidence(
+                "checkout-availability", new ServiceIdentity("checkout", "commerce", "production"),
+                EvaluationWindow.PT5M, new TimeRange(evaluatedAt.minusSeconds(300), evaluatedAt), evaluatedAt,
+                burnRate, reason);
+    }
+
+    private static String compatibilityFixture(String name) throws Exception {
+        try (var stream = H2AlertLifecycleRepositoryTest.class.getResourceAsStream(
+                "/io/geordi/alerts/adapter/out/persistence/compatibility/" + name)) {
+            return new String(java.util.Objects.requireNonNull(stream).readAllBytes(),
+                    java.nio.charset.StandardCharsets.UTF_8).stripTrailing();
         }
     }
 
@@ -831,7 +941,7 @@ class H2AlertLifecycleRepositoryTest {
                 status == AlertEvaluationStatus.CONDITION_MET ? new BigDecimal("3") : new BigDecimal("0.5"), null);
         AlertEvaluation evaluation = new AlertEvaluation(
                 "checkout-burn", "Checkout burn", "checkout-availability",
-                new AlertCondition(AlertConditionType.BURN_RATE_ABOVE, new BigDecimal("2")),
+                new io.geordi.alerts.domain.BurnRateAboveCondition(new BigDecimal("2")),
                 status, null, evidence);
         return AlertLifecycleTransitions.apply(previous, evaluation, null).current();
     }

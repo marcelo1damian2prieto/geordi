@@ -11,7 +11,7 @@ public record BurnRateEvidence(
         TimeRange range,
         Instant evaluatedAt,
         BigDecimal observedBurnRate,
-        AlertUnavailableReason reason) {
+        AlertUnavailableReason reason) implements AlertEvidence {
 
     public BurnRateEvidence {
         if (sloId == null || sloId.isBlank()) {
@@ -39,9 +39,17 @@ public record BurnRateEvidence(
         if ((observedBurnRate == null) == (reason == null)) {
             throw new IllegalArgumentException("burn evidence requires exactly one of value or unavailable reason");
         }
+        if (reason == AlertUnavailableReason.MULTIWINDOW_EVIDENCE_UNAVAILABLE) {
+            throw new IllegalArgumentException("aggregate unavailable reason requires multiwindow evidence");
+        }
     }
 
     public boolean available() {
         return observedBurnRate != null;
+    }
+
+    @Override
+    public EvaluationWindow configuredSloWindow() {
+        return window;
     }
 }

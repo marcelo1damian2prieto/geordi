@@ -17,6 +17,20 @@ geordi:
         condition:
           type: BURN_RATE_ABOVE
           threshold: 1
+      - id: m18-multiwindow-burn-alert
+        name: M18 multiwindow burn alert
+        description: Isolated imported-counter policy for deterministic multiwindow condition verification.
+        enabled: true
+        slo-id: m18-multiwindow-error-rate
+        condition:
+          type: MULTIWINDOW_BURN_RATE
+          bands:
+            - long-window: PT1H
+              short-window: PT5M
+              threshold: 1.2
+            - long-window: PT6H
+              short-window: PT30M
+              threshold: 0.2
       - id: m12-scheduling-alert
         name: M12 scheduling alert
         description: Isolated policy for automatic scheduling verification.

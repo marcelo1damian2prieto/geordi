@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { AlertEvaluation, AlertPolicy } from '../../api/alertEvaluations'
+import type { AlertEvaluation, AlertPolicy, AlertUnavailableReason, LegacyAlertEvaluation, MultiwindowAlertEvaluation } from '../../api/alertEvaluations'
 import type {
   AlertLifecycleEvaluationResult,
   AlertLifecycleSnapshot,
@@ -12,24 +12,70 @@ import type {
 import { AlertLifecyclePage } from './AlertLifecyclePage'
 import { alertLifecyclePolicyKey } from './useAlertLifecycles'
 
-const policy: AlertPolicy = {
+const policy = {
   id: 'checkout-burn',
   name: 'Checkout burn',
   description: 'Current checkout availability burn.',
   enabled: true,
   sloId: 'checkout-availability',
   condition: { type: 'BURN_RATE_ABOVE', threshold: 2 },
-}
+} satisfies AlertPolicy
 const service = { name: 'checkout', namespace: 'storefront', environment: 'production' }
 const range = { from: '2026-08-27T10:00:00.000Z', to: '2026-08-27T10:15:00.000Z' }
 const previousRange = { from: '2026-08-27T09:45:00.000Z', to: '2026-08-27T10:00:00.000Z' }
+const multiwindowPolicy = {
+  ...policy,
+  id: 'checkout-multiwindow',
+  name: 'Checkout multiwindow',
+  condition: {
+    type: 'MULTIWINDOW_BURN_RATE',
+    bands: [{ longWindow: 'PT1H', shortWindow: 'PT5M', threshold: 14.4 }],
+  },
+} satisfies AlertPolicy
+
+function multiwindowEvaluation(
+  evaluatedAt: string,
+  longBurn: number | null,
+  longReason: AlertUnavailableReason | null,
+): MultiwindowAlertEvaluation {
+  const band = multiwindowPolicy.condition.bands[0]
+  const longObservation = {
+    observationWindow: 'PT1H' as const,
+    range: { from: new Date(Date.parse(evaluatedAt) - 60 * 60 * 1000).toISOString(), to: evaluatedAt },
+    ...(longBurn === null
+      ? { observedBurnRate: null, reason: longReason ?? 'METRICS_UNAVAILABLE' as const }
+      : { observedBurnRate: longBurn, reason: null }),
+  }
+  const shortObservation = {
+    observationWindow: 'PT5M' as const,
+    range: { from: new Date(Date.parse(evaluatedAt) - 5 * 60 * 1000).toISOString(), to: evaluatedAt },
+    observedBurnRate: 15,
+    reason: null,
+  } as const
+  const unavailable = longBurn === null
+  return {
+    policyId: multiwindowPolicy.id,
+    policyName: multiwindowPolicy.name,
+    sloId: multiwindowPolicy.sloId,
+    condition: multiwindowPolicy.condition,
+    status: unavailable ? 'UNAVAILABLE' : 'CONDITION_MET',
+    reason: unavailable ? 'MULTIWINDOW_EVIDENCE_UNAVAILABLE' : null,
+    evidence: {
+      service,
+      configuredSloWindow: 'PT15M',
+      evaluatedAt,
+      observations: [shortObservation, longObservation],
+    },
+    bandResults: [{ band, longObservation, shortObservation, outcome: unavailable ? 'UNAVAILABLE' : 'MET' }],
+  }
+}
 
 function evaluation(
   status: AlertEvaluation['status'],
   observedBurnRate: number | null,
-  reason: AlertEvaluation['reason'] = null,
+  reason: AlertUnavailableReason | null = null,
   evidenceRange = range,
-): AlertEvaluation {
+): LegacyAlertEvaluation {
   return {
     policyId: policy.id,
     policyName: policy.name,
@@ -226,6 +272,55 @@ describe('Alert lifecycle', () => {
     expect(target.searchParams.get('to')).toBe(previousRange.to)
   })
 
+  it('shows complete latest and retained multiwindow evidence with unique exact-range links', async () => {
+    const firstEvaluatedAt = previousRange.from
+    const startedEvaluation = multiwindowEvaluation(firstEvaluatedAt, 16, null)
+    const active = multiwindowEvaluation(previousRange.to, 17, null)
+    const unavailable = multiwindowEvaluation(range.to, null, 'METRICS_UNAVAILABLE')
+    const started = {
+      policyId: multiwindowPolicy.id,
+      type: 'ALERT_STARTED' as const,
+      previousState: 'INACTIVE' as const,
+      currentState: 'FIRING' as const,
+      occurredAt: firstEvaluatedAt,
+      evaluation: startedEvaluation,
+    }
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ alertStates: [snapshot({
+      policy: multiwindowPolicy,
+      initialized: true,
+      state: 'FIRING',
+      latestEvaluation: unavailable,
+      activeEvidence: active.evidence,
+      startedAt: firstEvaluatedAt,
+      lastProcessedAt: range.to,
+      lastEvidenceAt: range.to,
+      latestTransition: started,
+    })] }))
+    renderPage()
+
+    expect(await screen.findByText('Current evidence is unavailable. Lifecycle state remains FIRING.')).toBeInTheDocument()
+    expect(screen.getByText('At least one burn-rate band remains unavailable and no band met its threshold.')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Retained firing evidence' })).toBeInTheDocument()
+    expect(screen.getAllByRole('heading', { name: 'Burn band — 1 hour + 5 minutes' })).toHaveLength(2)
+    expect(screen.getByText('Unavailable — Metrics storage is unavailable for this evaluation.')).toBeInTheDocument()
+    expect(screen.getByText('17×')).toBeInTheDocument()
+    expect(screen.queryByText('16×')).not.toBeInTheDocument()
+    expect(screen.getAllByText('Configured SLO provenance window')).toHaveLength(2)
+
+    const latestLong = screen.getByRole('link', { name: 'Investigate Checkout multiwindow latest 1 hour observation' })
+    const latestShort = screen.getByRole('link', { name: 'Investigate Checkout multiwindow latest 5 minutes observation' })
+    const retainedLong = screen.getByRole('link', { name: 'Investigate Checkout multiwindow retained 1 hour observation' })
+    const retainedShort = screen.getByRole('link', { name: 'Investigate Checkout multiwindow retained 5 minutes observation' })
+    expect(new URL(latestLong.getAttribute('href')!, 'http://geordi.test').searchParams.get('from')).toBe('2026-08-27T09:15:00.000Z')
+    expect(new URL(latestLong.getAttribute('href')!, 'http://geordi.test').searchParams.get('to')).toBe(range.to)
+    expect(new URL(latestShort.getAttribute('href')!, 'http://geordi.test').searchParams.get('from')).toBe('2026-08-27T10:10:00.000Z')
+    expect(new URL(latestShort.getAttribute('href')!, 'http://geordi.test').searchParams.get('to')).toBe(range.to)
+    expect(new URL(retainedLong.getAttribute('href')!, 'http://geordi.test').searchParams.get('from')).toBe('2026-08-27T09:00:00.000Z')
+    expect(new URL(retainedLong.getAttribute('href')!, 'http://geordi.test').searchParams.get('to')).toBe(previousRange.to)
+    expect(new URL(retainedShort.getAttribute('href')!, 'http://geordi.test').searchParams.get('from')).toBe('2026-08-27T09:55:00.000Z')
+    expect(new URL(retainedShort.getAttribute('href')!, 'http://geordi.test').searchParams.get('to')).toBe(previousRange.to)
+  })
+
   it('does not imply activation for inactive unavailable evidence', async () => {
     const unavailable = evaluation('UNAVAILABLE', null, 'NO_TRAFFIC')
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ alertStates: [snapshot({ initialized: true, latestEvaluation: unavailable, lastProcessedAt: range.to, lastEvidenceAt: range.to })] }))
@@ -297,6 +392,10 @@ describe('Alert lifecycle', () => {
     expect(alertLifecyclePolicyKey({ ...policy, enabled: false })).not.toEqual(alertLifecyclePolicyKey(policy))
     expect(alertLifecyclePolicyKey({ ...policy, sloId: 'another-slo' })).not.toEqual(alertLifecyclePolicyKey(policy))
     expect(alertLifecyclePolicyKey({ ...policy, condition: { ...policy.condition, threshold: 5 } })).not.toEqual(alertLifecyclePolicyKey(policy))
+    expect(alertLifecyclePolicyKey({ ...multiwindowPolicy, condition: {
+      ...multiwindowPolicy.condition,
+      bands: [{ ...multiwindowPolicy.condition.bands[0], threshold: 15 }],
+    } })).not.toEqual(alertLifecyclePolicyKey(multiwindowPolicy))
   })
 
   it('hides the prior snapshot and prevents overlapping commands while evaluating', async () => {

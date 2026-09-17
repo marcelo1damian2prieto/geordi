@@ -8,29 +8,73 @@ import type {
   AlertPoliciesResponse,
   AlertPolicy,
   AlertUnavailableReason,
+  LegacyAlertEvaluation,
+  MultiwindowAlertEvaluation,
 } from '../../api/alertEvaluations'
 import { AlertEvaluationsPage } from './AlertEvaluationsPage'
 import { alertEvaluationQueryKey } from './useAlertEvaluations'
 
 const range = { from: '2026-08-25T10:00:00.000Z', to: '2026-08-25T10:15:00.000Z' }
 const service = { name: 'checkout', namespace: 'storefront', environment: 'production' }
-const enabledPolicy: AlertPolicy = {
+const enabledPolicy = {
   id: 'checkout-burn',
   name: 'Checkout burn',
   description: 'Current checkout availability burn.',
   enabled: true,
   sloId: 'checkout-availability',
   condition: { type: 'BURN_RATE_ABOVE', threshold: 2 },
-}
-const disabledPolicy: AlertPolicy = {
+} satisfies AlertPolicy
+const disabledPolicy = {
   id: 'disabled-burn',
   name: 'Disabled burn policy',
   description: null,
   enabled: false,
   sloId: 'checkout-availability',
   condition: { type: 'BURN_RATE_ABOVE', threshold: 4 },
-}
+} satisfies AlertPolicy
 const policies: AlertPoliciesResponse = { alertPolicies: [enabledPolicy, disabledPolicy] }
+const multiwindowPolicy = {
+  id: 'checkout-multiwindow-burn',
+  name: 'Checkout multiwindow burn',
+  description: 'Sustained and recent checkout burn.',
+  enabled: true,
+  sloId: 'checkout-availability',
+  condition: {
+    type: 'MULTIWINDOW_BURN_RATE',
+    bands: [
+      { longWindow: 'PT1H', shortWindow: 'PT5M', threshold: 14.4 },
+      { longWindow: 'PT6H', shortWindow: 'PT30M', threshold: 6 },
+    ],
+  },
+} satisfies AlertPolicy
+const evaluatedAt = '2026-08-25T10:00:00.000Z'
+const observations = {
+  PT5M: { observationWindow: 'PT5M', range: { from: '2026-08-25T09:55:00.000Z', to: evaluatedAt }, observedBurnRate: 10, reason: null },
+  PT30M: { observationWindow: 'PT30M', range: { from: '2026-08-25T09:30:00.000Z', to: evaluatedAt }, observedBurnRate: 6, reason: null },
+  PT1H: { observationWindow: 'PT1H', range: { from: '2026-08-25T09:00:00.000Z', to: evaluatedAt }, observedBurnRate: 15, reason: null },
+  PT6H: { observationWindow: 'PT6H', range: { from: '2026-08-25T04:00:00.000Z', to: evaluatedAt }, observedBurnRate: 6, reason: null },
+} as const
+function multiwindowEvaluation(): MultiwindowAlertEvaluation {
+  const [oneHour, sixHour] = multiwindowPolicy.condition.bands
+  return {
+    policyId: multiwindowPolicy.id,
+    policyName: multiwindowPolicy.name,
+    sloId: multiwindowPolicy.sloId,
+    condition: multiwindowPolicy.condition,
+    status: 'CONDITION_MET',
+    reason: null,
+    evidence: {
+      service,
+      configuredSloWindow: 'PT15M',
+      evaluatedAt,
+      observations: [observations.PT5M, observations.PT30M, observations.PT1H, observations.PT6H],
+    },
+    bandResults: [
+      { band: oneHour, longObservation: observations.PT1H, shortObservation: observations.PT5M, outcome: 'NOT_MET' },
+      { band: sixHour, longObservation: observations.PT6H, shortObservation: observations.PT30M, outcome: 'MET' },
+    ],
+  }
+}
 
 function response(body: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }))
@@ -48,8 +92,8 @@ function evaluation(
   status: AlertEvaluation['status'],
   observedBurnRate: number | null,
   reason: AlertUnavailableReason | null = null,
-  overrides: Partial<AlertEvaluation> = {},
-): AlertEvaluation {
+  overrides: Partial<LegacyAlertEvaluation> = {},
+): LegacyAlertEvaluation {
   return {
     policyId: enabledPolicy.id,
     policyName: enabledPolicy.name,
@@ -123,6 +167,51 @@ describe('Alert evaluations', () => {
     expect(await screen.findByLabelText('Alert evaluation status: Condition not met')).toHaveTextContent('CONDITION_NOT_MET')
     expect(screen.getByText('0×')).toBeInTheDocument()
     expect(screen.queryByText('Alert evaluation is unavailable.')).not.toBeInTheDocument()
+  })
+
+  it('renders complete multiwindow bands and links each valid persisted observation range', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => urlOf(input).pathname === '/api/alert-policies'
+      ? response({ alertPolicies: [multiwindowPolicy] })
+      : response(multiwindowEvaluation()))
+    renderPage()
+
+    expect(await screen.findByLabelText('Alert evaluation status: Condition met')).toBeInTheDocument()
+    expect(screen.getAllByText('Configured SLO provenance window')[0].nextElementSibling).toHaveTextContent('15 minutes')
+    expect(screen.getAllByRole('list', { name: 'Configured burn-rate bands' })).not.toHaveLength(0)
+    expect(screen.getByRole('heading', { name: 'Burn band — 1 hour + 5 minutes' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Burn band — 6 hours + 30 minutes' })).toBeInTheDocument()
+    expect(screen.getByText('14.4×')).toBeInTheDocument()
+    expect(screen.getAllByText('6×').length).toBeGreaterThanOrEqual(3)
+    expect(screen.getByText('Not met')).toBeInTheDocument()
+    expect(screen.getByText('Met')).toBeInTheDocument()
+    expect(screen.getByText('Aggregate result').nextElementSibling).toHaveTextContent('Condition met')
+
+    const links = screen.getAllByRole('link', { name: /Investigate Checkout multiwindow burn .* observation/ })
+    expect(links).toHaveLength(4)
+    const thirtyMinute = new URL(screen.getByRole('link', {
+      name: 'Investigate Checkout multiwindow burn 30 minutes observation',
+    }).getAttribute('href')!, 'http://geordi.test')
+    expect(thirtyMinute.searchParams.get('from')).toBe(observations.PT30M.range.from)
+    expect(thirtyMinute.searchParams.get('to')).toBe(observations.PT30M.range.to)
+  })
+
+  it('keeps an invalid persisted multiwindow range visible without creating an Investigation link', async () => {
+    const invalid = multiwindowEvaluation()
+    invalid.bandResults[1] = {
+      ...invalid.bandResults[1],
+      longObservation: {
+        ...observations.PT6H,
+        range: { from: '2026-08-25T03:59:59.999Z', to: evaluatedAt },
+      },
+    }
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => urlOf(input).pathname === '/api/alert-policies'
+      ? response({ alertPolicies: [multiwindowPolicy] })
+      : response(invalid))
+    renderPage()
+
+    expect(await screen.findByText('Investigation unavailable for this persisted observation')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Investigate Checkout multiwindow burn 6 hours observation' })).not.toBeInTheDocument()
+    expect(screen.getByText('2026-08-25T03:59:59.999Z')).toBeInTheDocument()
   })
 
   it.each([
@@ -205,6 +294,14 @@ describe('Alert evaluations', () => {
     expect(alertEvaluationQueryKey({ ...enabledPolicy, enabled: false })).not.toEqual(alertEvaluationQueryKey(enabledPolicy))
     expect(alertEvaluationQueryKey({ ...enabledPolicy, sloId: 'other-slo' })).not.toEqual(alertEvaluationQueryKey(enabledPolicy))
     expect(alertEvaluationQueryKey({ ...enabledPolicy, condition: { ...enabledPolicy.condition, threshold: 5 } })).not.toEqual(alertEvaluationQueryKey(enabledPolicy))
+    expect(alertEvaluationQueryKey({ ...multiwindowPolicy, condition: {
+      ...multiwindowPolicy.condition,
+      bands: [{ ...multiwindowPolicy.condition.bands[0], threshold: 14.5 }, multiwindowPolicy.condition.bands[1]],
+    } })).not.toEqual(alertEvaluationQueryKey(multiwindowPolicy))
+    expect(alertEvaluationQueryKey({ ...multiwindowPolicy, condition: {
+      ...multiwindowPolicy.condition,
+      bands: [...multiwindowPolicy.condition.bands].reverse(),
+    } })).toEqual(alertEvaluationQueryKey(multiwindowPolicy))
   })
 
   it('does not render non-finite numbers from an out-of-contract payload', async () => {

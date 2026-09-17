@@ -6,14 +6,14 @@ import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AlertHistoryPage } from './AlertHistoryPage'
 import type { AlertEpisode, AlertEpisodeDetailResponse } from '../../api/alertHistory'
-import type { AlertEvidence } from '../../api/alertEvaluations'
+import type { LegacyAlertEvidence } from '../../api/alertEvaluations'
 
 const a = 'a'.repeat(64)
 const b = 'b'.repeat(64)
 const from = '2026-08-27T10:00:00.123456789Z'
 const to = '2026-08-28T10:00:00.123456789Z'
 const base = `from=${from}&to=${to}&limit=50`
-const evidence: AlertEvidence = {
+const evidence: LegacyAlertEvidence = {
   service: { name: 'checkout', namespace: null, environment: 'production' },
   window: 'PT15M', range: { from, to: '2026-08-27T10:15:00.123456789Z' },
   evaluatedAt: '2026-08-27T10:15:00.123456789Z', observedBurnRate: 3,
@@ -248,6 +248,59 @@ describe('Alert history page acceptance', () => {
       expect(init?.method).toBe('GET')
       expect(url(input).pathname).toMatch(/^\/api\/alert-episodes(?:\/[a-f0-9]{64})?$/)
     })
+  })
+
+  it('renders historical multiwindow band results and exact per-observation Investigation links', async () => {
+    const payload = detail()
+    const evaluatedAt = '2026-08-27T10:00:00.000Z'
+    const band = { longWindow: 'PT1H' as const, shortWindow: 'PT5M' as const, threshold: 10 }
+    const longObservation = {
+      observationWindow: 'PT1H' as const,
+      range: { from: '2026-08-27T09:00:00.000Z', to: evaluatedAt },
+      observedBurnRate: 7,
+      reason: null,
+    }
+    const shortObservation = {
+      observationWindow: 'PT5M' as const,
+      range: { from: '2026-08-27T09:55:00.000Z', to: evaluatedAt },
+      observedBurnRate: null,
+      reason: 'NO_TRAFFIC' as const,
+    }
+    payload.transitions[0].evaluation = {
+      policyId: 'historical-multiwindow',
+      policyName: 'Historical multiwindow policy',
+      sloId: 'availability',
+      condition: { type: 'MULTIWINDOW_BURN_RATE', bands: [band] },
+      status: 'CONDITION_NOT_MET',
+      reason: null,
+      evidence: {
+        service: evidence.service,
+        configuredSloWindow: 'PT15M',
+        evaluatedAt,
+        observations: [shortObservation, longObservation],
+      },
+      bandResults: [{ band, longObservation, shortObservation, outcome: 'NOT_MET' }],
+    }
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => Promise.resolve(response(
+      url(input).pathname === '/api/alert-episodes' ? { alertEpisodes: [] } : payload,
+    )))
+    renderPage(`${base}&episodeId=${a}`)
+
+    const transitionArticle = (await screen.findByText('Historical multiwindow policy')).closest('article')!
+    expect(within(transitionArticle).getByText('Aggregate result').nextElementSibling).toHaveTextContent('Condition not met')
+    expect(within(transitionArticle).getByText('Configured SLO provenance window').nextElementSibling).toHaveTextContent('15 minutes')
+    expect(within(transitionArticle).getByRole('heading', { name: 'Burn band — 1 hour + 5 minutes' })).toBeInTheDocument()
+    expect(within(transitionArticle).getByText('Unavailable — No traffic was observed in this evaluation window.')).toBeInTheDocument()
+    expect(within(transitionArticle).getByText('Band result').nextElementSibling).toHaveTextContent('Not met')
+
+    const longLink = screen.getByRole('link', {
+      name: 'Investigate RESOLVED 1 hour observation for transition resolved',
+    })
+    const shortLink = screen.getByRole('link', {
+      name: 'Investigate RESOLVED 5 minutes observation for transition resolved',
+    })
+    expect(new URL(longLink.getAttribute('href')!, 'http://geordi.test').searchParams.get('from')).toBe(longObservation.range.from)
+    expect(new URL(shortLink.getAttribute('href')!, 'http://geordi.test').searchParams.get('from')).toBe(shortObservation.range.from)
   })
 
   it('presents bounded notification evidence with truthful delivery state and timestamp fields', async () => {

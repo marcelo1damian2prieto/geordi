@@ -8,6 +8,7 @@ import io.geordi.core.module.ModuleRegistry;
 import io.geordi.core.module.ModuleStatus;
 import io.geordi.core.module.PlatformHealthService;
 import io.geordi.metrics.adapter.spring.MetricsModuleConfiguration;
+import io.geordi.slos.application.BoundedWindowedBurnRateUseCase;
 import io.geordi.slos.application.SloEvaluationUseCase;
 import io.geordi.slos.application.port.out.SloDefinitionCatalog;
 import java.util.Properties;
@@ -36,6 +37,7 @@ class SlosModuleConfigurationTest {
                         "geordi.slo.definitions[0].enabled=true")
                 .run(context -> {
                     assertThat(context).hasNotFailed().hasSingleBean(SloEvaluationUseCase.class);
+                    assertThat(context).hasSingleBean(BoundedWindowedBurnRateUseCase.class);
                     assertThat(context.getBean(SloDefinitionCatalog.class).findAll())
                             .singleElement().satisfies(definition -> {
                                 assertThat(definition.id()).isEqualTo("checkout-availability");

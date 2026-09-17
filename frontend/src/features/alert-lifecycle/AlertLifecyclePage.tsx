@@ -1,17 +1,18 @@
 import { useId } from 'react'
 import { useIsMutating } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import type { AlertEvidence, AlertEvaluation, AlertPolicy } from '../../api/alertEvaluations'
+import { isMultiwindowAlertEvaluation, type AlertEvaluation, type AlertPolicy } from '../../api/alertEvaluations'
 import type { AlertLifecycleSnapshot } from '../../api/alertLifecycles'
 import { ApiError } from '../../api/client'
-import { contextSearchParams, serviceLabel } from '../../api/telemetryContext'
 import {
-  alertConditionLabel,
   alertStatusLabel,
   alertUnavailableReason,
-  alertWindowLabel,
+  deriveMultiwindowBandResults,
   formatAlertBurnRate,
+  isLegacyAlertEvidence,
+  isMultiwindowAlertEvidence,
 } from '../alert-evaluations/alertEvaluationPresentation'
+import { AlertConditionDetails, AlertEvidenceDetails } from '../alert-evaluations/AlertEvidenceDetails'
 import {
   alertLifecycleStateLabel,
   lifecycleOutcomeMessage,
@@ -37,7 +38,7 @@ function PolicyFacts({ policy }: { policy: AlertPolicy }) {
     <dl className="alert-evaluation-facts">
       <div><dt>Policy ID</dt><dd><code>{policy.id}</code></dd></div>
       <div><dt>Referenced SLO</dt><dd><code>{policy.sloId}</code></dd></div>
-      <div><dt>Condition</dt><dd>{alertConditionLabel(policy.condition.type)} {formatAlertBurnRate(policy.condition.threshold)}</dd></div>
+      <div><dt>Condition</dt><dd><AlertConditionDetails condition={policy.condition} /></dd></div>
     </dl>
   )
 }
@@ -68,25 +69,6 @@ function EvaluationStatus({ status }: { status: AlertEvaluation['status'] }) {
   )
 }
 
-function EvidenceFacts({ evidence, headingId }: { evidence: AlertEvidence; headingId: string }) {
-  return (
-    <section className="alert-evidence" aria-labelledby={headingId}>
-      <h4 id={headingId}>Canonical evaluation evidence</h4>
-      <dl className="alert-evaluation-facts">
-        <div><dt>Service</dt><dd>{serviceLabel(evidence.service)}</dd></div>
-        <div><dt>Window</dt><dd>{alertWindowLabel(evidence.window)}</dd></div>
-        <div><dt>Evaluated</dt><dd><TimeValue value={evidence.evaluatedAt} /></dd></div>
-        <div><dt>Observed burn rate</dt><dd>{evidence.observedBurnRate === null ? 'Unavailable' : formatAlertBurnRate(evidence.observedBurnRate)}</dd></div>
-      </dl>
-      <p className="alert-evaluation-explanation">Exact half-open interval [from, to)</p>
-      <dl className="alert-evaluation-facts alert-evaluation-window-facts">
-        <div><dt>From (inclusive)</dt><dd><time dateTime={evidence.range.from}>{evidence.range.from}</time></dd></div>
-        <div><dt>To (exclusive)</dt><dd><time dateTime={evidence.range.to}>{evidence.range.to}</time></dd></div>
-      </dl>
-    </section>
-  )
-}
-
 function unavailableExplanation(snapshot: AlertLifecycleSnapshot) {
   if (snapshot.policy.enabled === false) {
     return `Policy disabled — lifecycle state is frozen as ${snapshot.state}. Disabling does not indicate recovery.`
@@ -94,17 +76,6 @@ function unavailableExplanation(snapshot: AlertLifecycleSnapshot) {
   return snapshot.state === 'FIRING'
     ? 'Current evidence is unavailable. Lifecycle state remains FIRING.'
     : 'Current evidence is unavailable. No alert was started.'
-}
-
-function investigationEvidence(snapshot: AlertLifecycleSnapshot) {
-  const latestEvidence = snapshot.latestEvaluation?.evidence ?? null
-  const retainedActiveEvidence = snapshot.state === 'FIRING'
-    && (!snapshot.policy.enabled || snapshot.latestEvaluation?.status === 'UNAVAILABLE')
-    ? snapshot.activeEvidence
-    : null
-  return retainedActiveEvidence === null
-    ? { evidence: latestEvidence, retained: false }
-    : { evidence: retainedActiveEvidence, retained: true }
 }
 
 function AlertLifecycleCard({ snapshot }: { snapshot: AlertLifecycleSnapshot }) {
@@ -122,10 +93,17 @@ function AlertLifecycleCard({ snapshot }: { snapshot: AlertLifecycleSnapshot }) 
   }
 
   const latestEvaluation = snapshot.latestEvaluation
-  const investigation = investigationEvidence(snapshot)
-  const investigateTarget = investigation.evidence === null
-    ? null
-    : `/investigate?${contextSearchParams(investigation.evidence.service, investigation.evidence.range).toString()}`
+  const latestEvidence = latestEvaluation?.evidence ?? null
+  const retainedEvidence = snapshot.state === 'FIRING'
+    && snapshot.activeEvidence !== null
+    && snapshot.activeEvidence.evaluatedAt !== latestEvidence?.evaluatedAt
+    ? snapshot.activeEvidence
+    : null
+  const retainedBandResults = retainedEvidence
+    && snapshot.policy.condition.type === 'MULTIWINDOW_BURN_RATE'
+    && isMultiwindowAlertEvidence(retainedEvidence)
+    ? deriveMultiwindowBandResults(snapshot.policy.condition, retainedEvidence)
+    : undefined
 
   return (
     <article className="alert-evaluation-card" aria-labelledby={headingId}>
@@ -169,7 +147,10 @@ function AlertLifecycleCard({ snapshot }: { snapshot: AlertLifecycleSnapshot }) 
           <>
             <dl className="alert-evaluation-facts">
               <div><dt>Evaluation</dt><dd>{alertStatusLabel(latestEvaluation.status)}</dd></div>
-              <div><dt>Observed burn rate</dt><dd>{latestEvaluation.evidence?.observedBurnRate == null ? 'Unavailable' : formatAlertBurnRate(latestEvaluation.evidence.observedBurnRate)}</dd></div>
+              <div><dt>Aggregate result</dt><dd>{alertStatusLabel(latestEvaluation.status)}</dd></div>
+              {latestEvaluation.evidence && isLegacyAlertEvidence(latestEvaluation.evidence) && (
+                <div><dt>Observed burn rate</dt><dd>{latestEvaluation.evidence.observedBurnRate === null ? 'Unavailable' : formatAlertBurnRate(latestEvaluation.evidence.observedBurnRate)}</dd></div>
+              )}
             </dl>
             {latestEvaluation.status === 'UNAVAILABLE' && (
               <div className="alert-evaluation-reason">
@@ -177,10 +158,29 @@ function AlertLifecycleCard({ snapshot }: { snapshot: AlertLifecycleSnapshot }) 
                 <p>{unavailableExplanation(snapshot)}</p>
               </div>
             )}
-            {latestEvaluation.evidence && <EvidenceFacts evidence={latestEvaluation.evidence} headingId={`${headingId}-evidence`} />}
+            {latestEvaluation.evidence && <AlertEvidenceDetails
+              evidence={latestEvaluation.evidence}
+              bandResults={isMultiwindowAlertEvaluation(latestEvaluation) ? latestEvaluation.bandResults : undefined}
+              headingId={`${headingId}-evidence`}
+              headingLevel={4}
+              investigationLabel={(windowLabel) => latestEvaluation.condition.type === 'MULTIWINDOW_BURN_RATE'
+                ? `Investigate ${snapshot.policy.name} latest ${windowLabel} observation`
+                : 'Investigate latest evaluated window'}
+            />}
           </>
         )}
       </section>
+
+      {retainedEvidence && <AlertEvidenceDetails
+        evidence={retainedEvidence}
+        bandResults={retainedBandResults}
+        headingId={`${headingId}-retained-evidence`}
+        heading="Retained firing evidence"
+        headingLevel={3}
+        investigationLabel={(windowLabel) => snapshot.policy.condition.type === 'MULTIWINDOW_BURN_RATE'
+          ? `Investigate ${snapshot.policy.name} retained ${windowLabel} observation`
+          : 'Investigate retained firing evidence'}
+      />}
 
       {evaluation.data && (
         <p className="alert-lifecycle-command-result" role="status">
@@ -196,13 +196,6 @@ function AlertLifecycleCard({ snapshot }: { snapshot: AlertLifecycleSnapshot }) 
       {snapshot.policy.enabled
         ? <button className="refresh-button alert-lifecycle-evaluate" type="button" onClick={() => evaluation.mutate()}>Evaluate now</button>
         : <p className="alert-evaluation-not-evaluated">Disabled — evaluation command unavailable</p>}
-      {investigateTarget && (
-        <p>
-          <Link className="view-traces-link" to={investigateTarget}>
-            {investigation.retained ? 'Investigate retained firing evidence' : 'Investigate latest evaluated window'}
-          </Link>
-        </p>
-      )}
     </article>
   )
 }
