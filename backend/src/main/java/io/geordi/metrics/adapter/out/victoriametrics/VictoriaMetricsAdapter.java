@@ -96,6 +96,7 @@ public final class VictoriaMetricsAdapter
                             .queryParam("query", "{expression}")
                             .queryParam("time", DateTimeFormatter.ISO_INSTANT.format(
                                     query.windows().getFirst().range().to().minusNanos(1)))
+                            .queryParam("nocache", "1")
                             .build(Map.of("expression", translator.translateRequestOutcomeBatch(query))))
                     .retrieve().body(JsonNode.class);
             return parser.requestOutcomeBatch(

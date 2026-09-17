@@ -4,10 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.geordi.metrics.application.MetricsQuery;
+import io.geordi.metrics.application.RequestOutcomeBatchQuery;
 import io.geordi.metrics.domain.OperationalMetric;
 import io.geordi.metrics.domain.ServiceIdentity;
 import io.geordi.metrics.domain.TimeRange;
 import java.time.Instant;
+import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -206,6 +208,32 @@ class VictoriaMetricsMappingTest {
                 List.of(OperationalMetric.JVM_MEMORY_USED));
 
         assertThat(new VictoriaMetricsAdapter(builder.build()).query(query)).singleElement();
+        server.verify();
+    }
+
+    @Test
+    void bypassesProviderRollupCacheForExactBoundedBatchEvidence() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://metrics.test");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(request -> {
+                    assertThat(request.getURI().getPath()).isEqualTo("/api/v1/query");
+                    assertThat(request.getURI().getRawQuery())
+                            .contains("time=2026-08-13T11:59:59.999999999Z")
+                            .contains("nocache=1");
+                })
+                .andRespond(withSuccess(
+                        "{\"status\":\"success\",\"data\":{\"result\":[]}}",
+                        MediaType.APPLICATION_JSON));
+        var query = new RequestOutcomeBatchQuery(
+                new ServiceIdentity("orders", "shop", "dev"),
+                List.of(
+                        new RequestOutcomeBatchQuery.Window(
+                                "PT5M", new TimeRange(NOW.minus(Duration.ofMinutes(5)), NOW)),
+                        new RequestOutcomeBatchQuery.Window(
+                                "PT1H", new TimeRange(NOW.minus(Duration.ofHours(1)), NOW))));
+
+        new VictoriaMetricsAdapter(builder.build()).queryBatch(query);
+
         server.verify();
     }
 }

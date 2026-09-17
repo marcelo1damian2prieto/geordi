@@ -87,11 +87,20 @@ function ConvertTo-ProviderLabelValue {
 }
 
 function ConvertTo-ExclusiveProviderTime {
-    param([Parameter(Mandatory)][string] $Timestamp)
-    $parsed = [DateTimeOffset]$Timestamp
-    $fractionNanoseconds = 0
-    if ($Timestamp -match '\.(\d{1,9})(?:Z|[+-]\d{2}:\d{2})$') { $fractionNanoseconds = [int]$Matches[1].PadRight(9, '0') }
-    $exclusive = [decimal]$parsed.ToUnixTimeSeconds() + ([decimal]$fractionNanoseconds / [decimal]1000000000) - [decimal]0.000000001
+    param([Parameter(Mandatory)] $TimestampValue)
+    $Timestamp = if ($TimestampValue -is [DateTimeOffset]) {
+        ([DateTimeOffset]$TimestampValue).ToUniversalTime().ToString('o', [Globalization.CultureInfo]::InvariantCulture)
+    } elseif ($TimestampValue -is [DateTime]) {
+        ([DateTime]$TimestampValue).ToUniversalTime().ToString('o', [Globalization.CultureInfo]::InvariantCulture)
+    } else {
+        [string]$TimestampValue
+    }
+    if ($Timestamp -notmatch '^(?<whole>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(?<fraction>\d{1,9}))?(?<offset>Z|[+-]\d{2}:\d{2})$') {
+        throw "Unsupported provider timestamp '$Timestamp'."
+    }
+    $whole = [DateTimeOffset]($Matches.whole + $Matches.offset)
+    $fractionNanoseconds = if ($Matches.fraction) { [int]$Matches.fraction.PadRight(9, '0') } else { 0 }
+    $exclusive = [decimal]$whole.ToUnixTimeSeconds() + ([decimal]$fractionNanoseconds / [decimal]1000000000) - [decimal]0.000000001
     $exclusive.ToString('0.000000000', [Globalization.CultureInfo]::InvariantCulture)
 }
 
@@ -119,7 +128,7 @@ function Get-IndependentBurn {
     $seconds = [long](($to - $from).TotalSeconds)
     $all = 'sum(increase({__name__="http.server.request.duration_count",' + $selectors + "}[$seconds" + 's]))'
     $errors = 'sum(increase({__name__="http.server.request.duration_count",' + $selectors + ',"http.response.status_code"=~"5.."}' + "[$seconds" + 's]))'
-    $time = ConvertTo-ExclusiveProviderTime ([string]$Evidence.range.to)
+    $time = ConvertTo-ExclusiveProviderTime $Evidence.range.to
     $requests = Get-VictoriaScalar $all $time; $bad = Get-VictoriaScalar $errors $time
     if (-not $requests.present -or $requests.value -le 0) { throw 'Independent alert request count was absent or non-positive.' }
     $badCount = if ($bad.present) { [double]$bad.value } else { 0.0 }
@@ -239,18 +248,25 @@ function New-M18HistoricalCounterFixture {
 }
 
 function Get-M18IndependentBurn {
-    param([Parameter(Mandatory)] $Identity, [Parameter(Mandatory)][DateTimeOffset] $EvaluationTime, [Parameter(Mandatory)][int] $WindowSeconds)
+    param([Parameter(Mandatory)] $Identity, [Parameter(Mandatory)] $EvaluationTime, [Parameter(Mandatory)][int] $WindowSeconds)
     $service = ConvertTo-ProviderLabelValue ([string]$Identity.name)
     $namespace = ConvertTo-ProviderLabelValue ([string]$Identity.namespace)
     $environment = ConvertTo-ProviderLabelValue ([string]$Identity.environment)
     $selectors = '"geordi.telemetry.origin"="monitored","service.name"="' + $service + '","service.namespace"="' + $namespace + '","deployment.environment.name"="' + $environment + '"'
     $all = 'sum(increase({__name__="http.server.request.duration_count",' + $selectors + "}[$WindowSeconds" + 's]))'
     $bad = 'sum(increase({__name__="http.server.request.duration_count",' + $selectors + ',"http.response.status_code"=~"5.."}' + "[$WindowSeconds" + 's]))'
-    $at = ConvertTo-ExclusiveProviderTime $EvaluationTime.ToString('o')
+    $at = ConvertTo-ExclusiveProviderTime $EvaluationTime
     $requests = Get-VictoriaScalar $all $at -NoCache; $badSeries = Get-VictoriaScalar $bad $at -NoCache
     if (-not $requests.present -or $requests.value -le 0) { throw "M18 independent $WindowSeconds-second request count was absent or non-positive." }
     $badCount = if ($badSeries.present) { [double]$badSeries.value } else { 0.0 }
-    [pscustomobject]@{ requests = [double]$requests.value; errors = $badCount; burn = ($badCount / [double]$requests.value) / 0.10 }
+    [pscustomobject]@{
+        requests = [double]$requests.value
+        errors = $badCount
+        burn = ($badCount / [double]$requests.value) / 0.10
+        requestExpression = $all
+        errorExpression = $bad
+        queryTime = $at
+    }
 }
 
 function Assert-M18RawFixture {
@@ -265,10 +281,10 @@ function Assert-M18RawFixture {
     if ($null -eq $sampleCount -or -not $sampleCount.present -or $sampleCount.value -lt 700) { throw 'M18 raw VictoriaMetrics query did not return both complete imported counter series.' }
     $expected = [ordered]@{ PT5M = 0.0; PT30M = 1.3333333333333333; PT1H = 1.5; PT6H = 0.25 }
     $actual = [ordered]@{
-        PT5M = Get-M18IndependentBurn $M18Identity $Fixture.nominal 300
-        PT30M = Get-M18IndependentBurn $M18Identity $Fixture.nominal 1800
-        PT1H = Get-M18IndependentBurn $M18Identity $Fixture.nominal 3600
-        PT6H = Get-M18IndependentBurn $M18Identity $Fixture.nominal 21600
+        PT5M = Get-M18IndependentBurn $M18Identity $Fixture.nominal.ToString('o') 300
+        PT30M = Get-M18IndependentBurn $M18Identity $Fixture.nominal.ToString('o') 1800
+        PT1H = Get-M18IndependentBurn $M18Identity $Fixture.nominal.ToString('o') 3600
+        PT6H = Get-M18IndependentBurn $M18Identity $Fixture.nominal.ToString('o') 21600
     }
     foreach ($window in $expected.Keys) {
         if ([Math]::Abs($actual[$window].burn - $expected[$window]) -gt 0.03) { throw "M18 raw $window burn $($actual[$window].burn) did not match the independently calculated fixture value $($expected[$window])." }
@@ -304,11 +320,20 @@ function Assert-M18Evaluation {
     }
     $canonicalWindows = @('PT5M', 'PT30M', 'PT1H', 'PT6H')
     if ($observations.Count -ne 4 -or @($evidence.observations | ForEach-Object { $_.observationWindow }) -join ',' -ne ($canonicalWindows -join ',')) { throw 'M18 aggregate evidence did not return the complete canonical window union.' }
+    $mismatches = @()
+    $diagnostics = @()
     foreach ($window in $canonicalWindows) {
         Assert-M18Observation $observations[$window] $window $evaluatedAt
         $seconds = @{ PT5M = 300; PT30M = 1800; PT1H = 3600; PT6H = 21600 }[$window]
-        $independent = Get-M18IndependentBurn $M18Identity $evaluatedAt $seconds
-        if ([Math]::Abs([double]$observations[$window].observedBurnRate - $independent.burn) -gt 0.00001) { throw "M18 $window evidence did not match independently recomputed burn evidence." }
+        $independent = Get-M18IndependentBurn $M18Identity $evidence.evaluatedAt $seconds
+        $geordiBurn = [double]$observations[$window].observedBurnRate
+        $delta = [Math]::Abs($geordiBurn - $independent.burn)
+        $diagnostics += "M18_DIAGNOSTIC window=$window evaluatedAt=$($evidence.evaluatedAt) range.from=$($observations[$window].range.from) range.to=$($observations[$window].range.to) geordiBurn=$($geordiBurn.ToString('R', [Globalization.CultureInfo]::InvariantCulture)) independentRequests=$($independent.requests.ToString('R', [Globalization.CultureInfo]::InvariantCulture)) independentErrors=$($independent.errors.ToString('R', [Globalization.CultureInfo]::InvariantCulture)) independentBurn=$($independent.burn.ToString('R', [Globalization.CultureInfo]::InvariantCulture)) absoluteDelta=$($delta.ToString('R', [Globalization.CultureInfo]::InvariantCulture)) queryTime=$($independent.queryTime)`nM18_DIAGNOSTIC requestExpression=$($independent.requestExpression)`nM18_DIAGNOSTIC errorExpression=$($independent.errorExpression)"
+        if ($delta -gt 0.00001) { $mismatches += $window }
+    }
+    if ($mismatches.Count -gt 0) {
+        $diagnostics | ForEach-Object { Write-Host $_ }
+        throw "M18 $($mismatches -join ',') evidence did not match independently recomputed burn evidence."
     }
     if ([double]$observations.PT1H.observedBurnRate -lt 1.2 -or [double]$observations.PT5M.observedBurnRate -ge 1.2 -or [double]$observations.PT6H.observedBurnRate -lt 0.2 -or [double]$observations.PT30M.observedBurnRate -lt 0.2) { throw 'M18 observations did not retain the required threshold relationship for the two bands.' }
     $results = @($evaluation.bandResults)
