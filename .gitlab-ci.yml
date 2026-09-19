@@ -158,5 +158,5 @@ local_stack_smoke:
     - pwsh -File ./scripts/verify-alert-routing.ps1 -TimeoutSeconds 360
     - pwsh -File ./scripts/verify-alert-history.ps1 -TimeoutSeconds 480
   after_script:
-    - pwsh -NoProfile -Command '& docker compose --file compose.yaml --file compose.m14.yaml logs --tail 200 --no-color; if ($LASTEXITCODE -ne 0) { Write-Warning "Could not collect Compose logs."; exit 0 }'
-    - pwsh -NoProfile -Command '& docker compose --file compose.yaml --file compose.m14.yaml down --volumes --remove-orphans; if ($LASTEXITCODE -ne 0) { Write-Warning "Could not clean up the Compose stack."; exit 0 }'
+    - pwsh -NoProfile -Command '& docker compose --file compose.yaml --file compose.m14.yaml logs --tail 50 --no-color 2>&1 | ForEach-Object { $line = [string]$_; if ($line.Length -gt 2000) { $line.Substring(0, 2000) + " [truncated]" } else { $line } }; if ($LASTEXITCODE -ne 0) { Write-Warning "Could not collect Compose logs."; exit 0 }'
+    - pwsh -NoProfile -Command '& docker compose --file compose.yaml --file compose.m14.yaml down --timeout 5 --volumes --remove-orphans; if ($LASTEXITCODE -ne 0) { Write-Warning "Could not clean up the Compose stack."; exit 0 }'

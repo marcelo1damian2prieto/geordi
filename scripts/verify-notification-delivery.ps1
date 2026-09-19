@@ -80,16 +80,27 @@ try {
     if ($readiness.StatusCode -ne 200) { throw 'Remote webhook failure degraded platform readiness.' }
 
     $root = Split-Path -Parent $PSScriptRoot
-    & docker compose --project-directory $root --file (Join-Path $root 'compose.yaml') restart backend
-    if ($LASTEXITCODE -ne 0) { throw 'Backend restart failed.' }
+    # Stop the worker before making the receiver recover. A blocking Compose
+    # restart can leave the new worker running while the receiver is still in
+    # retry mode, allowing the durable delivery to exhaust its final attempts.
+    & docker compose --project-directory $root --file (Join-Path $root 'compose.yaml') stop backend
+    if ($LASTEXITCODE -ne 0) { throw 'Backend stop failed.' }
     Control 'success'
+    & docker compose --project-directory $root --file (Join-Path $root 'compose.yaml') start backend
+    if ($LASTEXITCODE -ne 0) { throw 'Backend start failed.' }
     Wait-Until { @((Json "$ReceiverBaseUrl/events").events | Where-Object deliveryId -eq $resolvedId).Count -eq 1 } $deadline 'Pending delivery did not recover after restart.'
     $receiverState = Json "$ReceiverBaseUrl/events"
     $resolvedEvent = @($receiverState.events | Where-Object deliveryId -eq $resolvedId)[0]
     $attemptIds = @($receiverState.attempts | Where-Object { $_.deliveryId -eq $resolvedEvent.deliveryId } | Select-Object -ExpandProperty deliveryId -Unique)
     if ($attemptIds.Count -ne 1) { throw 'Retry did not retain a stable delivery identity.' }
     $confirmedCount = @($receiverState.events | Where-Object { $_.deliveryId -in @($startedId, $resolvedId) }).Count
-    & docker compose --project-directory $root --file (Join-Path $root 'compose.yaml') restart backend
+    & docker compose --project-directory $root --file (Join-Path $root 'compose.yaml') restart --no-deps backend
+    if ($LASTEXITCODE -ne 0) { throw 'Backend terminal-delivery restart failed.' }
+    Wait-Until {
+        try {
+            (Invoke-WebRequest -Uri "$BackendBaseUrl/actuator/health/readiness" -UseBasicParsing -TimeoutSec 10).StatusCode -eq 200
+        } catch [System.Net.WebException] { $false } catch [System.Net.Http.HttpRequestException] { $false }
+    } $deadline 'Backend did not recover after terminal-delivery restart.'
     Start-Sleep -Seconds 4
     if (@((Json "$ReceiverBaseUrl/events").events | Where-Object { $_.deliveryId -in @($startedId, $resolvedId) }).Count -ne $confirmedCount) { throw 'Restart redelivered confirmed successful work.' }
 
