@@ -270,7 +270,10 @@ claim/lease data, or error detail.
 
 ### Milestone 18 — Bounded Multiwindow Burn-Rate Alert Evaluation
 
-M18 implementation adds a closed `MULTIWINDOW_BURN_RATE` policy condition alongside
+M18 is **COMPLETE**. The authoritative GitLab pipeline passed all four jobs with
+438 backend tests; see the [M18 closure evidence](docs/plans/MILESTONE-018.md).
+
+M18 adds a closed `MULTIWINDOW_BURN_RATE` policy condition alongside
 the existing `BURN_RATE_ABOVE` condition. A multiwindow policy has one or both of the
 supported bands: `PT1H` with `PT5M`, and `PT6H` with `PT30M`; each band has one
 inclusive threshold. An alert condition is met when any band is met. Every requested
@@ -448,7 +451,8 @@ The M10 lifecycle smoke runs immediately after M9 and starts from the fresh name
 lifecycle volume created by the integration job. M11 Notification Delivery runs after
 M10 against the same durable state. The authoritative run passed all three smokes.
 
-Milestones 1 / 1.1 and 2 through 14 are complete. The authoritative GitLab pipeline
+Milestones 1 / 1.1 and 2 through 18 are complete. M18 authoritative closure evidence
+is recorded in [Milestone 018](docs/plans/MILESTONE-018.md). The earlier M14 GitLab pipeline
 for commit `ed766a46b7c51ee1c54b844bbf6de5a79fab1efb` passed all jobs. Its Windows
 `local_stack_smoke` verified artifact revision and SHA-256 provenance, passed the
 M9–M13 semantic regression chain, and passed the isolated M14 history smoke.

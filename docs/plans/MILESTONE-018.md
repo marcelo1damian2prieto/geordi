@@ -1,6 +1,6 @@
 # Milestone 018 — Bounded Multiwindow Multi-Burn-Rate Alert Evaluation
 
-Status: M18 PLANNED — READY FOR IMPLEMENTATION
+Status: COMPLETE
 
 ## Purpose and operator outcome
 
@@ -24,15 +24,18 @@ Operator story:
 > observation that produced the result, and upgrade existing firing alerts without
 > changing their meaning or losing their ability to recover.
 
-This is an implementation plan. It does not implement M18 or mark it complete.
+This document retains the historical implementation plan and records final authoritative
+closure below. Planning instructions and starting-state descriptions are historical;
+the final closure record is the current status authority.
 
-## Authoritative baseline and planning boundary
+## Historical baseline and planning boundary
 
 This plan was prepared from a clean `main` worktree at
 `83cb7232a7d91fbaa7014b831890a3584f012f56` (`docs(alerts): reconcile milestone 17
 closure`). `git status --short --branch` reported `## main...origin/main`; no tracked or
-untracked changes existed before this file was created. That exact SHA is the
-authoritative planning baseline.
+untracked changes existed before this file was created. That SHA was the initial
+inspection baseline. The finalized planning baseline is
+`eb9d807e5928deebe70e81df85e3fadb015928a1`.
 
 At planning closure, `docs/plans/MILESTONE-018.md` is the only permitted changed file.
 No production code, test, OpenAPI, frontend, deployment, CI, migration, existing ADR,
@@ -47,7 +50,7 @@ inspection reveals a concrete contradiction requiring correction. M18 implementa
 must reconcile those status lines as documentation maintenance without treating them as
 an M18 product decision.
 
-## Current repository constraints
+## Repository constraints at planning time
 
 Repository inspection establishes the following starting facts:
 
@@ -993,6 +996,39 @@ fixture has a concrete sample/tolerance recipe. A remediation re-review found on
 stale type reference; it was corrected. Final independent review counts are
 `BLOCKER 0 / HIGH 0 / MEDIUM 0 / LOW 0`. Accepted planning debt: none.
 
-Final status must remain either `M18 PLANNED — READY FOR IMPLEMENTATION` after the review
-and plan-only checks pass, or `M18 PLANNING BLOCKED — DECISION REQUIRED` if a settled
-requirement cannot be planned safely.
+The historical planning phase concluded ready for implementation. The final
+authoritative closure record below supersedes that planning status.
+
+## Final authoritative closure record
+
+Status: COMPLETE
+
+The project owner supplied the final authoritative GitLab validation for this closure:
+
+- Planning baseline: `eb9d807e5928deebe70e81df85e3fadb015928a1`.
+- Authoritative validated head: `8ece6f38214541f18e1a7d961910fa22d90df10b`.
+- Verified backend artifact SHA-256:
+  `2b3c33b496d9a594a7424b551b153f966100e4ac5524d6a4bdadade450ccd060`.
+- `backend`: GREEN; authoritative GitLab count: **438 tests**.
+- `frontend`, `deployment_configuration`, and `local_stack_smoke`: GREEN.
+- Integration runtime: approximately **24m36s**, ending with **Job succeeded**.
+- Independent implementation review: **BLOCKER 0 / HIGH 0 / MEDIUM 0 / LOW 0**.
+- Accepted functional debt from M18 closure: **none**.
+
+The authoritative smoke verified exact candidate checkout, the backend artifact digest,
+and runtime image provenance. Deterministic four-window evidence proved band 1
+`NOT_MET`, band 2 `MET`, and overall `CONDITION_MET`, with v2 evidence retained in
+lifecycle, history, and webhook output. The regression chain passed M10 lifecycle,
+M11 notification retry/restart recovery, M12 scheduling, M13 routing, M17 notification
+disposition/delivery, M16 acknowledgement, and M14 history. Bounded diagnostic logging
+and Compose cleanup also passed.
+
+The first M18 candidate exposed a VictoriaMetrics rollup-cache issue for exact bounded
+multiwindow evidence. Production remediation limited cache bypass to the exact bounded
+batch. The second authoritative run exposed an M11 smoke orchestration race, not a
+production delivery defect. Smoke remediation changed recovery orchestration without
+weakening delivery semantics or increasing the timeout. The final authoritative
+pipeline above is the closure authority.
+
+The supplied validation did not include a pipeline URL/ID; none is inferred here.
+This reconciliation changes documentation only and adds no M19 scope.

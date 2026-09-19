@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted — implemented locally; Milestone 18 remains open pending its full closure process.
+ACCEPTED — IMPLEMENTED AND AUTHORITATIVELY VALIDATED
 
 ## Context
 

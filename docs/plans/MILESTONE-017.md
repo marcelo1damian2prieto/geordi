@@ -24,8 +24,8 @@ retry control, routing mutation, or a new public endpoint.
 
 Local implementation, backend/frontend quality gates, migration and smoke evidence,
 final diff inspection, and independent implementation review are complete. ADR-020 and
-the OpenAPI detail contract record the implemented boundary. This plan does not record
-M17 as complete because authoritative GitLab revalidation remains pending.
+the OpenAPI detail contract record the implemented boundary. Authoritative GitLab
+revalidation is complete; the final Closure section records the validated evidence.
 
 ## Authoritative baseline and planning boundary
 

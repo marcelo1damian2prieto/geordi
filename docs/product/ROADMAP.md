@@ -1,6 +1,6 @@
 # Roadmap
 
-Status: MILESTONES 1 THROUGH 17 COMPLETE; M18 IMPLEMENTATION IN PROGRESS
+Status: MILESTONES 1 THROUGH 18 COMPLETE
 
 ## v0.1 — Platform Core + Self-Observability
 
@@ -258,13 +258,12 @@ persisted value or a reconstruction from current routing.
 
 The capability is an episode-detail read model, not delivery management. It adds no
 delivery retry/redrive, routing mutation, destination exposure, global delivery search,
-new channel, authentication/RBAC, or acknowledgement-aware behavior. Local closure gates
-and independent implementation review are complete; authoritative GitLab revalidation
-remains pending.
+new channel, authentication/RBAC, or acknowledgement-aware behavior. Local closure gates,
+independent implementation review, and authoritative GitLab revalidation are complete.
 
 ## Milestone 18 — Bounded Multiwindow Multi-Burn-Rate Alert Evaluation
 
-IMPLEMENTATION IN PROGRESS
+COMPLETE
 
 - preserves scalar `BURN_RATE_ABOVE` and adds closed multiwindow policies with the
   fixed `PT1H`/`PT5M` and `PT6H`/`PT30M` bands;
@@ -279,6 +278,11 @@ The rollout boundary is the first v2 durable write. Before it, ordinary M17 roll
 is possible; afterward an M17 reader is unsupported and recovery requires an
 M18-compatible reader or coordinated pre-upgrade storage restore. No automatic
 downgrade, history backfill, or additional scheduler topology is included.
+
+The project owner confirmed the authoritative GitLab pipeline for commit
+`8ece6f38214541f18e1a7d961910fa22d90df10b` green: `backend` (438 tests),
+`frontend`, `deployment_configuration`, and `local_stack_smoke`. The complete closure
+evidence is recorded in [Milestone 018](../plans/MILESTONE-018.md).
 
 ## Later
 

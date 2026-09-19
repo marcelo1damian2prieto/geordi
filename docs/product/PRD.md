@@ -1,6 +1,6 @@
 # Geordi Product Requirements Document
 
-Status: MILESTONES 1 THROUGH 17 COMPLETE; M18 IMPLEMENTATION IN PROGRESS
+Status: MILESTONES 1 THROUGH 18 COMPLETE
 
 ## Vision
 
@@ -440,12 +440,12 @@ The detail API and UI do not expose destination or delivery identity, payload, w
 data, credentials, claim/lease fields, or arbitrary error text. M17 does not change
 M9 evaluation, M10 lifecycle authority, M11 delivery processing, M12 scheduling, M13
 routing, M14 history authority, or M16 acknowledgement behavior. Local implementation,
-quality gates, semantic validation, and independent implementation review are complete;
-authoritative GitLab revalidation remains pending.
+quality gates, semantic validation, independent implementation review, and authoritative
+GitLab revalidation are complete.
 
 ## Milestone 18 scope
 
-Status: IMPLEMENTATION IN PROGRESS
+Status: COMPLETE
 
 M18 adds bounded multiwindow burn-rate evaluation to deployment-managed Alerts
 policies. It preserves `BURN_RATE_ABOVE` and adds `MULTIWINDOW_BURN_RATE` with one or
@@ -466,3 +466,8 @@ severity, silences, incidents, or multi-node scheduling. Its first-v2-write roll
 boundary means an M17 binary is no longer a supported reader after v2 data exists;
 rollback then requires an M18-compatible reader or coordinated pre-upgrade storage
 restore with matching configuration.
+
+The project owner confirmed the authoritative GitLab pipeline for commit
+`8ece6f38214541f18e1a7d961910fa22d90df10b` green: `backend` (438 tests),
+`frontend`, `deployment_configuration`, and `local_stack_smoke`. The complete closure
+evidence is recorded in [Milestone 018](../plans/MILESTONE-018.md).
