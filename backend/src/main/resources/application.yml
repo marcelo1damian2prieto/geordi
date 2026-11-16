@@ -12,6 +12,17 @@ spring:
     locations: classpath:db/migration
 
 geordi:
+  security:
+    issuer: ${GEORDI_OIDC_ISSUER}
+    api-audience: ${GEORDI_API_AUDIENCE}
+    browser-client-id: ${GEORDI_BROWSER_CLIENT_ID}
+    browser-client-secret-file: ${GEORDI_BROWSER_CLIENT_SECRET_FILE:/run/secrets/geordi_oidc_client_secret}
+    public-base-url: ${GEORDI_PUBLIC_BASE_URL}
+    grant-claim: ${GEORDI_GRANT_CLAIM:geordi_permissions}
+    grant-mapping:
+      VIEWER: ["observability:read"]
+      OPERATOR: ["observability:read", "alerts:acknowledge"]
+      EVALUATOR: ["observability:read", "alerts:evaluate"]
   modules:
     core:
       enabled: true
@@ -71,10 +82,14 @@ geordi:
 management:
   endpoints:
     web:
+      discovery:
+        enabled: false
       exposure:
         include: health
   endpoint:
     health:
+      show-details: never
+      show-components: never
       probes:
         enabled: true
       group:
@@ -82,6 +97,11 @@ management:
           include: readinessState,geordiPlatform
 
 logging:
+  level:
+    org.springframework.web.servlet.mvc.support.DefaultHandlerExceptionResolver: OFF
+    org.apache.coyote.http11.Http11Processor: OFF
+    sun.net.www.protocol.http.HttpURLConnection: OFF
+    jdk.httpclient.HttpClient: OFF
   structured:
     format:
       console: logstash

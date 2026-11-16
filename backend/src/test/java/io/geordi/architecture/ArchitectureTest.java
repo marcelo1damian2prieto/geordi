@@ -9,6 +9,18 @@ import org.junit.jupiter.api.Test;
 
 class ArchitectureTest {
 
+    @Test
+    void securityContractsAndAlertsApplicationRemainProtocolIndependent() {
+        noClasses().that().resideInAnyPackage("io.geordi.core.application.security..",
+                        "io.geordi.alerts.domain..", "io.geordi.alerts.application..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "org.springframework..", "jakarta.servlet..", "javax.servlet..",
+                        "com.nimbusds..", "com.fasterxml.jackson..", "java.net.http..",
+                        "org.apache.http..", "okhttp3..", "io.opentelemetry.sdk..",
+                        "io.geordi.bootstrap..")
+                .check(productionClasses);
+    }
+
     private final JavaClasses productionClasses = new ClassFileImporter()
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
             .importPackages("io.geordi");
@@ -307,6 +319,23 @@ class ArchitectureTest {
                         "org.springframework.mail..",
                         "org.springframework.messaging..",
                         "org.springframework.kafka..")
+                .check(productionClasses);
+    }
+
+    @Test
+    void lifecycleMutationUsesAuthorizedManualAndTrustedSchedulerEntries() {
+        noClasses().that().resideInAnyPackage(
+                        "io.geordi.alerts.adapter.in.web..", "io.geordi.alerts.adapter.in.worker..")
+                .should().dependOnClassesThat()
+                .haveFullyQualifiedName("io.geordi.alerts.application.AlertLifecycleEvaluationUseCase")
+                .check(productionClasses);
+    }
+
+    @Test
+    void alertWebMutationUsesOnlyAuthenticatedAcknowledgementBoundary() {
+        noClasses().that().resideInAPackage("io.geordi.alerts.adapter.in.web..")
+                .should().dependOnClassesThat()
+                .haveFullyQualifiedName("io.geordi.alerts.application.AcknowledgeAlertEpisodeUseCase")
                 .check(productionClasses);
     }
 

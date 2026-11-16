@@ -6,7 +6,9 @@ COPY mvnw pom.xml ./
 RUN chmod +x mvnw && ./mvnw -B -ntp dependency:go-offline
 
 COPY src src
-RUN ./mvnw -B -ntp verify && cp target/geordi-backend-*.jar /tmp/application.jar
+RUN ./mvnw -B -ntp verify \
+    && cp target/geordi-backend-0.1.0-SNAPSHOT.jar /tmp/application.jar \
+    && cp target/geordi-backend-*-security-telemetry.jar /tmp/security-telemetry.jar
 
 FROM alpine:3.22.1 AS otel-java-agent
 ARG OTEL_JAVA_AGENT_VERSION=2.28.1
@@ -21,9 +23,11 @@ FROM eclipse-temurin:21-jre-jammy AS runtime
 RUN useradd --system --uid 10001 --create-home geordi
 WORKDIR /app
 COPY --from=build /tmp/application.jar application.jar
+COPY --from=build /tmp/security-telemetry.jar /opt/opentelemetry/security-telemetry.jar
+ENV OTEL_JAVAAGENT_EXTENSIONS=/opt/opentelemetry/security-telemetry.jar
 COPY --from=otel-java-agent /opentelemetry-javaagent.jar /opt/opentelemetry/opentelemetry-javaagent.jar
 COPY --from=healthcheck /bin/busybox /bin/busybox
-RUN mkdir -p /var/lib/geordi/alerts /var/lib/geordi/alerts-m10 /var/lib/geordi/alerts-m12 \
+RUN mkdir -p /var/lib/geordi/alerts /var/lib/geordi/alerts-m10 /var/lib/geordi/alerts-m12 /var/lib/geordi/alerts-m19 \
     && chown -R geordi:geordi /app /opt/opentelemetry /var/lib/geordi
 USER 10001
 EXPOSE 8080
@@ -36,21 +40,29 @@ ENTRYPOINT ["sh", "-c", "export OTEL_RESOURCE_ATTRIBUTES=\"${OTEL_RESOURCE_ATTRI
 FROM eclipse-temurin:21-jre-jammy AS ci-artifact
 ARG VERIFIED_JAR_SHA256
 ARG SOURCE_REVISION
+ARG VERIFIED_SECURITY_TELEMETRY_SHA256
 COPY .ci-artifact/application.jar /verified/application.jar
+COPY .ci-artifact/security-telemetry.jar /verified/security-telemetry.jar
 RUN test -n "$VERIFIED_JAR_SHA256" && test -n "$SOURCE_REVISION" \
-    && echo "$VERIFIED_JAR_SHA256  /verified/application.jar" | sha256sum -c -
+    && echo "$VERIFIED_JAR_SHA256  /verified/application.jar" | sha256sum -c - \
+    && test -n "$VERIFIED_SECURITY_TELEMETRY_SHA256" \
+    && echo "$VERIFIED_SECURITY_TELEMETRY_SHA256  /verified/security-telemetry.jar" | sha256sum -c -
 
 FROM eclipse-temurin:21-jre-jammy AS ci-runtime
 ARG SOURCE_REVISION
 ARG VERIFIED_JAR_SHA256
+ARG VERIFIED_SECURITY_TELEMETRY_SHA256
 LABEL org.opencontainers.image.revision=$SOURCE_REVISION \
-      io.geordi.verified-artifact.sha256=$VERIFIED_JAR_SHA256
+      io.geordi.verified-artifact.sha256=$VERIFIED_JAR_SHA256 \
+      io.geordi.security-telemetry.sha256=$VERIFIED_SECURITY_TELEMETRY_SHA256
 RUN useradd --system --uid 10001 --create-home geordi
 WORKDIR /app
 COPY --from=ci-artifact /verified/application.jar application.jar
+COPY --from=ci-artifact /verified/security-telemetry.jar /opt/opentelemetry/security-telemetry.jar
+ENV OTEL_JAVAAGENT_EXTENSIONS=/opt/opentelemetry/security-telemetry.jar
 COPY --from=otel-java-agent /opentelemetry-javaagent.jar /opt/opentelemetry/opentelemetry-javaagent.jar
 COPY --from=healthcheck /bin/busybox /bin/busybox
-RUN mkdir -p /var/lib/geordi/alerts /var/lib/geordi/alerts-m10 /var/lib/geordi/alerts-m12 && chown -R geordi:geordi /app /opt/opentelemetry /var/lib/geordi
+RUN mkdir -p /var/lib/geordi/alerts /var/lib/geordi/alerts-m10 /var/lib/geordi/alerts-m12 /var/lib/geordi/alerts-m19 && chown -R geordi:geordi /app /opt/opentelemetry /var/lib/geordi
 USER 10001
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=6 CMD ["/bin/busybox", "wget", "-q", "--spider", "http://localhost:8080/actuator/health/readiness"]

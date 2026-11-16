@@ -28,7 +28,7 @@ class AlertNotificationDispositionV7MigrationIntegrationTest {
         DriverManagerDataSource dataSource = isolatedDataSource("m17_clean_v7");
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
 
-        migrate(dataSource, null);
+        migrate(dataSource, "7");
 
         assertThat(version(jdbc)).isEqualTo("7");
         assertThat(jdbc.queryForObject(
@@ -49,7 +49,7 @@ class AlertNotificationDispositionV7MigrationIntegrationTest {
         insertPopulatedV6Fixture(jdbc);
         V6Snapshot before = snapshot(jdbc);
 
-        migrate(dataSource, null);
+        migrate(dataSource, "7");
 
         assertThat(version(jdbc)).isEqualTo("7");
         assertThat(snapshot(jdbc)).isEqualTo(before);
@@ -62,7 +62,7 @@ class AlertNotificationDispositionV7MigrationIntegrationTest {
     void enforcesTransitionForeignKeyPrimaryKeyNotNullAndClosedDispositionValues() {
         DriverManagerDataSource dataSource = isolatedDataSource("m17_v7_constraints");
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
-        migrate(dataSource, null);
+        migrate(dataSource, "7");
         insertEpisodeAndTransition(jdbc);
 
         assertThatThrownBy(() -> jdbc.update(

@@ -11,6 +11,9 @@ import type {
 } from '../../api/alertLifecycles'
 import { AlertLifecyclePage } from './AlertLifecyclePage'
 import { alertLifecyclePolicyKey } from './useAlertLifecycles'
+import { AuthProvider } from '../auth/AuthProvider'
+import type { GeordiPermission } from '../../api/auth'
+import { advanceAuthenticationGeneration } from '../../api/client'
 
 const policy = {
   id: 'checkout-burn',
@@ -142,15 +145,25 @@ function json(body: unknown, status = 200) {
 
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  return render(
+  const rendered = render(
     <QueryClientProvider client={client}>
-      <MemoryRouter><AlertLifecyclePage /></MemoryRouter>
+      <AuthProvider permissions={new Set<GeordiPermission>(['observability:read', 'alerts:evaluate'])}>
+        <MemoryRouter><AlertLifecyclePage /></MemoryRouter>
+      </AuthProvider>
     </QueryClientProvider>,
   )
+  return { ...rendered, client }
 }
 
 function requestPath(input: RequestInfo | URL) {
   return new URL(typeof input === 'string' ? input : input instanceof URL ? input : input.url, 'http://geordi.test').pathname
+}
+
+function csrfOr(input: RequestInfo | URL, init: RequestInit | undefined,
+  handler: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>) {
+  return requestPath(input) === '/api/auth/csrf'
+    ? json({ headerName: 'X-CSRF-TOKEN', token: 'test-csrf-token' })
+    : handler(input, init)
 }
 
 afterEach(() => vi.restoreAllMocks())
@@ -194,9 +207,9 @@ describe('Alert lifecycle', () => {
       lastEvidenceAt: range.to,
       latestTransition: started,
     })
-    vi.spyOn(globalThis, 'fetch').mockImplementation((_input, init) => init?.method === 'POST'
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => csrfOr(input, init, (_request, requestInit) => requestInit?.method === 'POST'
       ? json(result(met, firing, started))
-      : json({ alertStates: [snapshot()] }))
+      : json({ alertStates: [snapshot()] })))
     renderPage()
 
     await user.click(await screen.findByRole('button', { name: 'Evaluate now' }))
@@ -207,15 +220,53 @@ describe('Alert lifecycle', () => {
     expect(screen.getByText('Started at').nextElementSibling?.querySelector('time')).toHaveAttribute('dateTime', range.to)
   })
 
+  it('does not publish a delayed evaluation result after the principal generation changes', async () => {
+    const user = userEvent.setup()
+    const met = evaluation('CONDITION_MET', 3.5)
+    const started = transition('ALERT_STARTED', met)
+    const firing = snapshot({
+      initialized: true,
+      state: 'FIRING',
+      latestEvaluation: met,
+      activeEvidence: met.evidence,
+      startedAt: range.to,
+      lastStateChangeAt: range.to,
+      lastProcessedAt: range.to,
+      lastEvidenceAt: range.to,
+      latestTransition: started,
+    })
+    let completeEvaluation!: (response: Response) => void
+    let evaluationStarted = false
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => csrfOr(input, init, (_request, requestInit) => {
+      if (requestPath(input) === '/api/alert-states') return json({ alertStates: [snapshot()] })
+      if (requestInit?.method === 'POST') {
+        evaluationStarted = true
+        return new Promise((resolve) => { completeEvaluation = resolve })
+      }
+      return json({})
+    }))
+    const { client } = renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Evaluate now' }))
+    await waitFor(() => expect(evaluationStarted).toBe(true))
+    advanceAuthenticationGeneration()
+    completeEvaluation(new Response(JSON.stringify(result(met, firing, started)), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    }))
+
+    await waitFor(() => expect(screen.getByLabelText('Alert lifecycle state: Inactive')).toBeInTheDocument())
+    expect(client.getQueryData(['alert-lifecycle', 'states'])).toEqual({ alertStates: [snapshot()] })
+  })
+
   it('keeps a repeated condition-met evaluation firing without a repeated transition', async () => {
     const user = userEvent.setup()
     const first = evaluation('CONDITION_MET', 3, null, previousRange)
     const repeated = evaluation('CONDITION_MET', 4)
     const firing = snapshot({ initialized: true, state: 'FIRING', latestEvaluation: first, activeEvidence: first.evidence, startedAt: previousRange.to, lastProcessedAt: previousRange.to, lastEvidenceAt: previousRange.to })
     const continued = { ...firing, latestEvaluation: repeated, activeEvidence: repeated.evidence, lastProcessedAt: range.to, lastEvidenceAt: range.to }
-    vi.spyOn(globalThis, 'fetch').mockImplementation((_input, init) => init?.method === 'POST'
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => csrfOr(input, init, (_request, requestInit) => requestInit?.method === 'POST'
       ? json(result(repeated, continued, null))
-      : json({ alertStates: [firing] }))
+      : json({ alertStates: [firing] })))
     renderPage()
 
     await user.click(await screen.findByRole('button', { name: 'Evaluate now' }))
@@ -232,13 +283,13 @@ describe('Alert lifecycle', () => {
     const firing = snapshot({ initialized: true, state: 'FIRING', latestEvaluation: met, activeEvidence: met.evidence, startedAt: previousRange.to, lastProcessedAt: previousRange.to, lastEvidenceAt: previousRange.to })
     const inactive = snapshot({ initialized: true, state: 'INACTIVE', latestEvaluation: notMet, resolvedAt: range.to, lastStateChangeAt: range.to, lastProcessedAt: range.to, lastEvidenceAt: range.to, latestTransition: resolvedTransition })
     let postCalls = 0
-    vi.spyOn(globalThis, 'fetch').mockImplementation((_input, init) => {
-      if (init?.method !== 'POST') return json({ alertStates: [firing] })
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => csrfOr(input, init, (_request, requestInit) => {
+      if (requestInit?.method !== 'POST') return json({ alertStates: [firing] })
       postCalls += 1
       return postCalls === 1
         ? json(result(notMet, inactive, resolvedTransition))
         : json(result(notMet, inactive, null, 'DUPLICATE_IGNORED'))
-    })
+    }))
     renderPage()
 
     await user.click(await screen.findByRole('button', { name: 'Evaluate now' }))
@@ -403,9 +454,9 @@ describe('Alert lifecycle', () => {
     const met = evaluation('CONDITION_MET', 3)
     const firing = snapshot({ initialized: true, state: 'FIRING', latestEvaluation: met, activeEvidence: met.evidence, startedAt: range.to, lastProcessedAt: range.to, lastEvidenceAt: range.to })
     let resolveCommand: ((response: Response) => void) | undefined
-    vi.spyOn(globalThis, 'fetch').mockImplementation((_input, init) => init?.method === 'POST'
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => csrfOr(input, init, (_request, requestInit) => requestInit?.method === 'POST'
       ? new Promise<Response>((resolve) => { resolveCommand = resolve })
-      : json({ alertStates: [firing] }))
+      : json({ alertStates: [firing] })))
     renderPage()
 
     const command = await screen.findByRole('button', { name: 'Evaluate now' })

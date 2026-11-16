@@ -30,7 +30,16 @@ export interface AlertEpisodeDetailTransition extends AlertTransitionHistory {
   notification: { disposition: AlertNotificationDisposition; delivery: AlertNotificationDelivery | null }
 }
 export interface AlertEpisodesResponse { alertEpisodes: AlertEpisode[] }
-export interface AlertAcknowledgement { actor: string; reason: string | null; acknowledgedAt: string }
+export interface AlertAcknowledgement {
+  actor: string
+  reason: string | null
+  acknowledgedAt: string
+  attribution: {
+    provenance: 'LEGACY_CALLER_ASSERTED' | 'AUTHENTICATED_PRINCIPAL'
+    identity: { issuer: string; subject: string } | null
+    displayName: string | null
+  }
+}
 export interface AlertEpisodeDetailResponse { episode: AlertEpisode; acknowledgement: AlertAcknowledgement | null; transitions: AlertEpisodeDetailTransition[] }
 export interface AlertHistoryQuery { from: string; to: string; policyId?: string; state?: AlertEpisodeState; limit: number }
 
@@ -44,6 +53,6 @@ export function getAlertEpisode(episodeId: string, signal?: AbortSignal) {
   return getJson<AlertEpisodeDetailResponse>(`/api/alert-episodes/${encodeURIComponent(episodeId)}`, signal)
 }
 
-export function acknowledgeAlertEpisode(episodeId: string, command: { actor: string; reason?: string | null }, signal?: AbortSignal) {
+export function acknowledgeAlertEpisode(episodeId: string, command: { reason?: string | null }, signal?: AbortSignal) {
   return postJson<AlertAcknowledgement>(`/api/alert-episodes/${encodeURIComponent(episodeId)}/acknowledgements`, command, signal)
 }

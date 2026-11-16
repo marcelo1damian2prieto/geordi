@@ -45,7 +45,7 @@ backend:
       for candidate in target/geordi-backend-*.jar; do
         [ -f "$candidate" ] || continue
         case "$candidate" in
-          *.original|*-sources.jar|*-javadoc.jar) continue ;;
+          *.original|*-sources.jar|*-javadoc.jar|*-security-telemetry.jar) continue ;;
         esac
         jar="$candidate"
         count=$((count + 1))
@@ -64,6 +64,10 @@ backend:
         exit 1
       fi
       printf 'revision=%s\njar=%s\nsha256=%s' "$CI_COMMIT_SHA" "$(basename "$jar")" "$hash" > target/verified-artifact.properties
+      extension=target/geordi-backend-0.1.0-SNAPSHOT-security-telemetry.jar
+      test -f "$extension"
+      extension_hash="$(sha256sum "$extension" | awk '{print tolower($1)}')"
+      printf '\nsecurityTelemetryJar=%s\nsecurityTelemetrySha256=%s' "$(basename "$extension")" "$extension_hash" >> target/verified-artifact.properties
   artifacts:
     when: always
     expire_in: 7 days
@@ -73,6 +77,7 @@ backend:
       - backend/target/pmd.xml
       - backend/target/spotbugsXml.xml
       - backend/target/geordi-backend-0.1.0-SNAPSHOT.jar
+      - backend/target/geordi-backend-0.1.0-SNAPSHOT-security-telemetry.jar
       - backend/target/verified-artifact.properties
     reports:
       junit:
@@ -105,6 +110,11 @@ deployment_configuration:
   stage: verify
   tags:
     - geordi-docker-pwsh
+  needs:
+    - job: backend
+      artifacts: true
+    - job: frontend
+      artifacts: true
   variables:
     GIT_STRATEGY: clone
   script:
@@ -117,6 +127,14 @@ deployment_configuration:
     - docker compose --file compose.yaml --file compose.m12.yaml config --quiet
     - docker compose --file compose.yaml --file compose.m13.yaml config --quiet
     - docker compose --file compose.yaml --file compose.m14.yaml config --quiet
+    - docker compose --file compose.yaml --file compose.m19.yaml config --quiet
+    - docker compose --file compose.yaml --file compose.m19.yaml --file compose.m11.yaml config --quiet
+    - docker compose --file compose.yaml --file compose.m19.yaml --file compose.m12.yaml --file compose.m12-overlap.yaml config --quiet
+    - pwsh -NoProfile -File ./scripts/Test-GeordiTelemetrySanitizerConfig.ps1
+    - pwsh -NoProfile -File ./scripts/Test-GeordiCredentialLeaks.ps1 -SelfTest
+    - pwsh -NoProfile -File ./scripts/Test-GeordiCredentialLeaks.ps1 -LargeCaptureSelfTest
+    - pwsh -NoProfile -File ./scripts/Test-GeordiCredentialGate.ps1 -SelfTest
+    - pwsh -NoProfile -File ./scripts/Test-GeordiM19Cleanup.ps1 -SelfTest
     - docker run --rm -v "$CI_PROJECT_DIR/otel/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro" otel/opentelemetry-collector:0.157.0 validate --config=/etc/otelcol/config.yaml
     - docker run --rm -v "$CI_PROJECT_DIR/deploy/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro" grafana/tempo:2.7.2 "-config.file=/etc/tempo/tempo.yaml" "-config.verify=true"
     - docker run --rm -v "$CI_PROJECT_DIR/deploy/loki/loki.yaml:/etc/loki/local-config.yaml:ro" grafana/loki:3.7.2 --config.file=/etc/loki/local-config.yaml --verify-config=true
@@ -129,21 +147,35 @@ local_stack_smoke:
     - job: backend
       artifacts: true
     - job: frontend
-      artifacts: false
+      artifacts: true
     - job: deployment_configuration
       artifacts: false
   resource_group: geordi-local-stack
   timeout: 30m
   variables:
     GIT_STRATEGY: clone
+    COMPOSE_FILE: "compose.yaml;compose.m19.yaml"
     RUNNER_SCRIPT_TIMEOUT: 27m
     RUNNER_AFTER_SCRIPT_TIMEOUT: 3m
   script:
     - git ls-files --eol backend/mvnw
-    - docker compose down --volumes --remove-orphans
-    - pwsh -NoProfile -Command '$p=ConvertFrom-StringData (Get-Content backend/target/verified-artifact.properties -Raw); if ($p.revision -ne $env:CI_COMMIT_SHA) { throw "Verified artifact revision mismatch" }; $jar=Join-Path backend/target $p.jar; if (!(Test-Path $jar) -or (Get-FileHash $jar -Algorithm SHA256).Hash.ToLower() -ne $p.sha256) { throw "Verified artifact digest mismatch" }; New-Item -ItemType Directory -Force backend/.ci-artifact | Out-Null; Copy-Item $jar backend/.ci-artifact/application.jar; $env:GEORDI_BACKEND_DOCKER_TARGET="ci-runtime"; $env:GEORDI_SOURCE_REVISION=$p.revision; $env:GEORDI_VERIFIED_JAR_SHA256=$p.sha256; docker compose build --no-cache backend; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; $labels=docker image inspect geordi-backend:local --format "{{json .Config.Labels}}" | ConvertFrom-Json; if ($labels."org.opencontainers.image.revision" -ne $p.revision -or $labels."io.geordi.verified-artifact.sha256" -ne $p.sha256) { throw "Runtime image provenance mismatch" }'
+    - docker compose --file compose.yaml --file compose.m14.yaml down --remove-orphans
+    - pwsh -NoProfile -Command '$p=ConvertFrom-StringData (Get-Content backend/target/verified-artifact.properties -Raw); if ($p.revision -ne $env:CI_COMMIT_SHA) { throw "Verified artifact revision mismatch" }; $jar=Join-Path backend/target $p.jar; if (!(Test-Path $jar) -or (Get-FileHash $jar -Algorithm SHA256).Hash.ToLower() -ne $p.sha256) { throw "Verified artifact digest mismatch" }; New-Item -ItemType Directory -Force backend/.ci-artifact | Out-Null; Copy-Item $jar backend/.ci-artifact/application.jar; $extension=Join-Path backend/target $p.securityTelemetryJar; if (!(Test-Path $extension) -or (Get-FileHash $extension -Algorithm SHA256).Hash.ToLower() -ne $p.securityTelemetrySha256) { throw "Security telemetry artifact digest mismatch" }; Copy-Item $extension backend/.ci-artifact/security-telemetry.jar; $env:GEORDI_VERIFIED_SECURITY_TELEMETRY_SHA256=$p.securityTelemetrySha256; $env:GEORDI_BACKEND_DOCKER_TARGET="ci-runtime"; $env:GEORDI_SOURCE_REVISION=$p.revision; $env:GEORDI_VERIFIED_JAR_SHA256=$p.sha256; docker compose build --no-cache backend; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; $labels=docker image inspect geordi-backend:local --format "{{json .Config.Labels}}" | ConvertFrom-Json; if ($labels."org.opencontainers.image.revision" -ne $p.revision -or $labels."io.geordi.verified-artifact.sha256" -ne $p.sha256 -or $labels."io.geordi.security-telemetry.sha256" -ne $p.securityTelemetrySha256) { throw "Runtime image provenance mismatch" }'
     - docker compose build --no-cache tempo loki otel-collector demo burn-demo demo-downstream frontend
-    - docker compose up -d --wait --wait-timeout 180
+    - docker compose --file compose.yaml --file compose.m19.yaml build --no-cache oidc-fixture
+    - pwsh -NoProfile -NonInteractive -File ./scripts/New-GeordiTestTls.ps1 -TrustForLocalMachine
+    - pwsh -NoProfile -File ./scripts/New-GeordiM19SmokeConfig.ps1
+    - pwsh -NoProfile -File ./scripts/New-GeordiCredentialEvidence.ps1 -Action Start
+    - docker compose --file compose.yaml --file compose.m19.yaml up -d --wait --wait-timeout 180
+    - pwsh -NoProfile -File ./scripts/New-GeordiCredentialEvidence.ps1 -Action Begin
+    - pwsh -NoProfile -File ./scripts/Test-GeordiTestTls.ps1 -TimeoutSeconds 45
+    - pwsh -NoProfile -File ./scripts/Test-GeordiRuntimePreflight.ps1 -TimeoutSeconds 45
+    - pwsh -NoProfile -File ./scripts/verify-security.ps1
+    - cd frontend
+    - npm ci --cache .npm --prefer-offline
+    - npx playwright install chromium
+    - pwsh -NoProfile -Command '$captureRoot=[IO.File]::ReadAllText((Join-Path (Split-Path (Get-Location).Path -Parent) ".runtime/m19-capture-root.txt")).Trim(); $env:GEORDI_M19_BROWSER_SENTINEL_FILE=Join-Path $captureRoot "browser-secret-sentinels.txt"; $capture=Join-Path $captureRoot "browser-e2e.log"; npm run test:e2e:m19 *> $capture; if ($LASTEXITCODE -ne 0) { throw "M19 browser E2E failed; private output retained for required scanning." }'
+    - cd ..
     - pwsh -File ./scripts/verify-otel.ps1 -TimeoutSeconds 120
     - pwsh -File ./scripts/verify-metrics.ps1 -TimeoutSeconds 150
     - pwsh -File ./scripts/verify-traces.ps1 -TimeoutSeconds 180
@@ -153,10 +185,14 @@ local_stack_smoke:
     - pwsh -File ./scripts/verify-burn-rate.ps1 -TimeoutSeconds 180 -ExerciseProviderFailure
     - pwsh -File ./scripts/verify-alert-evaluation.ps1 -TimeoutSeconds 150
     - pwsh -File ./scripts/verify-alert-lifecycle.ps1 -TimeoutSeconds 240
-    - pwsh -File ./scripts/verify-notification-delivery.ps1 -TimeoutSeconds 300
-    - pwsh -File ./scripts/verify-alert-scheduling.ps1 -TimeoutSeconds 300
+    - pwsh -File ./scripts/verify-notification-delivery.ps1 -TimeoutSeconds 300 -PreserveFixtureForNextStage
+    - pwsh -File ./scripts/verify-alert-scheduling.ps1 -TimeoutSeconds 300 -ConsumeTransferredM11Fixture -ApplyM12BackendGeneration
+    - pwsh -File ./scripts/verify-alert-scheduling-overlap.ps1 -TimeoutSeconds 300
     - pwsh -File ./scripts/verify-alert-routing.ps1 -TimeoutSeconds 360
     - pwsh -File ./scripts/verify-alert-history.ps1 -TimeoutSeconds 480
+    - docker compose --file compose.yaml --file compose.m19.yaml up -d --wait --wait-timeout 90 victoriametrics backend
+    - pwsh -NoProfile -File ./scripts/Invoke-GeordiM19CredentialGates.ps1
+    - pwsh -NoProfile -File ./scripts/Complete-GeordiM19Cleanup.ps1
   after_script:
-    - pwsh -NoProfile -Command '& docker compose --file compose.yaml --file compose.m14.yaml logs --tail 50 --no-color 2>&1 | ForEach-Object { $line = [string]$_; if ($line.Length -gt 2000) { $line.Substring(0, 2000) + " [truncated]" } else { $line } }; if ($LASTEXITCODE -ne 0) { Write-Warning "Could not collect Compose logs."; exit 0 }'
-    - pwsh -NoProfile -Command '& docker compose --file compose.yaml --file compose.m14.yaml down --timeout 5 --volumes --remove-orphans; if ($LASTEXITCODE -ne 0) { Write-Warning "Could not clean up the Compose stack."; exit 0 }'
+    - pwsh -NoProfile -File ./scripts/Write-GeordiSafeDiagnostics.ps1
+    - pwsh -NoProfile -File ./scripts/Complete-GeordiM19Cleanup.ps1 -BestEffort

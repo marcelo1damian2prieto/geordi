@@ -1,23 +1,113 @@
 services:
+  # M14 updates dedicated stores and the Collector process. Disable Compose's
+  # restart propagation so unrelated live services (including the frontend,
+  # burn demos and OIDC fixture) remain outside the fixture mutation set.
+  otel-collector:
+    depends_on:
+      victoriametrics:
+        condition: service_healthy
+        restart: false
+      tempo:
+        condition: service_healthy
+        restart: false
+      loki:
+        condition: service_healthy
+        restart: false
+
+  demo:
+    depends_on:
+      otel-collector:
+        condition: service_healthy
+        restart: false
+
+  burn-demo:
+    depends_on:
+      otel-collector:
+        condition: service_healthy
+        restart: false
+
+  m12-burn-demo:
+    depends_on:
+      otel-collector:
+        condition: service_healthy
+        restart: false
+
+  demo-downstream:
+    depends_on:
+      otel-collector:
+        condition: service_healthy
+        restart: false
+
   victoriametrics:
     volumes: !override
       - m14-victoriametrics-data:/victoria-metrics-data
 
   backend:
     depends_on:
+      otel-collector:
+        condition: service_healthy
+        restart: false
+      victoriametrics:
+        condition: service_healthy
+        restart: false
+      tempo:
+        condition: service_healthy
+        restart: false
+      loki:
+        condition: service_healthy
+        restart: false
+      webhook-receiver:
+        condition: service_healthy
+        restart: false
       webhook-receiver-a:
         condition: service_healthy
+        restart: false
       webhook-receiver-b:
         condition: service_healthy
+        restart: false
+      oidc-fixture:
+        condition: service_healthy
+        restart: false
     environment:
       SPRING_DATASOURCE_URL: jdbc:h2:file:/var/lib/geordi/alerts/lifecycle;DB_CLOSE_ON_EXIT=FALSE
       SPRING_CONFIG_ADDITIONAL_LOCATION: file:/etc/geordi/slos.yaml,file:/etc/geordi/alert-policies.m13.yaml,file:/etc/geordi/alert-routing.m13.yaml
       GEORDI_M13_WEBHOOK_TOKEN_A: ${GEORDI_M13_WEBHOOK_TOKEN_A:?GEORDI_M13_WEBHOOK_TOKEN_A is required for the isolated M14 fixture}
       GEORDI_M13_WEBHOOK_TOKEN_B: ${GEORDI_M13_WEBHOOK_TOKEN_B:?GEORDI_M13_WEBHOOK_TOKEN_B is required for the isolated M14 fixture}
-    volumes:
+    volumes: !override
+      - type: bind
+        source: ./.runtime/m19/slos.yaml
+        target: /etc/geordi/slos.yaml
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./.runtime/m19/alert-policies.yaml
+        target: /etc/geordi/alert-policies.yaml
+        read_only: true
+        bind:
+          create_host_path: false
+      - ./deploy/alerts/alert-routing.yaml:/etc/geordi/alert-routing.yaml:ro
       - ./deploy/alerts/alert-policies.m13.yaml:/etc/geordi/alert-policies.m13.yaml:ro
       - ./deploy/alerts/alert-routing.m13.yaml:/etc/geordi/alert-routing.m13.yaml:ro
       - m14-alert-lifecycle-data:/var/lib/geordi/alerts
+      - type: bind
+        source: ./.runtime/m19/client-secret
+        target: /run/m19/client-secret
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./.runtime/m19/truststore.p12
+        target: /run/m19/truststore.p12
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./.runtime/m19/truststore.password
+        target: /run/m19/truststore.password
+        read_only: true
+        bind:
+          create_host_path: false
 
   webhook-receiver-a:
     image: python:3.13-alpine

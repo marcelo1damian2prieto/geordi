@@ -3,6 +3,7 @@ package io.geordi.alerts.adapter.in.web;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.geordi.alerts.application.AlertHistoryQueryService;
 import io.geordi.alerts.application.AlertNotificationEvidence;
@@ -10,7 +11,7 @@ import io.geordi.alerts.application.port.out.AlertNotificationEvidenceQuery;
 import io.geordi.alerts.domain.AlertTransitionId;
 import io.geordi.alerts.domain.NotificationDisposition;
 import io.geordi.alerts.domain.NotificationDeliveryState;
-import io.geordi.alerts.application.AcknowledgeAlertEpisodeUseCase;
+import io.geordi.alerts.application.AuthorizedAcknowledgeAlertEpisode;
 import io.geordi.alerts.application.port.out.AlertEpisodeHistoryQuery;
 import io.geordi.alerts.application.port.out.AlertHistoryRepository;
 import io.geordi.alerts.application.port.out.AlertTransitionHistoryQuery;
@@ -50,6 +51,14 @@ class AlertHistoryControllerTest {
             .resolve(STARTED_AT.plusSeconds(300));
     private static final AlertTransitionRecord TRANSITION = AlertTransitionRecord.forEpisode(
             EPISODE, transition());
+
+    @Test
+    void rejectsLegacyCallerAssertedActorInsteadOfSilentlyIgnoringIt() {
+        assertThatThrownBy(() -> new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+                "{\"actor\":\"forged\",\"reason\":\"test\"}",
+                AlertHistoryController.AlertAcknowledgementRequest.class))
+                .hasMessageContaining("unknown acknowledgement property");
+    }
 
     @Test
     void listsBoundedEpisodesWithoutEvaluatingLifecycle() throws Exception {
@@ -190,7 +199,7 @@ class AlertHistoryControllerTest {
     }
 
     private static MockMvc mvc(Repository repository) {
-        AcknowledgeAlertEpisodeUseCase acknowledgements = (episodeId, actor, reason) -> {
+        AuthorizedAcknowledgeAlertEpisode acknowledgements = (principal, episodeId, reason) -> {
             throw new AssertionError("history-query tests must not invoke acknowledgement");
         };
         return MockMvcBuilders.standaloneSetup(

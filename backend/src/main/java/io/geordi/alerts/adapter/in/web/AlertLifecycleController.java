@@ -1,8 +1,9 @@
 package io.geordi.alerts.adapter.in.web;
 
 import io.geordi.alerts.application.AlertLifecycleEvaluationResult;
-import io.geordi.alerts.application.AlertLifecycleEvaluationUseCase;
+import io.geordi.alerts.application.AuthorizedManualLifecycleEvaluationUseCase;
 import io.geordi.alerts.application.AlertLifecycleQueryService;
+import io.geordi.core.application.security.AuthenticatedPrincipal;
 import io.geordi.alerts.application.AlertLifecycleSnapshot;
 import io.geordi.alerts.domain.AlertLifecycle;
 import io.geordi.alerts.domain.AlertLifecycleProcessingOutcome;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestAttribute;
 
 @RestController
 @ConditionalOnExpression(
@@ -24,10 +26,10 @@ import org.springframework.web.bind.annotation.RestController;
 public class AlertLifecycleController {
 
     private final AlertLifecycleQueryService queries;
-    private final AlertLifecycleEvaluationUseCase evaluations;
+    private final AuthorizedManualLifecycleEvaluationUseCase evaluations;
 
     public AlertLifecycleController(
-            AlertLifecycleQueryService queries, AlertLifecycleEvaluationUseCase evaluations) {
+            AlertLifecycleQueryService queries, AuthorizedManualLifecycleEvaluationUseCase evaluations) {
         this.queries = queries;
         this.evaluations = evaluations;
     }
@@ -38,8 +40,10 @@ public class AlertLifecycleController {
     }
 
     @PostMapping("/alert-policies/{policyId}/lifecycle-evaluations")
-    public AlertLifecycleEvaluationResponse evaluate(@PathVariable String policyId) {
-        return AlertLifecycleEvaluationResponse.from(evaluations.evaluate(policyId));
+    public AlertLifecycleEvaluationResponse evaluate(
+            @RequestAttribute("geordi.authenticatedPrincipal") AuthenticatedPrincipal principal,
+            @PathVariable String policyId) {
+        return AlertLifecycleEvaluationResponse.from(evaluations.evaluate(principal, policyId));
     }
 
     public record AlertStatesResponse(List<AlertLifecycleResponse> alertStates) {

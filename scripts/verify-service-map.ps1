@@ -6,14 +6,17 @@ param(
     [ValidateRange(1, 100)]
     [int] $RequestCount = 4,
 
-    [string] $BackendBaseUrl = "http://127.0.0.1:8080",
+    [string] $BackendBaseUrl,
     [string] $DemoBaseUrl = "http://127.0.0.1:8081",
     [string] $DownstreamBaseUrl = "http://127.0.0.1:8082",
-    [string] $FrontendBaseUrl = "http://127.0.0.1:3000"
+    [string] $FrontendBaseUrl
 )
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
+. (Join-Path $PSScriptRoot 'lib/GeordiAuthentication.ps1')
+if ([string]::IsNullOrWhiteSpace($BackendBaseUrl)) { $BackendBaseUrl = Get-GeordiApplicationBaseUrl }
+if ([string]::IsNullOrWhiteSpace($FrontendBaseUrl)) { $FrontendBaseUrl = Get-GeordiApplicationBaseUrl }
 
 $Environment = "development"
 $Caller = [ordered]@{ name = "geordi-demo-service"; namespace = "geordi-demo"; environment = $Environment }
@@ -25,10 +28,8 @@ function Invoke-TextRequest {
         [int] $TimeoutSeconds = 5
     )
 
-    $response = Invoke-WebRequest -Uri $Uri -TimeoutSec $TimeoutSeconds -UseBasicParsing
-    if ($response.StatusCode -ne 200) {
-        throw "GET $Uri returned HTTP $($response.StatusCode)."
-    }
+    $response = Invoke-GeordiScriptRequest -Uri $Uri -TimeoutSeconds $TimeoutSeconds
+    if ($response.StatusCode -ne 200) { throw "GET $Uri returned HTTP $($response.StatusCode)." }
     return [string] $response.Content
 }
 

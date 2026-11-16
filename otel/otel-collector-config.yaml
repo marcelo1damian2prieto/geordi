@@ -17,10 +17,27 @@ processors:
     spike_limit_mib: 64
   batch:
     timeout: 1s
+  # Present in the pinned core 0.157.0 distribution; defense after source sanitization.
+  attributes/security:
+    include:
+      match_type: strict
+      resources:
+        - {key: service.name, value: geordi-backend}
+    actions:
+      - {key: url.full, action: delete}
+      - {key: url.query, action: delete}
+      - {key: url.path, action: delete}
+      - {key: http.target, action: delete}
+      - {key: http.url, action: delete}
+      - {key: http.request.header.authorization, action: delete}
+      - {key: http.request.header.cookie, action: delete}
+      - {key: http.response.header.set-cookie, action: delete}
+      - {key: exception.message, action: delete}
+      - {key: exception.stacktrace, action: delete}
 
 exporters:
   debug:
-    verbosity: detailed
+    verbosity: basic
   otlphttp/tempo:
     compression: gzip
     encoding: proto
@@ -89,13 +106,13 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter, attributes/security, batch]
       exporters: [debug, otlphttp/tempo]
     metrics:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter, attributes/security, batch]
       exporters: [debug, otlphttp/victoriametrics]
     logs:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter, attributes/security, batch]
       exporters: [otlphttp/loki]

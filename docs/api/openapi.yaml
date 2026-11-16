@@ -1,14 +1,17 @@
 openapi: 3.1.0
 info:
   title: Geordi Platform API
-  version: milestone-17
+  version: milestone-19
   description: >-
     Platform APIs and bounded Metrics, Traces, Logs, observed Service Map, SLO, Burn
     Rate, stateless Alert Evaluation, durable current Alert Lifecycle, and durable
     webhook Notification Delivery. Episode detail exposes bounded, read-only
     notification disposition and delivery-status evidence; it adds no delivery command.
 servers:
-  - url: http://localhost:8080
+  - url: https://geordi.localhost
+security:
+  - BrowserSessionCookie: []
+  - ApiAccessToken: []
 paths:
   /api/platform:
     get:
@@ -452,6 +455,7 @@ paths:
         worker.
       parameters:
         - $ref: '#/components/parameters/AlertPolicyId'
+        - $ref: '#/components/parameters/CsrfToken'
       responses:
         '200':
           description: Explainable lifecycle processing result, including ignored stale or duplicate evidence.
@@ -587,11 +591,11 @@ paths:
   /api/alert-episodes/{episodeId}/acknowledgements:
     post:
       operationId: acknowledgeAlertEpisode
-      summary: Acknowledge one open alert episode.
+      summary: Acknowledge one open alert episode using the authenticated operator identity.
       description: >-
         Creates one immutable acknowledgement for the concrete M14 episode. The
-        actor is caller-supplied, not authenticated, and not an audit-grade identity.
-        Exact replay of the normalized actor and reason returns the original fact.
+        actor is derived from the validated principal; only the optional reason is caller supplied.
+        Exact replay of the normalized principal and reason returns the original fact.
         Acknowledgement does not change lifecycle, routing, scheduling, delivery,
         or canonical transition history.
       parameters:
@@ -599,6 +603,7 @@ paths:
           in: path
           required: true
           schema: {type: string, pattern: '^[0-9a-f]{64}$'}
+        - $ref: '#/components/parameters/CsrfToken'
       requestBody:
         required: true
         content:
@@ -666,8 +671,89 @@ paths:
           content:
             application/problem+json:
               schema: {$ref: '#/components/schemas/Problem'}
+  /api/me:
+    get:
+      operationId: getCurrentIdentity
+      summary: Return the authenticated principal and explicit permissions.
+      responses:
+        '200':
+          description: Current identity, including an empty permission list when applicable.
+          content: {application/json: {schema: {$ref: '#/components/schemas/CurrentIdentity'}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /api/auth/csrf:
+    get:
+      operationId: getCsrfToken
+      summary: Rotate and return a CSRF token for the current browser session.
+      security:
+        - BrowserSessionCookie: []
+      responses:
+        '200':
+          description: CSRF request header name and token.
+          content: {application/json: {schema: {$ref: '#/components/schemas/CsrfToken'}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /api/auth/logout:
+    post:
+      operationId: logout
+      summary: End the current browser session.
+      security:
+        - BrowserSessionCookie: []
+      parameters:
+        - name: X-CSRF-TOKEN
+          in: header
+          required: true
+          schema: {type: string}
+      responses:
+        '204': {description: Session ended and cookie cleared.}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /oauth2/authorization/geordi:
+    get:
+      operationId: beginLogin
+      summary: Begin the fixed OIDC authorization-code flow with PKCE.
+      security: []
+      responses:
+        '302': {description: Redirect to the configured OIDC authorization endpoint.}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /login/oauth2/code/geordi:
+    get:
+      operationId: completeLogin
+      summary: Complete a one-use OIDC authorization transaction.
+      security: []
+      responses:
+        '302': {description: Redirect to the configured public origin and set the secure session cookie.}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /actuator/health/liveness:
+    get:
+      operationId: livenessProbe
+      summary: Return the status-only process liveness probe.
+      security: []
+      responses:
+        '200': {description: Status-only liveness.}
+  /actuator/health/readiness:
+    get:
+      operationId: readinessProbe
+      summary: Return the status-only platform readiness probe.
+      security: []
+      responses:
+        '200': {description: Status-only readiness.}
+        '503': {description: Platform is not ready.}
 components:
+  securitySchemes:
+    BrowserSessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-GEORDISESSION
+    ApiAccessToken:
+      type: http
+      scheme: bearer
+      bearerFormat: RFC 9068 access token
   parameters:
+    CsrfToken:
+      name: X-CSRF-TOKEN
+      in: header
+      description: Required for BrowserSessionCookie requests; bearer-authenticated requests do not use CSRF.
+      required: false
+      schema: {type: string, minLength: 1}
     AlertPolicyId:
       name: policyId
       in: path
@@ -766,6 +852,15 @@ components:
         type: string
         format: date-time
   responses:
+    Unauthorized:
+      description: Authentication is required or credentials were rejected.
+      content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}
+    Forbidden:
+      description: The principal lacks permission or the CSRF/origin check failed.
+      content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}
+    Unavailable:
+      description: A required OIDC security dependency is unavailable.
+      content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}
     BadRequest:
       description: The service identity, range, or requested metric is invalid.
       content:
@@ -1500,18 +1595,52 @@ components:
     AlertAcknowledgementRequest:
       type: object
       additionalProperties: false
-      required: [actor]
+      required: []
       properties:
-        actor: {type: string, minLength: 1, maxLength: 128, description: Caller-asserted and not authenticated or audit-grade identity.}
         reason: {type: [string, 'null'], maxLength: 512}
     AlertAcknowledgement:
       type: object
       additionalProperties: false
-      required: [actor, reason, acknowledgedAt]
+      required: [actor, reason, acknowledgedAt, attribution]
       properties:
         actor: {type: string, minLength: 1, maxLength: 128}
         reason: {type: [string, 'null'], maxLength: 512}
         acknowledgedAt: {type: string, format: date-time}
+        attribution:
+          type: object
+          additionalProperties: false
+          required: [provenance, identity, displayName]
+          properties:
+            provenance: {enum: [LEGACY_CALLER_ASSERTED, AUTHENTICATED_PRINCIPAL]}
+            identity:
+              oneOf:
+                - type: 'null'
+                - type: object
+                  additionalProperties: false
+                  required: [issuer, subject]
+                  properties:
+                    issuer: {type: string, format: uri, maxLength: 2048}
+                    subject: {type: string, minLength: 1, maxLength: 255}
+            displayName: {type: [string, 'null'], maxLength: 128}
+    CurrentIdentity:
+      type: object
+      additionalProperties: false
+      required: [issuer, subject, displayName, permissions, authMode]
+      properties:
+        issuer: {type: string, format: uri, maxLength: 2048}
+        subject: {type: string, minLength: 1, maxLength: 255}
+        displayName: {type: [string, 'null'], maxLength: 128}
+        permissions:
+          type: array
+          items: {enum: [observability:read, alerts:acknowledge, alerts:evaluate]}
+        authMode: {enum: [SESSION, BEARER]}
+    CsrfToken:
+      type: object
+      additionalProperties: false
+      required: [headerName, token]
+      properties:
+        headerName: {const: X-CSRF-TOKEN}
+        token: {type: string, minLength: 1}
     AlertLifecycleSnapshot:
       type: object
       additionalProperties: false

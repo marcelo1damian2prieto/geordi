@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import io.geordi.bootstrap.security.fixture.GeordiIntegrationTest;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -20,7 +21,7 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 
-@SpringBootTest(
+@GeordiIntegrationTest(
         classes = {GeordiApplication.class, ModuleInventoryIsolationIntegrationTest.CountingModuleConfiguration.class},
         properties = {"geordi.modules.metrics.enabled=false", "geordi.modules.traces.enabled=false",
             "geordi.modules.service-map.enabled=false", "geordi.modules.alerts.enabled=false"},

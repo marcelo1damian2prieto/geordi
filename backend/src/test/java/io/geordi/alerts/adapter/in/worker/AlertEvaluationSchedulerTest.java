@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.geordi.alerts.application.AlertSchedulingSettings;
 import io.geordi.alerts.application.AlertLifecycleEvaluationInProgressException;
 import io.geordi.alerts.application.AlertLifecycleEvaluationUseCase;
+import io.geordi.alerts.application.TrustedScheduledLifecycleEvaluationUseCase;
 import io.geordi.alerts.application.port.out.AlertPolicyCatalog;
 import io.geordi.alerts.domain.AlertCondition;
 import io.geordi.alerts.domain.BurnRateAboveCondition;
@@ -244,7 +245,7 @@ class AlertEvaluationSchedulerTest {
             AlertPolicyCatalog catalog,
             AlertLifecycleEvaluationUseCase evaluations,
             AlertSchedulingSettings properties) {
-        return new AlertEvaluationScheduler(catalog, evaluations, properties);
+        return new AlertEvaluationScheduler(catalog, new TrustedScheduledLifecycleEvaluationUseCase(evaluations), properties);
     }
 
     private static AlertSchedulingSettings properties(int workerCount, int queueCapacity) {

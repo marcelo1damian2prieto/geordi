@@ -9,6 +9,7 @@ import io.geordi.core.module.PlatformModule;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import io.geordi.bootstrap.security.fixture.GeordiIntegrationTest;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -19,7 +20,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-@SpringBootTest(
+@GeordiIntegrationTest(
         classes = {GeordiApplication.class, UnknownPlatformApiIntegrationTest.UnknownModuleConfiguration.class},
         properties = {"geordi.modules.metrics.enabled=false", "geordi.modules.traces.enabled=false",
             "geordi.modules.logs.enabled=false", "geordi.modules.service-map.enabled=false",

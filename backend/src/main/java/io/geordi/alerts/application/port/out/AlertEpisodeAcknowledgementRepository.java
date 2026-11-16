@@ -2,11 +2,14 @@ package io.geordi.alerts.application.port.out;
 
 import io.geordi.alerts.domain.AlertEpisodeAcknowledgement;
 import io.geordi.alerts.domain.AlertEpisodeId;
+import io.geordi.alerts.domain.AlertAcknowledgementAttribution;
 import java.time.Instant;
 import java.util.Optional;
 
 public interface AlertEpisodeAcknowledgementRepository {
     Result acknowledge(AlertEpisodeId episodeId, String actor, String reason, Instant acknowledgedAt);
+    Result acknowledgeAuthenticated(AlertEpisodeId episodeId, AlertAcknowledgementAttribution attribution,
+            String reason, Instant acknowledgedAt);
     Optional<AlertEpisodeAcknowledgement> findByEpisodeId(AlertEpisodeId episodeId);
 
     record Result(Status status, AlertEpisodeAcknowledgement acknowledgement) {

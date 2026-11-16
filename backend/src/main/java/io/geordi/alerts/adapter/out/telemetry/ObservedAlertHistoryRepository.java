@@ -136,6 +136,13 @@ public final class ObservedAlertHistoryRepository implements AlertLifecycleRepos
     }
 
     @Override
+    public Result acknowledgeAuthenticated(AlertEpisodeId episodeId,
+            io.geordi.alerts.domain.AlertAcknowledgementAttribution attribution, String reason, java.time.Instant acknowledgedAt) {
+        return ((AlertEpisodeAcknowledgementRepository) lifecycleDelegate)
+                .acknowledgeAuthenticated(episodeId, attribution, reason, acknowledgedAt);
+    }
+
+    @Override
     public Optional<io.geordi.alerts.domain.AlertEpisodeAcknowledgement> findByEpisodeId(AlertEpisodeId episodeId) {
         return ((AlertEpisodeAcknowledgementRepository) historyDelegate).findByEpisodeId(episodeId);
     }

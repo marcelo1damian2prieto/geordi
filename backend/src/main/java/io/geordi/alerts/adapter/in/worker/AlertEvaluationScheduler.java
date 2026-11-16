@@ -1,7 +1,7 @@
 package io.geordi.alerts.adapter.in.worker;
 
 import io.geordi.alerts.application.AlertLifecycleEvaluationInProgressException;
-import io.geordi.alerts.application.AlertLifecycleEvaluationUseCase;
+import io.geordi.alerts.application.TrustedScheduledLifecycleEvaluationUseCase;
 import io.geordi.alerts.application.AlertSchedulingSettings;
 import io.geordi.alerts.application.port.out.AlertPolicyCatalog;
 import java.util.ArrayList;
@@ -23,7 +23,7 @@ import io.opentelemetry.api.metrics.LongCounter;
 public final class AlertEvaluationScheduler implements AutoCloseable {
     private static final System.Logger LOGGER = System.getLogger(AlertEvaluationScheduler.class.getName());
     private final AlertPolicyCatalog catalog;
-    private final AlertLifecycleEvaluationUseCase evaluations;
+    private final TrustedScheduledLifecycleEvaluationUseCase evaluations;
     private final AlertSchedulingSettings settings;
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
     private final ThreadPoolExecutor workers;
@@ -37,7 +37,7 @@ public final class AlertEvaluationScheduler implements AutoCloseable {
     private final LongCounter rejections;
     private final DoubleHistogram duration;
 
-    public AlertEvaluationScheduler(AlertPolicyCatalog catalog, AlertLifecycleEvaluationUseCase evaluations,
+    public AlertEvaluationScheduler(AlertPolicyCatalog catalog, TrustedScheduledLifecycleEvaluationUseCase evaluations,
             AlertSchedulingSettings settings) {
         this.catalog = catalog;
         this.evaluations = evaluations;

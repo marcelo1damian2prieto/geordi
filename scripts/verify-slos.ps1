@@ -8,15 +8,18 @@ param(
 
     [switch] $ExerciseProviderFailure,
 
-    [string] $BackendBaseUrl = "http://127.0.0.1:8080",
+    [string] $BackendBaseUrl,
     [string] $DemoBaseUrl = "http://127.0.0.1:8081",
     [string] $DownstreamBaseUrl = "http://127.0.0.1:8082",
     [string] $VictoriaMetricsBaseUrl = "http://127.0.0.1:8428",
-    [string] $FrontendBaseUrl = "http://127.0.0.1:3000"
+    [string] $FrontendBaseUrl
 )
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
+. (Join-Path $PSScriptRoot 'lib/GeordiAuthentication.ps1')
+if ([string]::IsNullOrWhiteSpace($BackendBaseUrl)) { $BackendBaseUrl = Get-GeordiApplicationBaseUrl }
+if ([string]::IsNullOrWhiteSpace($FrontendBaseUrl)) { $FrontendBaseUrl = Get-GeordiApplicationBaseUrl }
 
 $AvailabilitySloId = "demo-downstream-availability"
 $ErrorRateSloId = "demo-error-rate"
@@ -35,10 +38,8 @@ function Invoke-TextRequest {
         [int] $RequestTimeoutSeconds = 8
     )
 
-    $response = Invoke-WebRequest -Uri $Uri -TimeoutSec $RequestTimeoutSeconds -UseBasicParsing
-    if ($response.StatusCode -ne 200) {
-        throw "GET $Uri returned HTTP $($response.StatusCode)."
-    }
+    $response = Invoke-GeordiScriptRequest -Uri $Uri -TimeoutSeconds $RequestTimeoutSeconds
+    if ($response.StatusCode -ne 200) { throw "GET $Uri returned HTTP $($response.StatusCode)." }
     return [string] $response.Content
 }
 
@@ -332,8 +333,14 @@ function Assert-InvestigationContext {
 function Get-SloSelfTelemetrySeries {
     $from = [uri]::EscapeDataString((Get-Date).ToUniversalTime().AddMinutes(-10).ToString("o"))
     $to = [uri]::EscapeDataString((Get-Date).ToUniversalTime().ToString("o"))
+    $repositoryRoot = Split-Path -Parent $PSScriptRoot
+    $composeFile = Join-Path $repositoryRoot "compose.yaml"
+    $backendContainerId = (& docker compose --project-directory $repositoryRoot --file $composeFile ps -q backend).Trim()
+    if ([string]::IsNullOrWhiteSpace($backendContainerId)) {
+        throw "Could not identify the current backend container for self-observability verification."
+    }
     $selector = [uri]::EscapeDataString(
-        '{__name__=~"geordi[.]slo[.].*|geordi[.]metrics[.]request_outcomes[.].*"}')
+        "{container.id=`"$backendContainerId`",__name__=~`"geordi[.]slo[.].*|geordi[.]metrics[.]request_outcomes[.].*`"}")
     $payload = Invoke-TextRequest -Uri "$VictoriaMetricsBaseUrl/api/v1/series?match%5B%5D=$selector&start=$from&end=$to" |
         ConvertFrom-Json
     if ($payload.status -ne "success") {

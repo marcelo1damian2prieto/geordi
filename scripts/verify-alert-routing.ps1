@@ -2,7 +2,7 @@
 param(
     [ValidateRange(180, 480)]
     [int] $TimeoutSeconds = 420,
-    [string] $BackendBaseUrl = 'http://127.0.0.1:8080',
+    [string] $BackendBaseUrl = 'https://geordi.localhost:8443',
     [string] $BurnDemoBaseUrl = 'http://127.0.0.1:8083',
     [string] $ReceiverABaseUrl = 'http://127.0.0.1:18081',
     [string] $ReceiverBBaseUrl = 'http://127.0.0.1:18082',
@@ -11,6 +11,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+. (Join-Path $PSScriptRoot 'lib/GeordiAuthentication.ps1')
 
 # Fixture-only credentials are supplied by the invoking environment, never committed
 # in routing configuration. Fail before Compose is invoked when either is absent.
@@ -29,12 +30,16 @@ function Invoke-Compose([string[]] $Arguments, [string] $Operation) {
 }
 
 function Json([string] $Uri, [string] $Method = 'GET', $Body = $null) {
-    $arguments = @{ Uri = $Uri; Method = $Method; TimeoutSec = 15; UseBasicParsing = $true }
-    if ($null -ne $Body) {
-        $arguments.ContentType = 'application/json'
-        $arguments.Body = $Body | ConvertTo-Json -Compress
+    $response = Invoke-GeordiScriptRequest -Uri $Uri -Method $Method -Body $Body -TimeoutSeconds 15
+    if ($response.StatusCode -lt 200 -or $response.StatusCode -ge 300) { throw "M13 JSON request returned HTTP $($response.StatusCode)." }
+    return $response.Content | ConvertFrom-Json
+}
+
+function Http-Status([string] $Uri) {
+    if ($Uri.StartsWith($BackendBaseUrl, [StringComparison]::OrdinalIgnoreCase) -and $Uri.Contains('/actuator/health/')) {
+        return (Invoke-GeordiAnonymousRequest -Uri $Uri -TimeoutSeconds 10).StatusCode
     }
-    return (Invoke-WebRequest @arguments).Content | ConvertFrom-Json
+    return (Invoke-WebRequest -Uri $Uri -UseBasicParsing -TimeoutSec 10 -SkipHttpErrorCheck).StatusCode
 }
 
 function Wait-Until([scriptblock] $Condition, [datetime] $Deadline, [string] $Message) {
@@ -92,6 +97,7 @@ function Reset-M13Fixture([string] $Root) {
             throw "Refusing M13 fixture reset for unexpected volume '$($rendered.volumes.$logicalName.name)'."
         }
     }
+    & (Join-Path $PSScriptRoot 'Capture-GeordiM19Generation.ps1') -Phase m13-reset -Services backend,victoriametrics,otel-collector,burn-demo,webhook-receiver-a,webhook-receiver-b
     Invoke-Compose @('--project-directory', $Root, 'rm', '-sf', 'backend', 'victoriametrics', 'webhook-receiver-a', 'webhook-receiver-b') 'fixture reset preparation'
     foreach ($logicalName in $expected.Keys) {
         $candidate = $expected[$logicalName]
@@ -141,10 +147,12 @@ function Assert-OutboxBoundary([string] $Root, [string] $RouteAId, [string] $Sup
 try {
     $root = Split-Path -Parent $PSScriptRoot
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    $env:COMPOSE_FILE = (Join-Path $root 'compose.yaml') + [IO.Path]::PathSeparator + (Join-Path $root 'compose.m13.yaml')
+    $env:COMPOSE_FILE = (Join-Path $root 'compose.yaml') + [IO.Path]::PathSeparator +
+        (Join-Path $root 'compose.m19.yaml') + [IO.Path]::PathSeparator + (Join-Path $root 'compose.m13.yaml')
     Reset-M13Fixture $root
     Invoke-Compose @('--project-directory', $root, 'up', '-d', '--force-recreate', 'victoriametrics', 'otel-collector', 'backend', 'burn-demo', 'webhook-receiver-a', 'webhook-receiver-b') 'M13 fixture startup'
-    Wait-Until { (Invoke-WebRequest -Uri "$BackendBaseUrl/actuator/health/readiness" -UseBasicParsing -TimeoutSec 10).StatusCode -eq 200 } $deadline 'M13 backend did not become ready.'
+    Wait-Until { (Http-Status "$BackendBaseUrl/actuator/health/readiness") -eq 200 } $deadline 'M13 backend did not become ready.'
+    Initialize-GeordiAuthentication -Identity REGRESSION -RepositoryRoot $root
     Wait-Until { (Invoke-WebRequest -Uri "$ReceiverABaseUrl/health" -UseBasicParsing -TimeoutSec 10).StatusCode -eq 200 } $deadline 'M13 receiver A did not become ready.'
     Wait-Until { (Invoke-WebRequest -Uri "$ReceiverBBaseUrl/health" -UseBasicParsing -TimeoutSec 10).StatusCode -eq 200 } $deadline 'M13 receiver B did not become ready.'
     Wait-Until { (Invoke-WebRequest -Uri "$BurnDemoBaseUrl/actuator/health/readiness" -UseBasicParsing -TimeoutSec 10).StatusCode -eq 200 } $deadline 'M13 burn demo did not become ready.'
@@ -176,7 +184,7 @@ try {
     Invoke-Compose @('--project-directory', $root, 'stop', 'backend') 'outbox-boundary inspection stop'
     Assert-OutboxBoundary $root $routeAId $suppressedId $unroutedId @($env:GEORDI_M13_WEBHOOK_TOKEN_A, $env:GEORDI_M13_WEBHOOK_TOKEN_B)
     Invoke-Compose @('--project-directory', $root, 'start', 'backend') 'post-inspection backend start'
-    Wait-Until { (Invoke-WebRequest -Uri "$BackendBaseUrl/actuator/health/readiness" -UseBasicParsing -TimeoutSec 10).StatusCode -eq 200 } $deadline 'Backend did not recover after outbox inspection.'
+    Wait-Until { (Http-Status "$BackendBaseUrl/actuator/health/readiness") -eq 200 } $deadline 'Backend did not recover after outbox inspection.'
 
     Receiver-Control $ReceiverBBaseUrl 'retry' 100 $false
     Send-Traffic '/demo/error' 179
@@ -196,7 +204,7 @@ try {
         throw 'Pending route B delivery persisted its fixture credential.'
     }
     Invoke-Compose @('--project-directory', $root, 'start', 'backend') 'restart persistence start'
-    Wait-Until { (Invoke-WebRequest -Uri "$BackendBaseUrl/actuator/health/readiness" -UseBasicParsing -TimeoutSec 10).StatusCode -eq 200 } $deadline 'Backend did not recover for persisted delivery retry.'
+    Wait-Until { (Http-Status "$BackendBaseUrl/actuator/health/readiness") -eq 200 } $deadline 'Backend did not recover for persisted delivery retry.'
     Receiver-Control $ReceiverBBaseUrl 'success'
     Wait-Until { (Event-Count $ReceiverBBaseUrl $routeBId) -eq 1 } $deadline 'Persisted route B delivery did not recover after restart.'
     $retryIds = @((Receiver-Events $ReceiverBBaseUrl).attempts | Where-Object deliveryId -eq $routeBId | Select-Object -ExpandProperty deliveryId -Unique)

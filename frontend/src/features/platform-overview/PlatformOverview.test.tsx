@@ -52,6 +52,7 @@ describe('Platform overview', () => {
   it('shows real platform health and makes disabled modules unmistakable', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
       const url = requestUrl(input)
+      if (url.endsWith('/api/me')) return jsonResponse({ issuer: 'https://identity.example', subject: 'operator', displayName: 'Operator', permissions: ['observability:read'], authMode: 'SESSION' })
       if (url.endsWith('/api/platform')) return jsonResponse(platform)
       if (url.endsWith('/api/modules')) return jsonResponse(modules)
       return jsonResponse(health)
@@ -59,7 +60,7 @@ describe('Platform overview', () => {
 
     renderApp()
 
-    expect(screen.getByText('Loading platform overview…')).toBeInTheDocument()
+    expect(await screen.findByText('Loading platform overview…')).toBeInTheDocument()
     expect(await screen.findByRole('heading', { name: 'Geordi' })).toBeInTheDocument()
     expect(screen.getByText('Version 0.1.0-SNAPSHOT')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Core' })).toBeInTheDocument()
@@ -72,11 +73,13 @@ describe('Platform overview', () => {
 
   it('explains an API failure and can refetch successfully', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockImplementationOnce(() => jsonResponse({ issuer: 'https://identity.example', subject: 'operator', displayName: 'Operator', permissions: ['observability:read'], authMode: 'SESSION' }))
       .mockImplementationOnce(() => jsonResponse({}, 503))
       .mockImplementationOnce(() => jsonResponse(modules))
       .mockImplementationOnce(() => jsonResponse(health))
       .mockImplementation((input) => {
         const url = requestUrl(input)
+        if (url.endsWith('/api/me')) return jsonResponse({ issuer: 'https://identity.example', subject: 'operator', displayName: 'Operator', permissions: ['observability:read'], authMode: 'SESSION' })
         if (url.endsWith('/api/platform')) return jsonResponse(platform)
         if (url.endsWith('/api/modules')) return jsonResponse(modules)
         return jsonResponse(health)
@@ -88,6 +91,6 @@ describe('Platform overview', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(await screen.findByRole('heading', { name: 'Geordi' })).toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledTimes(6)
+    expect(fetchMock).toHaveBeenCalledTimes(7)
   })
 })

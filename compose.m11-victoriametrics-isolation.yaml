@@ -1,0 +1,10 @@
+services:
+  backend:
+    depends_on:
+      victoriametrics:
+        restart: false
+
+  otel-collector:
+    depends_on:
+      victoriametrics:
+        restart: false

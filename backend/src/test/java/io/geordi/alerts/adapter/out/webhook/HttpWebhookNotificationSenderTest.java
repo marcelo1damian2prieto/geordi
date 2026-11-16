@@ -24,14 +24,21 @@ import io.geordi.alerts.domain.NotificationDelivery;
 import io.geordi.alerts.domain.ServiceIdentity;
 import io.geordi.alerts.domain.TimeRange;
 import io.geordi.alerts.domain.WindowBurnRateObservation;
+import io.geordi.bootstrap.security.fixture.GeordiTestOidcFixture;
 import java.math.BigDecimal;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.security.KeyStore;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -148,6 +155,18 @@ class HttpWebhookNotificationSenderTest {
                 .send(delivery(original))).isEqualTo(NotificationDeliverySender.Result.TERMINAL_FAILURE);
     }
 
+    @Test
+    void plaintextWebhookClientDoesNotPrimeDefaultTlsBeforeOidcFixture() throws Exception {
+        sender(properties(6553));
+        var fixture = GeordiTestOidcFixture.instance();
+        var client = HttpClient.newHttpClient();
+        var response = client.send(HttpRequest.newBuilder(URI.create(fixture.issuer() + "/health")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(new ObjectMapper().readTree(response.body()).path("status").asText()).isEqualTo("UP");
+    }
+
     private static NotificationDelivery delivery(WebhookNotificationProperties properties) {
         Instant now = Instant.parse("2026-08-28T12:00:00Z");
         AlertCondition condition = new io.geordi.alerts.domain.BurnRateAboveCondition(BigDecimal.ONE);
@@ -192,7 +211,23 @@ class HttpWebhookNotificationSenderTest {
     }
 
     private static HttpWebhookNotificationSender sender(WebhookNotificationProperties properties) {
-        return new HttpWebhookNotificationSender(adapter(properties), properties, new ObjectMapper().findAndRegisterModules());
+        return new HttpWebhookNotificationSender(adapter(properties), properties,
+                new ObjectMapper().findAndRegisterModules(), plaintextTestClient());
+    }
+
+    private static HttpClient plaintextTestClient() {
+        try {
+            KeyStore emptyTrustStore = KeyStore.getInstance(KeyStore.getDefaultType());
+            emptyTrustStore.load(null, null);
+            TrustManagerFactory trustManagers = TrustManagerFactory.getInstance(
+                    TrustManagerFactory.getDefaultAlgorithm());
+            trustManagers.init(emptyTrustStore);
+            SSLContext context = SSLContext.getInstance("TLS");
+            context.init(null, trustManagers.getTrustManagers(), null);
+            return HttpClient.newBuilder().sslContext(context).build();
+        } catch (Exception failure) {
+            throw new IllegalStateException("Plaintext webhook test client could not be initialized.", failure);
+        }
     }
 
     private static ConfigurationAlertRoutingAdapter adapter(WebhookNotificationProperties properties) {

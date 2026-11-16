@@ -7,6 +7,7 @@ import {
 } from '../../api/alertLifecycles'
 import type { AlertPolicy } from '../../api/alertEvaluations'
 import { alertConditionKey } from '../../api/alertEvaluations'
+import { currentAuthenticationGeneration, isAuthenticationGenerationCurrent } from '../../api/client'
 
 export const alertStatesQueryKey = ['alert-lifecycle', 'states'] as const
 
@@ -56,7 +57,9 @@ export function useAlertLifecycleEvaluation(policy: AlertPolicy) {
   return useMutation({
     mutationKey: alertLifecyclePolicyKey(policy),
     mutationFn: () => evaluateAlertLifecycle(policy.id),
-    onSuccess: (result) => {
+    onMutate: () => currentAuthenticationGeneration(),
+    onSuccess: (result, _variables, generation) => {
+      if (generation === undefined || !isAuthenticationGenerationCurrent(generation)) return
       queryClient.setQueryData<AlertStatesResponse>(
         alertStatesQueryKey,
         (response) => replaceExactSnapshot(response, result.current),

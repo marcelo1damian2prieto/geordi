@@ -3,16 +3,19 @@ param(
     [ValidateRange(90, 300)]
     [int] $TimeoutSeconds = 240,
 
-    [string] $BackendBaseUrl = 'http://127.0.0.1:8080',
+    [string] $BackendBaseUrl = 'https://geordi.localhost:8443',
     [string] $BurnDemoBaseUrl = 'http://127.0.0.1:8083',
     [string] $VictoriaMetricsBaseUrl = 'http://127.0.0.1:8428',
-    [string] $FrontendBaseUrl = 'http://127.0.0.1:3000',
+    [string] $FrontendBaseUrl = 'https://geordi.localhost:8443',
     [switch] $RunFixtureResetOnly,
     [switch] $UsePreparedFixture
 )
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+. (Join-Path $PSScriptRoot 'lib/GeordiAuthentication.ps1')
+. (Join-Path $PSScriptRoot 'lib/GeordiCaptureGenerations.ps1')
+. (Join-Path $PSScriptRoot 'lib/GeordiM10BackendReplacement.ps1')
 
 $PolicyId = 'burn-smoke-alert'
 $BaselinePolicyId = 'demo-downstream-burn-alert'
@@ -26,41 +29,75 @@ $ProviderSyntaxPattern = 'promql|metricsql|victoriametrics|http\.server\.request
 $DeliverySyntaxPattern = 'smtp|slack|teams|pagerduty|opsgenie|alertmanager|webhook|notification|incident|page|acknowledg|silenc|escalat'
 
 function Set-M10ComposeContext([string] $Root) {
-    $env:COMPOSE_FILE = (Join-Path $Root 'compose.yaml') + [IO.Path]::PathSeparator + (Join-Path $Root 'compose.m10.yaml')
+    $env:COMPOSE_FILE = (Join-Path $Root 'compose.yaml') + [IO.Path]::PathSeparator +
+        (Join-Path $Root 'compose.m19.yaml') + [IO.Path]::PathSeparator + (Join-Path $Root 'compose.m10.yaml')
 }
 
-function Reset-M10FixtureVolume([string] $Root) {
-    $logicalName = 'm10-alert-lifecycle-data'
-    $expectedName = 'geordi_m10-alert-lifecycle-data'
+function Get-M10FixtureVolumeName([string] $Root) {
+    $logicalName='m10-alert-lifecycle-data'
+    $expectedName='geordi_m10-alert-lifecycle-data'
     $rendered = & docker compose --project-directory $Root config --format json | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) { throw 'Unable to render the M10 Compose configuration for fixture reset.' }
     $candidate = $rendered.volumes.$logicalName.name
     if ([string]::IsNullOrWhiteSpace($candidate) -or $candidate -ne $expectedName) { throw "Refusing M10 fixture reset for unexpected volume '$candidate'." }
+    return $candidate
+}
 
-    & docker compose --project-directory $Root rm -sf backend
-    if ($LASTEXITCODE -ne 0) { throw 'Unable to detach the backend before M10 fixture reset.' }
-
-    $inspection = & docker volume inspect $candidate 2>$null
+function Remove-M10FixtureVolume([string] $Candidate) {
+    $logicalName='m10-alert-lifecycle-data'
+    $expectedName='geordi_m10-alert-lifecycle-data'
+    if($Candidate -cne $expectedName){throw 'Refusing M10 fixture reset for an unexpected dedicated volume.'}
+    $inspection = & docker volume inspect $Candidate 2>$null
     if ($LASTEXITCODE -eq 0) {
         $volume = @($inspection | ConvertFrom-Json)[0]
         if ($volume.Name -ne $expectedName -or $volume.Labels.'com.docker.compose.project' -ne 'geordi' -or $volume.Labels.'com.docker.compose.volume' -ne $logicalName) {
-            throw "Refusing M10 fixture reset for non-M10 volume '$candidate'."
+            throw "Refusing M10 fixture reset for non-M10 volume '$Candidate'."
         }
-        & docker volume rm $candidate | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw "Unable to remove dedicated M10 volume '$candidate'." }
+        & docker volume rm $Candidate | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Unable to remove dedicated M10 volume '$Candidate'." }
     }
+}
+
+function Reset-M10FixtureVolume([string] $Root) {
+    $candidate=Get-M10FixtureVolumeName $Root
+    & (Join-Path $PSScriptRoot 'Capture-GeordiM19Generation.ps1') -Phase m10-reset -Services backend
+    & docker compose --project-directory $Root rm -sf backend
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to detach the backend before M10 fixture reset.' }
+    Remove-M10FixtureVolume $candidate
+}
+
+function Get-M10CaptureRoot([string] $Root) {
+    $pointerPath=Join-Path (Join-Path $Root '.runtime') 'm19-capture-root.txt'
+    if(!(Test-Path -LiteralPath $pointerPath -PathType Leaf)){throw 'M10 backend capture generation requires the active M19 capture pointer.'}
+    $captureRoot=[IO.Path]::GetFullPath([IO.File]::ReadAllText($pointerPath).Trim())
+    $expectedTemp=[IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd([IO.Path]::DirectorySeparatorChar)
+    if([IO.Path]::GetDirectoryName($captureRoot) -cne $expectedTemp -or
+            (Split-Path $captureRoot -Leaf) -notmatch '^geordi-m19-capture-[A-Za-z0-9-]+-[0-9a-f]{32}$' -or
+            !(Test-Path -LiteralPath $captureRoot -PathType Container)){
+        throw 'M10 backend capture pointer failed its ownership validation.'
+    }
+    return $captureRoot
 }
 
 function Prepare-M10Fixture([string] $Root) {
     Set-M10ComposeContext $Root
-    Reset-M10FixtureVolume $Root
-    & docker compose --project-directory $Root up -d --force-recreate backend
-    if ($LASTEXITCODE -ne 0) { throw 'Unable to start the dedicated M10 lifecycle fixture.' }
+    $candidate=Get-M10FixtureVolumeName $Root
+    $captureRoot=Get-M10CaptureRoot $Root
+    & (Join-Path $PSScriptRoot 'Capture-GeordiM19Generation.ps1') -Phase m10-reset -Services backend -SkipLogSnapshot
+    $composeInvoker={
+        param([string[]]$Arguments,[string]$Phase)
+        & docker compose --project-directory $Root @Arguments
+        if($LASTEXITCODE -ne 0){throw ("M10 Compose operation failed during " + $Phase + ".")}
+    }.GetNewClosure()
+    $volumeRemover={Remove-M10FixtureVolume $candidate}.GetNewClosure()
+    $identityResolver={param([string]$Service)Get-GeordiCurrentCaptureContainerIdentity -Service $Service -RepositoryRoot $Root}.GetNewClosure()
+    $null=Invoke-GeordiM10BackendControlledReplacement -CaptureRoot $captureRoot -RepositoryRoot $Root `
+        -InvokeCompose $composeInvoker -RemoveFixtureVolume $volumeRemover -ResolveContainerIdentity $identityResolver
 }
 
 function Invoke-TextRequest {
     param([Parameter(Mandatory)][string] $Uri, [int] $RequestTimeoutSeconds = 15, [string] $Method = 'GET')
-    $response = Invoke-WebRequest -Uri $Uri -Method $Method -TimeoutSec $RequestTimeoutSeconds -UseBasicParsing
+    $response = Invoke-GeordiScriptRequest -Uri $Uri -Method $Method -TimeoutSeconds $RequestTimeoutSeconds
     if ($response.StatusCode -ne 200) { throw "$Method $Uri returned HTTP $($response.StatusCode)." }
     return [string] $response.Content
 }
@@ -234,6 +271,7 @@ try {
     $root = Split-Path -Parent $PSScriptRoot
     Set-M10ComposeContext $root
     if (-not $UsePreparedFixture) { Prepare-M10Fixture $root }
+    Initialize-GeordiAuthentication -Identity REGRESSION -RepositoryRoot $root
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     Wait-ForHttp200 'backend readiness' "$BackendBaseUrl/actuator/health/readiness" $deadline
     Wait-ForHttp200 'VictoriaMetrics' "$VictoriaMetricsBaseUrl/health" $deadline

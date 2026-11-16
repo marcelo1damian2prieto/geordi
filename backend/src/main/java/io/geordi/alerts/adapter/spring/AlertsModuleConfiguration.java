@@ -22,9 +22,11 @@ import io.geordi.alerts.adapter.out.telemetry.ObservedAlertLifecycleEvaluationUs
 import io.geordi.alerts.adapter.out.telemetry.ObservedAlertRoutingPort;
 import io.geordi.alerts.application.AlertEvaluationService;
 import io.geordi.alerts.application.AcknowledgeAlertEpisodeService;
-import io.geordi.alerts.application.AcknowledgeAlertEpisodeUseCase;
+import io.geordi.alerts.application.AuthorizedAcknowledgeAlertEpisodeUseCase;
 import io.geordi.alerts.application.AlertEvaluationUseCase;
 import io.geordi.alerts.application.AlertLifecycleEvaluationUseCase;
+import io.geordi.alerts.application.AuthorizedManualLifecycleEvaluationUseCase;
+import io.geordi.alerts.application.TrustedScheduledLifecycleEvaluationUseCase;
 import io.geordi.alerts.application.AlertLifecycleQueryService;
 import io.geordi.alerts.application.AlertHistoryQueryService;
 import io.geordi.alerts.application.AlertNotificationProjectionQuery;
@@ -159,10 +161,11 @@ public class AlertsModuleConfiguration {
         }
 
         @Bean
-        AcknowledgeAlertEpisodeUseCase acknowledgeAlertEpisodeUseCase(
+        ObservedAcknowledgeAlertEpisodeUseCase observedAcknowledgeAlertEpisodeUseCase(
                 AlertEpisodeAcknowledgementRepository repository, Clock sloClock) {
             return new ObservedAcknowledgeAlertEpisodeUseCase(
-                    new AcknowledgeAlertEpisodeService(repository, sloClock));
+                    new AcknowledgeAlertEpisodeService(repository, sloClock),
+                    new AuthorizedAcknowledgeAlertEpisodeUseCase(new AcknowledgeAlertEpisodeService(repository, sloClock)));
         }
 
         @Bean
@@ -185,10 +188,22 @@ public class AlertsModuleConfiguration {
             return new SingleFlightAlertLifecycleEvaluationUseCase(new ObservedAlertLifecycleEvaluationUseCase(delegate));
         }
 
+        @Bean
+        AuthorizedManualLifecycleEvaluationUseCase authorizedManualLifecycleEvaluationUseCase(
+                AlertLifecycleEvaluationUseCase coordinator) {
+            return new AuthorizedManualLifecycleEvaluationUseCase(coordinator);
+        }
+
+        @Bean
+        TrustedScheduledLifecycleEvaluationUseCase trustedScheduledLifecycleEvaluationUseCase(
+                AlertLifecycleEvaluationUseCase coordinator) {
+            return new TrustedScheduledLifecycleEvaluationUseCase(coordinator);
+        }
+
         @Bean(destroyMethod = "close")
         @ConditionalOnProperty(prefix = "geordi.scheduling.alert", name = "enabled", havingValue = "true")
         AlertEvaluationScheduler alertEvaluationScheduler(AlertPolicyCatalog catalog,
-            AlertLifecycleEvaluationUseCase evaluations, AlertSchedulingProperties properties) {
+            TrustedScheduledLifecycleEvaluationUseCase evaluations, AlertSchedulingProperties properties) {
             AlertEvaluationScheduler scheduler = new AlertEvaluationScheduler(catalog, evaluations,
                     new AlertSchedulingSettings(properties.interval(), properties.workerCount(), properties.queueCapacity(),
                             properties.shutdownGracePeriod()));

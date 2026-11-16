@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.geordi.alerts.application.AlertLifecycleEvaluationResult;
 import io.geordi.alerts.application.AlertLifecycleEvaluationUseCase;
+import io.geordi.alerts.application.AuthorizedManualLifecycleEvaluationUseCase;
 import io.geordi.alerts.application.AlertLifecycleQueryService;
 import io.geordi.alerts.application.port.out.AlertLifecycleRepository;
 import io.geordi.alerts.application.port.out.AlertPolicyCatalog;
@@ -30,6 +31,10 @@ import io.geordi.alerts.domain.MultiwindowBurnRateEvidence;
 import io.geordi.alerts.domain.ServiceIdentity;
 import io.geordi.alerts.domain.TimeRange;
 import io.geordi.alerts.domain.WindowBurnRateObservation;
+import io.geordi.core.application.security.AuthenticatedPrincipal;
+import io.geordi.core.application.security.AuthenticationMechanism;
+import io.geordi.core.application.security.GeordiPermission;
+import io.geordi.core.application.security.PrincipalIdentity;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -37,6 +42,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 class AlertLifecycleControllerTest {
@@ -60,7 +66,7 @@ class AlertLifecycleControllerTest {
     @Test
     void exposesAppliedLifecycleAndCanonicalStartedTransition() throws Exception {
         mvc(id -> result(), repository())
-                .perform(post("/api/alert-policies/checkout-burn/lifecycle-evaluations"))
+                .perform(manualPost("/api/alert-policies/checkout-burn/lifecycle-evaluations"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.triggeringEvaluation.status").value("CONDITION_MET"))
                 .andExpect(jsonPath("$.outcome").value("APPLIED"))
@@ -84,11 +90,12 @@ class AlertLifecycleControllerTest {
                 policy, evaluation, AlertLifecycleProcessingOutcome.APPLIED,
                 decision.current(), decision.transition());
         AlertLifecycleController controller = new AlertLifecycleController(
-                new AlertLifecycleQueryService(catalog(policy), repository(), bindings(policy)), ignored -> result);
+                new AlertLifecycleQueryService(catalog(policy), repository(), bindings(policy)),
+                new AuthorizedManualLifecycleEvaluationUseCase(ignored -> result));
         MockMvc mvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new AlertPolicyExceptionHandler()).build();
 
-        mvc.perform(post("/api/alert-policies/multiwindow-burn/lifecycle-evaluations"))
+        mvc.perform(manualPost("/api/alert-policies/multiwindow-burn/lifecycle-evaluations"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.triggeringEvaluation.condition.type").value("MULTIWINDOW_BURN_RATE"))
                 .andExpect(jsonPath("$.triggeringEvaluation.bandResults[0].outcome").value("MET"))
@@ -103,7 +110,7 @@ class AlertLifecycleControllerTest {
     void mapsImmutableBindingConflictWithoutLeakingStorageDetails() throws Exception {
         mvc(id -> {
             throw new AlertLifecycleBindingMismatchException();
-        }, repository()).perform(post("/api/alert-policies/checkout-burn/lifecycle-evaluations"))
+        }, repository()).perform(manualPost("/api/alert-policies/checkout-burn/lifecycle-evaluations"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.title").value("Alert lifecycle identity conflict"))
                 .andExpect(jsonPath("$.detail")
@@ -129,7 +136,8 @@ class AlertLifecycleControllerTest {
         };
         AlertLifecycleRepository stored = repositoryWith(persisted);
         AlertLifecycleController controller = new AlertLifecycleController(
-                new AlertLifecycleQueryService(changedCatalog, stored, bindings()), id -> result());
+                new AlertLifecycleQueryService(changedCatalog, stored, bindings()),
+                new AuthorizedManualLifecycleEvaluationUseCase(id -> result()));
         MockMvc mvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new AlertPolicyExceptionHandler()).build();
 
@@ -145,7 +153,8 @@ class AlertLifecycleControllerTest {
                 POLICY.sloId(), new ServiceIdentity("payments", "commerce", "production"),
                 EvaluationWindow.PT15M));
         AlertLifecycleController controller = new AlertLifecycleController(
-                new AlertLifecycleQueryService(catalog(), stored, changedBinding), id -> result());
+                new AlertLifecycleQueryService(catalog(), stored, changedBinding),
+                new AuthorizedManualLifecycleEvaluationUseCase(id -> result()));
         MockMvc mvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new AlertPolicyExceptionHandler()).build();
 
@@ -157,9 +166,19 @@ class AlertLifecycleControllerTest {
     private static MockMvc mvc(
             AlertLifecycleEvaluationUseCase evaluations, AlertLifecycleRepository repository) {
         AlertLifecycleController controller = new AlertLifecycleController(
-                new AlertLifecycleQueryService(catalog(), repository, bindings()), evaluations);
+                new AlertLifecycleQueryService(catalog(), repository, bindings()),
+                new AuthorizedManualLifecycleEvaluationUseCase(evaluations));
         return MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new AlertPolicyExceptionHandler()).build();
+    }
+
+    private static MockHttpServletRequestBuilder manualPost(String path) {
+        return post(path).requestAttr("geordi.authenticatedPrincipal", evaluator());
+    }
+
+    private static AuthenticatedPrincipal evaluator() {
+        return new AuthenticatedPrincipal(new PrincipalIdentity("https://issuer.example", "evaluator-1"),
+                null, Set.of(GeordiPermission.ALERT_EVALUATE), AuthenticationMechanism.BEARER);
     }
 
     private static AlertLifecycleEvaluationResult result() {

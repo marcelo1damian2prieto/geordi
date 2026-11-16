@@ -3,29 +3,38 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { UseQueryResult } from '@tanstack/react-query'
 import type { AlertEpisodeDetailResponse } from '../../api/alertHistory'
 import { acknowledgeAlertEpisode } from '../../api/alertHistory'
+import { currentAuthenticationGeneration, isAuthenticationGenerationCurrent } from '../../api/client'
 import { isMultiwindowAlertEvaluation } from '../../api/alertEvaluations'
 import { ApiError } from '../../api/client'
 import { hasAtMostCodePoints, stripJavaWhitespace } from './acknowledgementInput'
 import { episodeDuration, episodeStatus, historyFailure, notificationDeliveryLabel, notificationDispositionLabel, notificationTimestamps, transitionLabel } from './alertHistoryPresentation'
 import { alertStatusLabel, alertUnavailableReason } from '../alert-evaluations/alertEvaluationPresentation'
 import { AlertConditionDetails, AlertEvidenceDetails } from '../alert-evaluations/AlertEvidenceDetails'
+import { useGeordiPermissions } from '../auth/AuthContext'
 
 export function AlertEpisodeDetail({ query, headingRef, onClose }: {
   query: UseQueryResult<AlertEpisodeDetailResponse, Error>; headingRef: RefObject<HTMLHeadingElement | null>; onClose: () => void
 }) {
   const episode = query.data?.episode
+  const permissions = useGeordiPermissions()
   const queryClient = useQueryClient()
-  const [actor, setActor] = useState('')
   const [reason, setReason] = useState('')
-  const normalizedActor = stripJavaWhitespace(actor)
   const normalizedReason = stripJavaWhitespace(reason)
   const mutation = useMutation({
     mutationFn: () => acknowledgeAlertEpisode(episode!.id, {
-      actor: normalizedActor,
       reason: normalizedReason || null,
     }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['alert-history', 'episode', episode?.id] }),
-    onError: () => void queryClient.invalidateQueries({ queryKey: ['alert-history', 'episode', episode?.id] }),
+    onMutate: () => currentAuthenticationGeneration(),
+    onSuccess: (_result, _variables, generation) => {
+      if (generation !== undefined && isAuthenticationGenerationCurrent(generation)) {
+        void queryClient.invalidateQueries({ queryKey: ['alert-history', 'episode', episode?.id] })
+      }
+    },
+    onError: (_error, _variables, generation) => {
+      if (generation !== undefined && isAuthenticationGenerationCurrent(generation)) {
+        void queryClient.invalidateQueries({ queryKey: ['alert-history', 'episode', episode?.id] })
+      }
+    },
   })
   return <section aria-labelledby="history-detail-heading" className="state-panel">
     <h2 id="history-detail-heading" tabIndex={-1} ref={headingRef}>Episode detail</h2>
@@ -42,20 +51,17 @@ export function AlertEpisodeDetail({ query, headingRef, onClose }: {
         <div><dt>Resolved (UTC)</dt><dd>{episode.closedAt === null ? 'Not resolved' : <time dateTime={episode.closedAt}>{episode.closedAt}</time>}</dd></div>
         <div><dt>Duration</dt><dd>{episodeDuration(episode)}</dd></div>
       </dl>
-      {episode.closedAt === null && !query.data?.acknowledgement && <form onSubmit={(event) => { event.preventDefault(); mutation.mutate() }}>
+      {episode.closedAt === null && !query.data?.acknowledgement && permissions.has('alerts:acknowledge') && <form onSubmit={(event) => { event.preventDefault(); mutation.mutate() }}>
         <h3>Acknowledgement</h3>
-        <label htmlFor="ack-actor">Actor</label>
-        <input id="ack-actor" required value={actor} onChange={(event) => {
-          if (hasAtMostCodePoints(stripJavaWhitespace(event.target.value), 128)) setActor(event.target.value)
-        }} />
+        <p>Your authenticated identity will be recorded with this acknowledgement.</p>
         <label htmlFor="ack-reason">Reason (optional)</label>
         <textarea id="ack-reason" value={reason} onChange={(event) => {
           if (hasAtMostCodePoints(stripJavaWhitespace(event.target.value), 512)) setReason(event.target.value)
         }} />
-        <button type="submit" disabled={mutation.isPending || normalizedActor.length === 0}>Acknowledge</button>
+        <button type="submit" disabled={mutation.isPending}>Acknowledge</button>
         {mutation.isError && <p role="alert">{mutation.error instanceof ApiError && mutation.error.status === 409 ? 'The episode changed; refreshed detail is shown.' : 'Acknowledgement failed. Retry.'}</p>}
       </form>}
-      {query.data?.acknowledgement && <section aria-label="Acknowledgement"><h3>Acknowledged</h3><p>Actor: {query.data.acknowledgement.actor}</p><p>Reason: {query.data.acknowledgement.reason ?? 'No reason provided'}</p><time dateTime={query.data.acknowledgement.acknowledgedAt}>{query.data.acknowledgement.acknowledgedAt}</time></section>}
+      {query.data?.acknowledgement && <section aria-label="Acknowledgement"><h3>Acknowledged</h3><p>Actor: {query.data.acknowledgement.actor}</p><p>Attribution: {query.data.acknowledgement.attribution.provenance === 'AUTHENTICATED_PRINCIPAL' ? 'Authenticated principal' : 'Legacy caller asserted'}</p><p>Reason: {query.data.acknowledgement.reason ?? 'No reason provided'}</p><time dateTime={query.data.acknowledgement.acknowledgedAt}>{query.data.acknowledgement.acknowledgedAt}</time></section>}
       <h3>Transitions — newest first</h3>
       {query.data?.transitions.map((transition) => {
         const evaluation = transition.evaluation

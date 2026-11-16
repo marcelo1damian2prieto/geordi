@@ -1,10 +1,14 @@
 package io.geordi.alerts.adapter.in.web;
 
+import com.fasterxml.jackson.annotation.JsonAnySetter;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.geordi.alerts.application.AlertEpisodeDetail;
 import io.geordi.alerts.application.AlertEpisodeTransition;
 import io.geordi.alerts.application.AlertNotificationStatus;
 import io.geordi.alerts.application.AlertHistoryQueryService;
-import io.geordi.alerts.application.AcknowledgeAlertEpisodeUseCase;
+import io.geordi.alerts.application.AuthorizedAcknowledgeAlertEpisode;
+import io.geordi.core.application.security.AuthenticatedPrincipal;
 import io.geordi.alerts.application.port.out.AlertEpisodeHistoryQuery;
 import io.geordi.alerts.application.port.out.AlertEpisodeState;
 import io.geordi.alerts.application.port.out.AlertTransitionHistoryQuery;
@@ -27,6 +31,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /** HTTP adapter for the bounded, read-only durable alert-history projection. */
@@ -38,10 +43,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 public class AlertHistoryController {
 
     private final AlertHistoryQueryService queries;
-    private final AcknowledgeAlertEpisodeUseCase acknowledgements;
+    private final AuthorizedAcknowledgeAlertEpisode acknowledgements;
 
     @Autowired
-    public AlertHistoryController(AlertHistoryQueryService queries, AcknowledgeAlertEpisodeUseCase acknowledgements) {
+    public AlertHistoryController(AlertHistoryQueryService queries, AuthorizedAcknowledgeAlertEpisode acknowledgements) {
         this.queries = queries;
         this.acknowledgements = acknowledgements;
     }
@@ -68,8 +73,9 @@ public class AlertHistoryController {
 
     @PostMapping("/alert-episodes/{episodeId}/acknowledgements")
     public ResponseEntity<AlertAcknowledgementResponse> acknowledge(
-            @PathVariable String episodeId, @RequestBody AlertAcknowledgementRequest request) {
-        var result = acknowledgements.acknowledge(new AlertEpisodeId(episodeId), request.actor(), request.reason());
+            @PathVariable String episodeId, @RequestBody AlertAcknowledgementRequest request,
+            @RequestAttribute("geordi.authenticatedPrincipal") AuthenticatedPrincipal principal) {
+        var result = acknowledgements.acknowledge(principal, new AlertEpisodeId(episodeId), request.reason());
         HttpStatus status = switch (result.status()) {
             case CREATED -> HttpStatus.CREATED;
             case REPLAYED -> HttpStatus.OK;
@@ -77,13 +83,39 @@ public class AlertHistoryController {
         return ResponseEntity.status(status).body(AlertAcknowledgementResponse.from(result.acknowledgement()));
     }
 
-    public record AlertAcknowledgementRequest(String actor, String reason) { }
+    public static final class AlertAcknowledgementRequest {
+        private final String reason;
 
-    public record AlertAcknowledgementResponse(String actor, String reason, String acknowledgedAt) {
-        static AlertAcknowledgementResponse from(io.geordi.alerts.domain.AlertEpisodeAcknowledgement value) {
-            return new AlertAcknowledgementResponse(value.actor(), value.reason(), value.acknowledgedAt().toString());
+        @JsonCreator
+        public AlertAcknowledgementRequest(@JsonProperty("reason") String reason) {
+            this.reason = reason;
+        }
+
+        public String reason() {
+            return reason;
+        }
+
+        @JsonAnySetter
+        public void rejectCallerAssertedProperties(String name, Object value) {
+            throw new IllegalArgumentException("unknown acknowledgement property");
         }
     }
+
+    public record AlertAcknowledgementResponse(String actor, String reason, String acknowledgedAt,
+            AcknowledgementAttributionResponse attribution) {
+        static AlertAcknowledgementResponse from(io.geordi.alerts.domain.AlertEpisodeAcknowledgement value) {
+            var source = value.attribution();
+            AcknowledgementIdentityResponse identity = source.identity() == null ? null
+                    : new AcknowledgementIdentityResponse(source.identity().issuer(), source.identity().subject());
+            return new AlertAcknowledgementResponse(value.actor(), value.reason(), value.acknowledgedAt().toString(),
+                    new AcknowledgementAttributionResponse(source.provenance().name(), identity, source.displayName()));
+        }
+    }
+
+    public record AcknowledgementAttributionResponse(String provenance,
+            AcknowledgementIdentityResponse identity, String displayName) { }
+
+    public record AcknowledgementIdentityResponse(String issuer, String subject) { }
 
     @GetMapping("/alert-transitions")
     public AlertTransitionsResponse listTransitions(

@@ -1,6 +1,8 @@
 package io.geordi.alerts.adapter.out.telemetry;
 
 import io.geordi.alerts.application.AcknowledgeAlertEpisodeUseCase;
+import io.geordi.alerts.application.AuthorizedAcknowledgeAlertEpisode;
+import io.geordi.core.application.security.AuthenticatedPrincipal;
 import io.geordi.alerts.application.AlertEpisodeAcknowledgementConflictException;
 import io.geordi.alerts.application.AlertEpisodeNotFoundException;
 import io.geordi.alerts.domain.AlertEpisodeId;
@@ -12,18 +14,31 @@ import io.opentelemetry.api.metrics.Meter;
 import java.util.Objects;
 
 /** Emits one bounded outcome for each acknowledgement command without command data attributes. */
-public final class ObservedAcknowledgeAlertEpisodeUseCase implements AcknowledgeAlertEpisodeUseCase {
+public final class ObservedAcknowledgeAlertEpisodeUseCase
+        implements AcknowledgeAlertEpisodeUseCase, AuthorizedAcknowledgeAlertEpisode {
 
     private static final AttributeKey<String> OUTCOME = AttributeKey.stringKey("geordi.alert.acknowledgement.outcome");
     private final AcknowledgeAlertEpisodeUseCase delegate;
+    private final AuthorizedAcknowledgeAlertEpisode authorizedDelegate;
     private final LongCounter acknowledgements;
 
     public ObservedAcknowledgeAlertEpisodeUseCase(AcknowledgeAlertEpisodeUseCase delegate) {
-        this(delegate, GlobalOpenTelemetry.getMeter("io.geordi.alerts"));
+        this(delegate, null, GlobalOpenTelemetry.getMeter("io.geordi.alerts"));
     }
 
     ObservedAcknowledgeAlertEpisodeUseCase(AcknowledgeAlertEpisodeUseCase delegate, Meter meter) {
+        this(delegate, null, meter);
+    }
+
+    public ObservedAcknowledgeAlertEpisodeUseCase(AcknowledgeAlertEpisodeUseCase delegate,
+            AuthorizedAcknowledgeAlertEpisode authorizedDelegate) {
+        this(delegate, Objects.requireNonNull(authorizedDelegate), GlobalOpenTelemetry.getMeter("io.geordi.alerts"));
+    }
+
+    ObservedAcknowledgeAlertEpisodeUseCase(AcknowledgeAlertEpisodeUseCase delegate,
+            AuthorizedAcknowledgeAlertEpisode authorizedDelegate, Meter meter) {
         this.delegate = Objects.requireNonNull(delegate, "acknowledgement delegate must not be null");
+        this.authorizedDelegate = authorizedDelegate;
         acknowledgements = Objects.requireNonNull(meter, "alert meter must not be null")
                 .counterBuilder("geordi.alert.acknowledgements").build();
     }
@@ -32,6 +47,29 @@ public final class ObservedAcknowledgeAlertEpisodeUseCase implements Acknowledge
     public AcknowledgementResult acknowledge(AlertEpisodeId episodeId, String actor, String reason) {
         try {
             AcknowledgementResult result = delegate.acknowledge(episodeId, actor, reason);
+            record(result.status() == AcknowledgementResult.Status.CREATED ? "created" : "replayed");
+            return result;
+        } catch (IllegalArgumentException exception) {
+            record("invalid");
+            throw exception;
+        } catch (AlertEpisodeNotFoundException exception) {
+            record("not_found");
+            throw exception;
+        } catch (AlertEpisodeAcknowledgementConflictException exception) {
+            record("conflict");
+            throw exception;
+        } catch (RuntimeException exception) {
+            record("failure");
+            throw exception;
+        }
+    }
+
+    @Override
+    public AcknowledgementResult acknowledge(AuthenticatedPrincipal principal, AlertEpisodeId episodeId,
+            String reason) {
+        if (authorizedDelegate == null) throw new IllegalStateException("authorized acknowledgement delegate unavailable");
+        try {
+            AcknowledgementResult result = authorizedDelegate.acknowledge(principal, episodeId, reason);
             record(result.status() == AcknowledgementResult.Status.CREATED ? "created" : "replayed");
             return result;
         } catch (IllegalArgumentException exception) {

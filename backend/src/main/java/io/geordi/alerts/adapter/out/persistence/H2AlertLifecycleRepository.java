@@ -20,6 +20,7 @@ import io.geordi.alerts.application.port.out.NotificationDeliveryWorkRepository;
 import io.geordi.alerts.application.port.out.VersionedAlertLifecycle;
 import io.geordi.alerts.domain.AlertEpisode;
 import io.geordi.alerts.domain.AlertEpisodeAcknowledgement;
+import io.geordi.alerts.domain.AlertAcknowledgementAttribution;
 import io.geordi.alerts.domain.AlertEpisodeId;
 import io.geordi.alerts.domain.AlertEpisodeOrigin;
 import io.geordi.alerts.domain.AlertHistoryMutation;
@@ -94,8 +95,18 @@ public final class H2AlertLifecycleRepository
             SELECT episode_id, policy_id, opened_at, closed_at, origin
             FROM alert_episode WHERE episode_id = ? FOR UPDATE
             """;
-    private static final String SELECT_ACK = "SELECT episode_id, actor, reason, acknowledged_at FROM alert_episode_acknowledgement WHERE episode_id = ?";
+    private static final String SELECT_ACK = """
+            SELECT episode_id, actor, reason, acknowledged_at, identity_provenance,
+                   principal_issuer, principal_subject, display_name_snapshot
+            FROM alert_episode_acknowledgement WHERE episode_id = ?
+            """;
     private static final String INSERT_ACK = "INSERT INTO alert_episode_acknowledgement (episode_id, actor, reason, acknowledged_at) VALUES (?, ?, ?, ?)";
+    private static final String INSERT_AUTHENTICATED_ACK = """
+            INSERT INTO alert_episode_acknowledgement
+                (episode_id, actor, reason, acknowledged_at, identity_provenance,
+                 principal_issuer, principal_subject, display_name_snapshot)
+            VALUES (?, ?, ?, ?, 'AUTHENTICATED_PRINCIPAL', ?, ?, ?)
+            """;
     private static final String COUNT_STARTED_HISTORY = """
             SELECT COUNT(*)
             FROM alert_transition_history
@@ -552,6 +563,21 @@ public final class H2AlertLifecycleRepository
     @Override
     public AlertEpisodeAcknowledgementRepository.Result acknowledge(
             AlertEpisodeId episodeId, String actor, String reason, Instant acknowledgedAt) {
+        return acknowledge(episodeId, actor, reason, acknowledgedAt, AlertAcknowledgementAttribution.legacy());
+    }
+
+    @Override
+    public AlertEpisodeAcknowledgementRepository.Result acknowledgeAuthenticated(
+            AlertEpisodeId episodeId, AlertAcknowledgementAttribution attribution, String reason, Instant acknowledgedAt) {
+        Objects.requireNonNull(attribution, "attribution required");
+        if (attribution.provenance() != AlertAcknowledgementAttribution.Provenance.AUTHENTICATED_PRINCIPAL) {
+            throw new IllegalArgumentException("authenticated attribution required");
+        }
+        return acknowledge(episodeId, attribution.actor(), reason, acknowledgedAt, attribution);
+    }
+
+    private AlertEpisodeAcknowledgementRepository.Result acknowledge(AlertEpisodeId episodeId, String actor,
+            String reason, Instant acknowledgedAt, AlertAcknowledgementAttribution attribution) {
         if (transactions == null) {
             throw new AlertHistoryPersistenceException(Kind.PERSISTENCE,
                     "transactional acknowledgement persistence is not configured", new IllegalStateException());
@@ -572,15 +598,23 @@ public final class H2AlertLifecycleRepository
                 Optional<AlertEpisodeAcknowledgement> existing = findByEpisodeId(episodeId);
                 if (existing.isPresent()) {
                     AlertEpisodeAcknowledgement value = existing.get();
-                    if (value.actor().equals(actor) && Objects.equals(value.reason(), reason)) {
+                    boolean sameAttribution = value.attribution().provenance() == attribution.provenance()
+                            && (attribution.identity() == null ? value.actor().equals(actor)
+                                    : attribution.identity().equals(value.attribution().identity()));
+                    if (sameAttribution && Objects.equals(value.reason(), reason)) {
                         return new AlertEpisodeAcknowledgementRepository.Result(
                                 AlertEpisodeAcknowledgementRepository.Result.Status.REPLAYED, value);
                     }
                     throw new AlertEpisodeAcknowledgementConflictException();
                 }
                 AlertEpisodeAcknowledgement created = new AlertEpisodeAcknowledgement(
-                        episodeId, actor, reason, acknowledgedAt);
-                jdbc.update(INSERT_ACK, episodeId.value(), actor, reason, Timestamp.from(acknowledgedAt));
+                        episodeId, actor, reason, acknowledgedAt, attribution);
+                if (attribution.identity() == null) {
+                    jdbc.update(INSERT_ACK, episodeId.value(), actor, reason, Timestamp.from(acknowledgedAt));
+                } else {
+                    jdbc.update(INSERT_AUTHENTICATED_ACK, episodeId.value(), actor, reason, Timestamp.from(acknowledgedAt),
+                            attribution.identity().issuer(), attribution.identity().subject(), attribution.displayName());
+                }
                 return new AlertEpisodeAcknowledgementRepository.Result(
                         AlertEpisodeAcknowledgementRepository.Result.Status.CREATED, created);
             });
@@ -594,12 +628,26 @@ public final class H2AlertLifecycleRepository
     @Override
     public Optional<AlertEpisodeAcknowledgement> findByEpisodeId(AlertEpisodeId episodeId) {
         try {
-            return jdbc.query(SELECT_ACK, (result, rowNumber) -> new AlertEpisodeAcknowledgement(
-                    new AlertEpisodeId(result.getString("episode_id")), result.getString("actor"),
-                    result.getString("reason"), instant(result, "acknowledged_at")), episodeId.value())
+            return jdbc.query(SELECT_ACK, (result, rowNumber) -> readAcknowledgement(result), episodeId.value())
                     .stream().findFirst();
         } catch (DataAccessException exception) {
             throw historyPersistenceFailure(exception);
+        }
+    }
+
+    private static AlertEpisodeAcknowledgement readAcknowledgement(ResultSet result) throws SQLException {
+        try {
+            var provenance = AlertAcknowledgementAttribution.Provenance.valueOf(result.getString("identity_provenance"));
+            String issuer = result.getString("principal_issuer");
+            String subject = result.getString("principal_subject");
+            String displayName = result.getString("display_name_snapshot");
+            var identity = issuer == null && subject == null ? null
+                    : new AlertAcknowledgementAttribution.Identity(issuer, subject);
+            var attribution = new AlertAcknowledgementAttribution(provenance, identity, displayName);
+            return new AlertEpisodeAcknowledgement(new AlertEpisodeId(result.getString("episode_id")),
+                    result.getString("actor"), result.getString("reason"), instant(result, "acknowledged_at"), attribution);
+        } catch (IllegalArgumentException | NullPointerException exception) {
+            throw historyInvariantFailure("stored acknowledgement attribution is invalid");
         }
     }
 

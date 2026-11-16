@@ -8,27 +8,65 @@ param(
 
     [switch] $ExerciseProviderFailure,
 
-    [string] $BackendBaseUrl = "http://127.0.0.1:8080",
+    [string] $BackendBaseUrl = "https://geordi.localhost:8443",
     [string] $BurnDemoBaseUrl = "http://127.0.0.1:8083",
     [string] $DemoBaseUrl = "http://127.0.0.1:8081",
     [string] $VictoriaMetricsBaseUrl = "http://127.0.0.1:8428",
-    [string] $FrontendBaseUrl = "http://127.0.0.1:3000"
+    [string] $FrontendBaseUrl = "https://geordi.localhost:8443"
 )
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
+. (Join-Path $PSScriptRoot 'lib/GeordiAuthentication.ps1')
 
 $BurnSloId = "burn-smoke-error-rate"
 $ZeroBudgetSloId = "demo-error-rate"
 $NoTrafficSloId = "no-traffic-availability"
 $LegacyAvailabilitySloId = "demo-downstream-availability"
 $BurnAlertPolicyId = "burn-smoke-alert"
-$BurnIdentity = [ordered]@{ name = "geordi-burn-smoke-service"; namespace = "geordi-burn-smoke"; environment = "development" }
+$BurnRunSuffix = [guid]::NewGuid().ToString('N')
+$BurnIdentity = [ordered]@{ name = "geordi-burn-smoke-$BurnRunSuffix"; namespace = "geordi-burn-smoke-$BurnRunSuffix"; environment = "development" }
+$script:RuntimeSloPath = Join-Path (Split-Path -Parent $PSScriptRoot) '.runtime/m19/slos.yaml'
+$script:OriginalRuntimeSloText = $null
+$script:BurnIsolationApplied = $false
+
+function Set-BurnRunIsolation([bool] $Enabled) {
+    if ($Enabled) {
+        if (!(Test-Path -LiteralPath $script:RuntimeSloPath -PathType Leaf)) { throw 'Run-scoped M19 SLO configuration is missing.' }
+        $script:OriginalRuntimeSloText = [IO.File]::ReadAllText($script:RuntimeSloPath)
+        $isolated = $script:OriginalRuntimeSloText.Replace('name: geordi-burn-smoke-service', "name: $($BurnIdentity.name)").Replace('namespace: geordi-burn-smoke', "namespace: $($BurnIdentity.namespace)")
+        $unmodifiedService = [regex]::IsMatch($isolated,'(?m)^[ \t]*name:[ \t]*geordi-burn-smoke-service[ \t]*\r?$')
+        $unmodifiedNamespace = [regex]::IsMatch($isolated,'(?m)^[ \t]*namespace:[ \t]*geordi-burn-smoke[ \t]*\r?$')
+        if ($isolated -ceq $script:OriginalRuntimeSloText -or $unmodifiedService -or $unmodifiedNamespace) {
+            throw 'The dedicated burn smoke SLO identity template is not unique.'
+        }
+        [IO.File]::WriteAllText($script:RuntimeSloPath,$isolated,[Text.UTF8Encoding]::new($false))
+        $env:GEORDI_BURN_SMOKE_NAMESPACE = $BurnIdentity.namespace
+        $env:GEORDI_BURN_SMOKE_SERVICE_NAME = $BurnIdentity.name
+        & (Join-Path $PSScriptRoot 'Capture-GeordiM19Generation.ps1') -Phase m19-burn-isolate -Services backend,burn-demo
+        $root = Split-Path -Parent $PSScriptRoot
+        & docker compose --project-directory $root --file (Join-Path $root 'compose.yaml') --file (Join-Path $root 'compose.m19.yaml') `
+            up -d --wait --wait-timeout 90 --force-recreate backend burn-demo
+        if ($LASTEXITCODE -ne 0) { throw 'Could not start isolated burn smoke backend and workload.' }
+        $script:BurnIsolationApplied = $true
+        return
+    }
+    if ($null -eq $script:OriginalRuntimeSloText) { return }
+    & (Join-Path $PSScriptRoot 'Capture-GeordiM19Generation.ps1') -Phase m19-burn-restore -Services backend,burn-demo
+    [IO.File]::WriteAllText($script:RuntimeSloPath,$script:OriginalRuntimeSloText,[Text.UTF8Encoding]::new($false))
+    Remove-Item Env:\GEORDI_BURN_SMOKE_NAMESPACE -ErrorAction SilentlyContinue
+    Remove-Item Env:\GEORDI_BURN_SMOKE_SERVICE_NAME -ErrorAction SilentlyContinue
+    $root = Split-Path -Parent $PSScriptRoot
+    & docker compose --project-directory $root --file (Join-Path $root 'compose.yaml') --file (Join-Path $root 'compose.m19.yaml') `
+        up -d --wait --wait-timeout 90 --force-recreate backend burn-demo
+    if ($LASTEXITCODE -ne 0) { throw 'Could not restore the shared M19 SLO configuration and workload.' }
+    $script:BurnIsolationApplied = $false
+}
 $ProviderSyntaxPattern = 'promql|metricsql|victoriametrics|http\.server\.request|__name__|increase\s*\(|rate\s*\('
 
 function Invoke-TextRequest {
     param([Parameter(Mandatory)][string] $Uri, [int] $RequestTimeoutSeconds = 8)
-    $response = Invoke-WebRequest -Uri $Uri -TimeoutSec $RequestTimeoutSeconds -UseBasicParsing
+    $response = Invoke-GeordiScriptRequest -Uri $Uri -TimeoutSeconds $RequestTimeoutSeconds
     if ($response.StatusCode -ne 200) { throw "GET $Uri returned HTTP $($response.StatusCode)." }
     return [string] $response.Content
 }
@@ -187,9 +225,9 @@ function Assert-BurnTelemetry {
 }
 
 function Assert-ProviderFailure {
-    $root = Split-Path -Parent $PSScriptRoot; $compose = Join-Path $root 'compose.yaml'; $stopped = $false
+    $root = Split-Path -Parent $PSScriptRoot; $stopped = $false
     try {
-        & docker compose --project-directory $root --file $compose stop victoriametrics
+        & docker compose --project-directory $root --file (Join-Path $root 'compose.yaml') --file (Join-Path $root 'compose.m19.yaml') stop victoriametrics
         if ($LASTEXITCODE -ne 0) { throw "Could not stop VictoriaMetrics for burn provider-failure scenario." }
         $stopped = $true
         $burn = Get-Evaluation $BurnSloId; $legacy = Get-Evaluation $LegacyAvailabilitySloId
@@ -199,7 +237,7 @@ function Assert-ProviderFailure {
         if ($alert.policyId -ne $BurnAlertPolicyId -or $alert.sloId -ne $BurnSloId -or $alert.status -ne 'UNAVAILABLE' -or $alert.reason -ne 'METRICS_UNAVAILABLE' -or $null -eq $alert.evidence -or $null -ne $alert.evidence.observedBurnRate) { throw "Alert provider failure was not explicitly unavailable with null observed burn evidence." }
     } finally {
         if ($stopped) {
-            & docker compose --project-directory $root --file $compose start victoriametrics
+            & docker compose --project-directory $root --file (Join-Path $root 'compose.yaml') --file (Join-Path $root 'compose.m19.yaml') start victoriametrics
             if ($LASTEXITCODE -ne 0) { throw "Could not restart VictoriaMetrics after burn provider-failure scenario." }
             $recoveryDeadline = (Get-Date).AddSeconds(60)
             Wait-ForHttp200 'VictoriaMetrics after burn provider-failure scenario' "$VictoriaMetricsBaseUrl/health" $recoveryDeadline
@@ -209,6 +247,10 @@ function Assert-ProviderFailure {
 }
 
 try {
+    $root = Split-Path -Parent $PSScriptRoot
+    $env:COMPOSE_FILE = (Join-Path $root 'compose.yaml') + [IO.Path]::PathSeparator + (Join-Path $root 'compose.m19.yaml')
+    Set-BurnRunIsolation $true
+    Initialize-GeordiAuthentication -Identity REGRESSION -RepositoryRoot $root
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     Wait-ForHttp200 'backend readiness' "$BackendBaseUrl/actuator/health/readiness" $deadline
     Wait-ForHttp200 'isolated burn demo readiness' "$BurnDemoBaseUrl/actuator/health/readiness" $deadline
@@ -237,5 +279,11 @@ try {
     if ($ExerciseProviderFailure) { Assert-ProviderFailure }
     Assert-BurnTelemetry $deadline
     Write-Host 'PASS: isolated valid-zero and elevated burn evidence, independent exact-window recomputation, unavailable semantics, provider recovery, Investigation context, and bounded burn telemetry verified.'
-    exit 0
-} catch { Write-Error "Burn Rate smoke verification failed: $($_.Exception.Message)"; exit 1 }
+} catch { $script:BurnVerificationFailure = $_.Exception.Message; Write-Error "Burn Rate smoke verification failed: $script:BurnVerificationFailure" }
+finally {
+    if ($null -ne $script:OriginalRuntimeSloText) {
+        try { Set-BurnRunIsolation $false } catch { $script:BurnVerificationFailure = "$script:BurnVerificationFailure; burn fixture restore failed: $($_.Exception.Message)"; Write-Error $script:BurnVerificationFailure }
+    }
+}
+if ($null -ne $script:BurnVerificationFailure) { exit 1 }
+exit 0

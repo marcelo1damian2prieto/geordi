@@ -80,6 +80,7 @@ services:
         OTEL_JAVA_AGENT_SHA256: ${OTEL_JAVA_AGENT_SHA256:-faa89bdeebf9b1f52be4a4374689176717b02a59df2d8f8b6eb9aa39f9292589}
         SOURCE_REVISION: ${GEORDI_SOURCE_REVISION:-}
         VERIFIED_JAR_SHA256: ${GEORDI_VERIFIED_JAR_SHA256:-}
+        VERIFIED_SECURITY_TELEMETRY_SHA256: ${GEORDI_VERIFIED_SECURITY_TELEMETRY_SHA256:-}
     image: geordi-backend:local
     depends_on:
       otel-collector:
@@ -203,7 +204,7 @@ services:
       OTEL_METRICS_EXPORTER: otlp
       OTEL_METRIC_EXPORT_INTERVAL: "5000"
       OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE: cumulative
-      OTEL_RESOURCE_ATTRIBUTES: service.namespace=geordi-burn-smoke,service.name=geordi-burn-smoke-service,deployment.environment.name=development,geordi.telemetry.origin=monitored
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=${GEORDI_BURN_SMOKE_NAMESPACE:-geordi-burn-smoke},service.name=${GEORDI_BURN_SMOKE_SERVICE_NAME:-geordi-burn-smoke-service},deployment.environment.name=development,geordi.telemetry.origin=monitored
       OTEL_SEMCONV_STABILITY_OPT_IN: http
       OTEL_INSTRUMENTATION_HTTP_URL_CONNECTION_ENABLED: "false"
       OTEL_INSTRUMENTATION_LOGBACK_APPENDER_ENABLED: "true"

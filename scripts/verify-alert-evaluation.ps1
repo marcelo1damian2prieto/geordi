@@ -6,23 +6,28 @@ param(
     [ValidateRange(2, 50)]
     [int] $RequestCount = 4,
 
-    [string] $BackendBaseUrl = "http://127.0.0.1:8080",
+    [string] $BackendBaseUrl = "https://geordi.localhost:8443",
     [string] $BurnDemoBaseUrl = "http://127.0.0.1:8083",
     [string] $DownstreamBaseUrl = "http://127.0.0.1:8082",
     [string] $VictoriaMetricsBaseUrl = "http://127.0.0.1:8428",
-    [string] $FrontendBaseUrl = "http://127.0.0.1:3000",
+    [string] $FrontendBaseUrl = "https://geordi.localhost:8443",
     [string] $WebhookReceiverBaseUrl = "http://127.0.0.1:18080"
 )
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
+. (Join-Path $PSScriptRoot 'lib/GeordiAuthentication.ps1')
 
 $ZeroPolicyId = "demo-downstream-burn-alert"
 $MetPolicyId = "burn-smoke-alert"
 $NoTrafficPolicyId = "no-traffic-burn-alert"
 $ZeroBudgetPolicyId = "zero-budget-burn-alert"
 $DisabledPolicyId = "disabled-burn-alert"
-$M18PolicyId = "m18-multiwindow-burn-alert"
+$m18PolicyIdPath = Join-Path (Split-Path -Parent $PSScriptRoot) '.runtime/m19/m18-policy-id'
+if (!(Test-Path -LiteralPath $m18PolicyIdPath -PathType Leaf)) {
+    throw 'M19 run-scoped multiwindow policy ID is missing; create the M19 smoke configuration before startup.'
+}
+$M18PolicyId = [IO.File]::ReadAllText($m18PolicyIdPath).Trim()
 $ZeroSloId = "demo-downstream-availability"
 $MetSloId = "burn-smoke-error-rate"
 $NoTrafficSloId = "no-traffic-availability"
@@ -30,14 +35,18 @@ $ZeroBudgetSloId = "demo-error-rate"
 $M18SloId = "m18-multiwindow-error-rate"
 $ZeroIdentity = [ordered]@{ name = "geordi-demo-downstream-service"; namespace = "geordi-demo"; environment = "development" }
 $MetIdentity = [ordered]@{ name = "geordi-burn-smoke-service"; namespace = "geordi-burn-smoke"; environment = "development" }
-$M18Identity = [ordered]@{ name = "geordi-m18-multiwindow-service"; namespace = "geordi-m18-smoke"; environment = "development" }
+$m18IdentityPath = Join-Path (Split-Path -Parent $PSScriptRoot) '.runtime/m19/m18-service-name'
+if (!(Test-Path -LiteralPath $m18IdentityPath -PathType Leaf)) {
+    throw 'M19 run-scoped multiwindow fixture identity is missing; create the M19 smoke configuration before startup.'
+}
+$M18Identity = [ordered]@{ name = [IO.File]::ReadAllText($m18IdentityPath).Trim(); namespace = "geordi-m18-smoke"; environment = "development" }
 $M18FutureMargin = [TimeSpan]::FromMinutes(10)
 $ProviderSyntaxPattern = 'promql|metricsql|victoriametrics|http\.server\.request|__name__|increase\s*\(|rate\s*\('
 $DeliverySyntaxPattern = 'smtp|slack|teams|pagerduty|opsgenie|alertmanager|webhook|notification|incident|page|firing|resolved|acknowledg|silenc|escalat'
 
 function Invoke-TextRequest {
     param([Parameter(Mandatory)][string] $Uri, [int] $RequestTimeoutSeconds = 8)
-    $response = Invoke-WebRequest -Uri $Uri -TimeoutSec $RequestTimeoutSeconds -UseBasicParsing
+    $response = Invoke-GeordiScriptRequest -Uri $Uri -TimeoutSeconds $RequestTimeoutSeconds
     if ($response.StatusCode -ne 200) { throw "GET $Uri returned HTTP $($response.StatusCode)." }
     return [string]$response.Content
 }
@@ -356,7 +365,7 @@ function Assert-M18Evaluation {
 
 function Invoke-JsonRequest {
     param([Parameter(Mandatory)][string] $Uri, [string] $Method = 'GET')
-    $response = Invoke-WebRequest -Uri $Uri -Method $Method -TimeoutSec 15 -UseBasicParsing
+    $response = Invoke-GeordiScriptRequest -Uri $Uri -Method $Method -TimeoutSeconds 15
     if ($response.StatusCode -lt 200 -or $response.StatusCode -ge 300) { throw "$Method $Uri returned HTTP $($response.StatusCode)." }
     return $response.Content | ConvertFrom-Json
 }
@@ -404,6 +413,7 @@ function Assert-AlertTelemetry {
 }
 
 try {
+    Initialize-GeordiAuthentication -Identity REGRESSION -RepositoryRoot (Split-Path -Parent $PSScriptRoot)
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     Wait-ForHttp200 'backend readiness' "$BackendBaseUrl/actuator/health/readiness" $deadline
     Wait-ForHttp200 'VictoriaMetrics' "$VictoriaMetricsBaseUrl/health" $deadline

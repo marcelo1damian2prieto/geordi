@@ -1,0 +1,20 @@
+services:
+  m12-query-gate:
+    image: python:3.13-alpine
+    command: ["python", "/fixture/server.py"]
+    volumes:
+      - ./deploy/m12-overlap-proxy/server.py:/fixture/server.py:ro
+    ports:
+      - "127.0.0.1:18083:8429"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8429/__control/health', timeout=2)"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    depends_on:
+      m12-query-gate:
+        condition: service_healthy
+    environment:
+      SPRING_APPLICATION_JSON: !override '{"geordi":{"modules":{"self-observability":{"enabled":true},"metrics":{"enabled":true},"traces":{"enabled":true},"logs":{"enabled":true},"service-map":{"enabled":true},"slos":{"enabled":true},"alerts":{"enabled":true}},"metrics":{"victoria-metrics":{"base-url":"http://m12-query-gate:8429","read-timeout":"30s"}},"traces":{"tempo":{"base-url":"http://tempo:3200"}},"logs":{"loki":{"base-url":"http://loki:3100"}}}}'

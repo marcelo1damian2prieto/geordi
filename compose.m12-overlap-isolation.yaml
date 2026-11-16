@@ -1,0 +1,32 @@
+services:
+  backend:
+    depends_on:
+      otel-collector:
+        restart: false
+      victoriametrics:
+        restart: false
+
+  otel-collector:
+    depends_on:
+      victoriametrics:
+        restart: false
+
+  demo:
+    depends_on:
+      otel-collector:
+        restart: false
+
+  burn-demo:
+    depends_on:
+      otel-collector:
+        restart: false
+
+  demo-downstream:
+    depends_on:
+      otel-collector:
+        restart: false
+
+  m12-burn-demo:
+    depends_on:
+      otel-collector:
+        restart: false

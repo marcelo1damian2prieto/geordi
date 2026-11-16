@@ -2,6 +2,7 @@ package io.geordi.alerts.application;
 
 import io.geordi.alerts.application.port.out.AlertEpisodeAcknowledgementRepository;
 import io.geordi.alerts.domain.AlertEpisodeId;
+import io.geordi.alerts.domain.AlertAcknowledgementAttribution;
 import java.time.Clock;
 import java.util.Objects;
 
@@ -26,6 +27,22 @@ public final class AcknowledgeAlertEpisodeService implements AcknowledgeAlertEpi
             throw new IllegalArgumentException("invalid acknowledgement input");
         }
         var result = repository.acknowledge(episodeId, normalizedActor, normalizedReason, clock.instant());
+        return result(result);
+    }
+
+    public AcknowledgementResult acknowledgeAuthenticated(AlertEpisodeId episodeId,
+            AlertAcknowledgementAttribution attribution, String reason) {
+        Objects.requireNonNull(episodeId, "episode id must not be null");
+        Objects.requireNonNull(attribution, "attribution required");
+        String normalizedReason = reason == null ? null : reason.strip();
+        if (normalizedReason != null && normalizedReason.isEmpty()) normalizedReason = null;
+        if (normalizedReason != null && normalizedReason.codePointCount(0, normalizedReason.length()) > 512) {
+            throw new IllegalArgumentException("invalid acknowledgement input");
+        }
+        return result(repository.acknowledgeAuthenticated(episodeId, attribution, normalizedReason, clock.instant()));
+    }
+
+    private static AcknowledgementResult result(AlertEpisodeAcknowledgementRepository.Result result) {
         return new AcknowledgementResult(
                 switch (result.status()) {
                     case CREATED -> AcknowledgementResult.Status.CREATED;

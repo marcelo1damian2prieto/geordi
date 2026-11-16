@@ -13,6 +13,7 @@ import {
   isMultiwindowAlertEvidence,
 } from '../alert-evaluations/alertEvaluationPresentation'
 import { AlertConditionDetails, AlertEvidenceDetails } from '../alert-evaluations/AlertEvidenceDetails'
+import { useGeordiPermissions } from '../auth/AuthContext'
 import {
   alertLifecycleStateLabel,
   lifecycleOutcomeMessage,
@@ -80,6 +81,7 @@ function unavailableExplanation(snapshot: AlertLifecycleSnapshot) {
 
 function AlertLifecycleCard({ snapshot }: { snapshot: AlertLifecycleSnapshot }) {
   const headingId = useId()
+  const permissions = useGeordiPermissions()
   const evaluation = useAlertLifecycleEvaluation(snapshot.policy)
 
   if (evaluation.isPending) {
@@ -193,7 +195,7 @@ function AlertLifecycleCard({ snapshot }: { snapshot: AlertLifecycleSnapshot }) 
           <button type="button" onClick={() => evaluation.reset()}>Dismiss</button>
         </div>
       )}
-      {snapshot.policy.enabled
+      {snapshot.policy.enabled && permissions.has('alerts:evaluate')
         ? <button className="refresh-button alert-lifecycle-evaluate" type="button" onClick={() => evaluation.mutate()}>Evaluate now</button>
         : <p className="alert-evaluation-not-evaluated">Disabled — evaluation command unavailable</p>}
     </article>

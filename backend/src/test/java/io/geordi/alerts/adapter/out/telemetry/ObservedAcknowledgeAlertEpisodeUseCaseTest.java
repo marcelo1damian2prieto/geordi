@@ -12,14 +12,20 @@ import static org.mockito.Mockito.when;
 import io.geordi.alerts.application.AcknowledgeAlertEpisodeUseCase;
 import io.geordi.alerts.application.AlertEpisodeAcknowledgementConflictException;
 import io.geordi.alerts.application.AlertEpisodeNotFoundException;
+import io.geordi.alerts.application.AuthorizedAcknowledgeAlertEpisode;
 import io.geordi.alerts.domain.AlertEpisodeAcknowledgement;
 import io.geordi.alerts.domain.AlertEpisodeId;
+import io.geordi.core.application.security.AuthenticatedPrincipal;
+import io.geordi.core.application.security.AuthenticationMechanism;
+import io.geordi.core.application.security.GeordiPermission;
+import io.geordi.core.application.security.PrincipalIdentity;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.LongCounter;
 import io.opentelemetry.api.metrics.LongCounterBuilder;
 import io.opentelemetry.api.metrics.Meter;
 import java.time.Instant;
+import java.util.Set;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -56,6 +62,28 @@ class ObservedAcknowledgeAlertEpisodeUseCaseTest {
                 .allSatisfy(value -> assertThat(value.asMap()).containsOnlyKeys(outcome));
         assertThat(attributes.getAllValues().stream().map(value -> value.get(outcome)).toList())
                 .containsExactly("created", "replayed", "invalid", "not_found", "conflict", "failure");
+    }
+
+    @Test
+    void observesTheAuthenticatedAcknowledgementPathWithoutIdentityAttributes() {
+        AcknowledgeAlertEpisodeUseCase legacy = mock(AcknowledgeAlertEpisodeUseCase.class);
+        AuthorizedAcknowledgeAlertEpisode authorized = mock(AuthorizedAcknowledgeAlertEpisode.class);
+        AuthenticatedPrincipal principal = new AuthenticatedPrincipal(
+                new PrincipalIdentity("https://issuer.example", "subject-7"), "Operator",
+                Set.of(GeordiPermission.ALERT_ACKNOWLEDGE), AuthenticationMechanism.SESSION);
+        when(authorized.acknowledge(principal, ID, "reason"))
+                .thenReturn(result(AcknowledgeAlertEpisodeUseCase.AcknowledgementResult.Status.CREATED));
+        LongCounter counter = counter();
+        var observed = new ObservedAcknowledgeAlertEpisodeUseCase(legacy, authorized, meter(counter));
+
+        observed.acknowledge(principal, ID, "reason");
+
+        verify(authorized).acknowledge(principal, ID, "reason");
+        ArgumentCaptor<Attributes> attributes = ArgumentCaptor.forClass(Attributes.class);
+        verify(counter).add(eq(1L), attributes.capture());
+        AttributeKey<String> outcome = AttributeKey.stringKey("geordi.alert.acknowledgement.outcome");
+        assertThat(attributes.getValue().asMap()).containsOnlyKeys(outcome);
+        assertThat(attributes.getValue().get(outcome)).isEqualTo("created");
     }
 
     private static AcknowledgeAlertEpisodeUseCase.AcknowledgementResult result(

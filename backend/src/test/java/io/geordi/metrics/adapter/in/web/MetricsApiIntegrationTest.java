@@ -12,6 +12,7 @@ import io.geordi.metrics.domain.TimeRange;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import io.geordi.bootstrap.security.fixture.GeordiIntegrationTest;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -20,7 +21,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 
-@SpringBootTest(
+@GeordiIntegrationTest(
         classes = {GeordiApplication.class, MetricsApiIntegrationTest.StubMetricsConfiguration.class},
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class MetricsApiIntegrationTest {
