@@ -134,3 +134,27 @@ These results are not presented as a complete ordered accepted regression set. T
 The D2 branch remains isolated from `m19`. No production code, CI configuration, Compose configuration, TLS/certificates, runtime captures, or protected volumes were changed by D2. No Docker lifecycle, runtime, cleanup, TLS/certificate, capture mutation, or protected-volume operation was performed.
 
 M13, Gate 5 promotion/acceptance, CI activation, runtime validation, candidate promotion, and M19 acceptance remain blocked. Overall status remains **M19 NOT READY — REMEDIATION REQUIRED**.
+
+
+## 2026-11-16 — Second-pass repository-history findings
+
+The second read-only pass examined the D2 branch commits and the relevant M19 plans.
+
+### What the repository history establishes
+
+- Before the documentation reconciliation commits, `d2/audit-boundaries-fix` was 9 commits ahead of `m19`, with no commits behind.
+- Those nine commits consist of seven test-harness changes to `scripts/Test-GeordiCaptureGenerations.ps1` and two D2 audit-document commits. They do not contain an earlier revision of the accepted-regression inventory or a sequence manifest.
+- The `m19` base commit is exposed as a full-tree snapshot (its commit change listing reports the repository files as additions), rather than a useful incremental history of the prior planning conversation. The available branch history therefore does not provide earlier versions of the M19 planning documents from which to recover a lost ordered list.
+
+### What the contemporaneous plans establish
+
+- `EXECPLAN-M19-POST-FOLLOWER-READINESS.md` defines the phase ordering — parser/micro checks → accepted regression set → independent review → formal overlap 26-gate sequence — but does not enumerate the accepted set.
+- This checkpoint records the earlier stop at `Boundaries` and several focused PASS results, but does not give the complete ordered list.
+- `MILESTONE-019.md` records related focused evidence, including M11 synthetic generation/volume tests, M11 propagation-isolation, M11 final-evidence and VM-identity tests, seven focused M10 replacement cases, M12 Collector replacement self-test, parser checks, and `git diff --check`. It does not identify these as the complete accepted regression set or specify their accepted execution order.
+- The M10, M11, M12 backend, M12 overlap Collector, and M11→M12 fixture-transfer ExecPlans each define their own scoped validation. Those scoped validations must not be silently merged into one historical accepted sequence. In particular, the fixture-transfer plan's 18 focused gates and A–S consumer matrix are a separate validation unit.
+
+### Second-pass conclusion
+
+The exact historical membership and order of the post-follower accepted regression set are **not recoverable from the currently available branch history and checked-in planning documents**. This is a bounded conclusion about the evidence inspected, not proof that no external transcript, local reflog, untracked file, or earlier workspace copy exists.
+
+Do not label a proposed list as the original accepted sequence. The next valid step is to prepare a clearly labelled **reconstructed regression sequence** from the scoped ExecPlans and known checkpointed PASS evidence, identify every item as previously passed / not yet rerun / pending, and submit that reconstruction for owner approval before execution.
