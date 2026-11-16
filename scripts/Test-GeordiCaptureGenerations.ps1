@@ -430,8 +430,8 @@ try {
             $stageSequence=@(
                 @{stage='M10-reset';service='backend'},
                 @{stage='M11-reset';service='backend'},
-                @{stage='M12-reset';service='backend'},
                 @{stage='M12-reset';service='otel-collector'},
+                @{stage='M12-reset';service='backend'},
                 @{stage='M12-scheduler-enable';service='backend'},
                 @{stage='M13-reset';service='backend'},
                 @{stage='M13-reset';service='otel-collector'}
