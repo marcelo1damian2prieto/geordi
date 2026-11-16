@@ -123,7 +123,10 @@ $script:mockStart={
     $script:mockAlive[[string]$id]=$true
     return [pscustomobject]@{id=$id;name='synthetic-docker';startUtc=$start}
 }
-$script:mockTestProcess={ param($record) return [bool]$script:mockAlive[[string]$record.id] }
+$script:mockTestProcess={
+    param($record)
+    return [bool]$script:mockAlive[[string]$record.id]
+}
 $script:mockStopProcess={ param($record) $script:mockAlive[[string]$record.id]=$false }
 function New-ContainerIdentity([string] $Id,[string] $Service) {
     return [pscustomobject]@{Id=$Id;Project='geordi';Service=$Service;WorkingDirectory=(Get-Location).Path;
@@ -532,7 +535,8 @@ try {
             $unsealedRoot=New-GenerationTestRoot
             try{
                 $unsealedId=Start-SyntheticGeneration $unsealedRoot backend ('a'*64)
-                $unsealedHandoff=Begin-GeordiCaptureHandoff -CaptureRoot $unsealedRoot -Service backend -Reason 'negative-unsealed'
+                $unsealedHandoff=Begin-GeordiCaptureHandoff -CaptureRoot $unsealedRoot -Service backend -Reason 'negative-unsealed' `
+    -TestProcessIdentity $script:mockTestProcess -StopProcess $script:mockStopProcess
                 $unsealedManifest=Read-GenerationManifest $unsealedRoot
                 $unsealedManifest.captureHandoffs[$unsealedHandoff].status='in_progress'
                 Write-GeordiM19ManifestAtomic -Path (Join-Path $unsealedRoot 'manifest.json') -Manifest $unsealedManifest
@@ -573,11 +577,26 @@ try {
                 $sameId=Start-SyntheticGeneration $sameContainerRoot backend ('f'*64)
                 $sameHandoff=Begin-GeordiCaptureHandoff -CaptureRoot $sameContainerRoot -Service backend -Reason 'negative-same-container' -TestProcessIdentity $script:mockTestProcess -StopProcess $script:mockStopProcess
                 $sameRejected=$false
-                try{Invoke-GeordiCaptureHandoffReplacement -CaptureRoot $sameContainerRoot -Service backend -HandoffId $sameHandoff `
-                    -RepositoryRoot (Get-Location).Path -Replace {} -GetContainerIdentity {param($service) New-ContainerIdentity ('f'*64) $service} -StartFollower $script:mockStart}catch{$sameRejected=$true}
+                $sameError=$null
+                try {
+                    Invoke-GeordiCaptureHandoffReplacement -CaptureRoot $sameContainerRoot -Service backend -HandoffId $sameHandoff `
+                        -RepositoryRoot (Get-Location).Path -Replace {} -GetContainerIdentity {param($service) New-ContainerIdentity ('f'*64) $service} -StartFollower $script:mockStart
+                }
+                catch {
+                    $sameRejected=$true
+                    $sameError=[string]$_.Exception.Message
+                }
+
                 $sameState=Read-GenerationManifest $sameContainerRoot
-                Assert-CaptureGeneration ($sameRejected -and $sameState.captureHandoffs[$sameHandoff].status -ceq 'incomplete-new-generation' -and
-                    @($sameState.captureGenerations.backend).Count -eq 2) 'new generation registered with the old container ID was accepted'
+                $sameBackendGenerations=@($sameState.captureGenerations.backend)
+                $sameHandoffStatus=[string]$sameState.captureHandoffs[$sameHandoff].status
+
+                Assert-CaptureGeneration (
+                    $sameRejected -and
+                    $sameError -ceq 'Replacement container identity does not prove a new generation.' -and
+                    $sameHandoffStatus -ceq 'incomplete-replacement' -and
+                    $sameBackendGenerations.Count -eq 1
+                ) 'replacement with the old container identity was not rejected correctly'
             }finally{Remove-GenerationTestRoot $sameContainerRoot}
 
             $wrongFollowerRoot=New-GenerationTestRoot
