@@ -93,7 +93,7 @@ The following results were reported from the user's Windows PowerShell 7 checkou
 
 The Boundaries output covered the M9–M14 synthetic stage summary and the negative cases for unsealed generation, follower mismatch, missing new generation, same container, wrong new follower, invalid order, missing capture, missing handoff, timestamp mismatch, and historical immutability.
 
-**Evidence limitation:** the user did not capture `$LASTEXITCODE` immediately after the final clean Boundaries execution. Its output is therefore recorded as a successful visible test completion, but the explicit process exit code remains unrecorded. These are focused local regressions, not the full accepted regression sequence.
+**Historical evidence note (superseded 2026-11-16):** at the time this audit text was first written, the explicit `$LASTEXITCODE` had not yet been recorded. The later owner confirmation is now captured in the dated correction log below. The Boundaries result remains a focused local regression, not the full accepted regression sequence.
 
 - Temporary diagnostic markers `MOCK PROCESS CHECK`, `SEAL CORE ORIGINAL FAILURE`, and `SAME-CONTAINER DIAGNOSTIC` were checked with `Select-String`; no matches were returned.
 - Read-only inspection of the current scripts and CI configuration.
@@ -121,3 +121,37 @@ No Docker command, cleanup script, TLS operation, or volume operation was execut
 5. Schedule runtime/CI evidence only after the required isolated runner/daemon and explicit authorization are available.
 
 M19 acceptance, CI activation, M13 implementation, runtime operations, and candidate promotion remain blocked.
+
+
+## Correction log — 2026-11-16
+
+This section is append-only. Earlier checkpoint statements are retained as historical records; where they conflict with this dated correction, the newer evidence below is authoritative.
+
+### D2 validation evidence correction
+
+The owner subsequently confirmed that, immediately after the final clean execution of:
+
+`scripts/Test-GeordiCaptureGenerations.ps1 -Case Boundaries`
+
+the PowerShell `$LASTEXITCODE` was **0**. The two expected output markers were also observed:
+
+- `pre_m14_generation_boundaries=PASS`
+- `pre_m14_generation_fail_closed=PASS`
+
+Accordingly, the explicit Boundaries process exit code is now **recorded as PASS / 0**. The earlier evidence limitation above is superseded; it is retained only to preserve the chronology of the audit.
+
+### Current regression-sequence status
+
+The focused parser, `AuthContract`, and `Boundaries` checks are reported PASS. This does **not** establish that the full accepted regression sequence passed.
+
+The sequence was restarted from its first item and stopped at `Test-GeordiCaptureGenerations.ps1 -Case Boundaries` during the earlier attempt. Following the D2 correction, the focused Boundaries run passed with exit code 0. The complete accepted regression set has **not yet been rerun from its first item**. Its complete ordered membership is still being recovered from the repository history and supporting plans.
+
+The worktree resume checkpoint additionally records these focused results before the stop point: M11 backend synthetic regression PASS; M12 main backend synthetic regression PASS; M12 overlap backend positive sequence and its two-boundary failure matrix PASS; M12 overlap Collector self-test PASS; AuthContract PASS; parser PASS. These are known completed checks, but the available checkpoint does not establish their exact place in the accepted sequence or prove that the list is exhaustive.
+
+### Documentation reconciliation
+
+- The 2026-11-16 owner-confirmed exit code supersedes the earlier statement that the Boundaries exit code was unrecorded.
+- The historical 2026-10-06 checkpoint saying Boundaries assertions did not execute describes the failed attempt before D2 remediation; it is not the result of the later clean D2 run.
+- The D2 audit branch still changes only this audit document and `scripts/Test-GeordiCaptureGenerations.ps1` relative to `m19`.
+- The full accepted regression set, fresh independent shared-readiness review, and formal overlap 26-gate sequence remain pending in the required order.
+- M19 remains **NOT READY — REMEDIATION REQUIRED**. No CI activation, runtime/Docker lifecycle, TLS/certificate operation, capture mutation, cleanup, protected-volume operation, M13 implementation, or candidate promotion is authorized by this correction.
