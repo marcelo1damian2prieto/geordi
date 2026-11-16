@@ -92,3 +92,45 @@ Only after the focused checks pass, restart the accepted regression set from its
 - Candidate `6fe4e83ffaf7418ebcc7015a4c176b61`: diagnostic-only; source-to-candidate provenance unproven.
 - M13 and Gate 5 remain blocked; do not activate CI, implement M13, or promote the candidate.
 - No runtime smoke, Docker lifecycle, TLS/certificate operation, capture mutation, cleanup, or protected-volume operation was performed during this work. CI remains unchanged. Protected M19 volumes must remain untouched.
+
+
+## 2026-11-16 — D2 Boundaries correction and current resume state
+
+This dated addendum preserves the earlier checkpoints as historical evidence. It supersedes conflicting earlier statements only for the specific facts corrected below.
+
+### D2 Boundaries result
+
+The later D2 test-harness correction updated stale M10/M11/M12 source markers, represented the M12 Collector replacement in the synthetic generation sequence, corrected the Collector generation cardinality to three, and repaired the synthetic negative fixtures without changing production scripts.
+
+The owner confirmed the final clean execution of `Test-GeordiCaptureGenerations.ps1 -Case Boundaries` returned **`$LASTEXITCODE = 0`**, with both `pre_m14_generation_boundaries=PASS` and `pre_m14_generation_fail_closed=PASS` observed.
+
+Therefore, the 2026-10-06 statement that the Boundaries lifecycle assertions did not execute remains accurate for that failed attempt, but it is superseded as the current status by the later clean D2 PASS. The earlier statement that the exit code was unrecorded is also superseded.
+
+### Known focused checks before/around the accepted-sequence stop
+
+The checkpointed evidence records:
+
+- Shared post-follower microtests: ordering, wrong follower, readiness failure, cleanup failure precedence, callback absent — PASS.
+- M11 backend synthetic regression — PASS.
+- M12 main backend synthetic regression — PASS.
+- M12 overlap backend positive sequence and 12-case failure matrix at each of two boundaries — PASS.
+- M12 overlap Collector self-test, including ordering and second-handoff history — PASS.
+- `Test-GeordiCaptureGenerations.ps1 -Case AuthContract` — PASS; six negative controls rejected.
+- PowerShell parser for `Test-GeordiCaptureGenerations.ps1` — PASS.
+- `Test-GeordiCaptureGenerations.ps1 -Case Boundaries` after D2 correction — PASS; explicit exit code 0.
+
+These results are not presented as a complete ordered accepted regression set. The historical checkpoint records that the accepted sequence had been restarted and stopped at Boundaries before the D2 correction; the complete sequence still needs to be restarted from its first item after the focused corrections. Exact membership and order remain under investigation.
+
+### Current resume order
+
+1. Continue read-only repository-history investigation to recover the exact accepted regression set and order.
+2. Once the sequence is recovered—or formally declared unrecoverable—present the evidence-backed sequence for owner approval before executing the full set.
+3. Execute only the approved offline/static regression sequence, fail-fast, stopping at the first failure.
+4. Obtain the fresh independent read-only shared-readiness review.
+5. Only if the regression set is fully green and the review is clean, consider the formal overlap 26-gate sequence and a fresh final review.
+
+### Safety and milestone status
+
+The D2 branch remains isolated from `m19`. No production code, CI configuration, Compose configuration, TLS/certificates, runtime captures, or protected volumes were changed by D2. No Docker lifecycle, runtime, cleanup, TLS/certificate, capture mutation, or protected-volume operation was performed.
+
+M13, Gate 5 promotion/acceptance, CI activation, runtime validation, candidate promotion, and M19 acceptance remain blocked. Overall status remains **M19 NOT READY — REMEDIATION REQUIRED**.
