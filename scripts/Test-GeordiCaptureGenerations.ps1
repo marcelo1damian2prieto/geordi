@@ -501,7 +501,7 @@ try {
                 $finalManifest.captureGenerations['otel-collector'].Count -eq 3 -and
                 $finalManifest.captureGenerations.frontend.Count -eq 1 -and
                 $replacementOperations.Count -eq $stageSequence.Count) 'pre-M14 service-specific recreate/reuse classification drifted'
-            Write-Output 'pre_m14_generation_boundaries=PASS stages=M9-M10-M11-M12-M13-M14-boundary backend_recreated=M10,M11,M12-reset,M12-enable,M13 collector_recreated=M12,M13 frontend=reused vm=snapshot-only frontend=reused vm=snapshot-only'
+            Write-Output 'pre_m14_generation_boundaries=PASS stages=M9-M10-M11-M12-M13-M14-boundary backend_recreated=M10,M11,M12-reset,M12-enable,M13 collector_recreated=M12,M13 frontend=reused vm=snapshot-only'
 
             $invalidBase=Read-GenerationManifest $root
             $clone={param($m) ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $m -Depth 64 -Compress) -AsHashtable}.GetNewClosure()
