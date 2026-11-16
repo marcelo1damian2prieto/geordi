@@ -30,3 +30,23 @@ In progress. Scope is limited to the optional shared `AfterFollowerValidated` se
 - Affected and authorized: `Invoke-GeordiM11BackendGenerationReplacement`; M12 main backend replacement; M12 overlap backend handoff; `Invoke-GeordiM12OverlapCollectorReplacement`.
 - Unaffected: M10 passes `StartFollower` directly without readiness; the base M12 Collector helper performs readiness in its replacement action before follower startup; M14 does readiness at stage orchestration rather than inside a shared handoff `StartFollower`; Finalize/restoration passes `StartFollower` directly without a readiness callback.
 - No other production caller with the same readiness-inside-`StartFollower` pattern was found.
+
+
+## Execution evidence and regression-sequence recovery — 2026-11-16
+
+The following focused results are recorded from the current workstream/checkpoint evidence:
+
+- Shared post-follower microtests: PASS.
+- M11 backend synthetic regression: PASS.
+- M12 main backend synthetic regression: PASS.
+- M12 overlap backend positive sequence and 12-case failure matrix at each of two boundaries: PASS.
+- M12 overlap Collector ordering/second-handoff-history self-test: PASS.
+- Capture-generation `AuthContract`: PASS; six negative controls rejected.
+- Capture-generation PowerShell parser: PASS.
+- Capture-generation `Boundaries`: PASS after D2 test-only corrections; owner-confirmed `$LASTEXITCODE = 0`, with both boundary PASS markers observed.
+
+These focused results do not establish that the full accepted regression set passed. The resume checkpoint records an earlier accepted-sequence attempt stopping at `Boundaries`; after the D2 correction, the full sequence has not yet been rerun from its first item.
+
+**Open item:** recover the exact membership and order of the accepted regression set from repository history and contemporaneous plans. Do not infer it from the `ValidateSet` cases in `Test-GeordiCaptureGenerations.ps1`, nor conflate it with the formal overlap 26-gate sequence or the separate M11→M12 19-gate remediation sequence. If the original order cannot be substantiated, label any proposed sequence as a new reconstruction and obtain owner approval before execution.
+
+The required next sequence remains: recover/approve accepted regression order → run it fail-fast → fresh independent read-only review → only if clean, formal overlap 26-gate sequence → fresh final review. M19 remains NOT READY; no runtime/Docker lifecycle, CI activation, TLS, capture mutation, cleanup, protected-volume operation, M13, or candidate promotion is authorized here.
