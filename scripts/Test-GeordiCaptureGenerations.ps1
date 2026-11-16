@@ -403,9 +403,12 @@ try {
             $root=New-GenerationTestRoot
             $sourceFacts=@(
                 @{file='verify-alert-evaluation.ps1';tokens=@();absent=@('docker compose','Start-GeordiCaptureGeneration')},
-                @{file='verify-alert-lifecycle.ps1';tokens=@("-Phase m10-reset -Services backend", "'rm', '-sf', 'backend'", "'up', '-d', '--force-recreate', 'backend'")},
-                @{file='verify-notification-delivery.ps1';tokens=@("-Phase m11-reset -Services backend,victoriametrics", "'rm', '-sf', 'backend', 'victoriametrics'", "'up', '-d', '--force-recreate', 'victoriametrics', 'backend'")},
-                @{file='verify-alert-scheduling.ps1';tokens=@("-Phase m12-reset -Services backend,victoriametrics,otel-collector,m12-burn-demo", "'rm','-sf','backend','m12-burn-demo','victoriametrics'", "'up','-d','--force-recreate','backend','m12-burn-demo'", "-Phase m12-reset -Services backend")},
+                @{file='verify-alert-lifecycle.ps1';tokens=@("-Phase m10-reset -Services backend", 'docker compose --project-directory $Root rm -sf backend', 'Invoke-GeordiM10BackendControlledReplacement')},
+                @{file='lib/GeordiM10BackendReplacement.ps1';tokens=@("@('rm','-sf','backend')", "@('up','-d','--force-recreate','backend')", 'Invoke-GeordiCaptureHandoffReplacement')},
+                @{file='verify-notification-delivery.ps1';tokens=@("-Phase m11-reset -Services backend,victoriametrics -SkipLogSnapshot", "@('rm', '-sf', 'backend', 'victoriametrics')", "@('up', '-d', '--no-deps', '--force-recreate', 'victoriametrics', 'backend')", 'Invoke-M11BackendGenerationReplacement')},
+                @{file='verify-alert-scheduling.ps1';tokens=@("-Phase m12-reset -Services $legacyCaptureServices", "'rm','-sf','backend','m12-burn-demo','victoriametrics'", 'Invoke-GeordiM12CollectorControlledReplacement', 'Invoke-GeordiM12BackendGenerationReplacement')},
+                @{file='lib/GeordiM12CollectorReplacement.ps1';tokens=@('Get-GeordiM12CollectorReplacementArguments', "'up','-d','--no-deps','--force-recreate','otel-collector'", 'Invoke-GeordiCaptureHandoffReplacement')},
+                @{file='lib/GeordiM12BackendReplacement.ps1';tokens=@('Get-GeordiM12BackendRecreationArguments', "'up','-d','--no-deps','--force-recreate','backend'", 'Invoke-GeordiCaptureHandoffReplacement')},
                 @{file='verify-alert-routing.ps1';tokens=@("-Phase m13-reset -Services backend,victoriametrics,otel-collector,burn-demo,webhook-receiver-a,webhook-receiver-b", "'rm', '-sf', 'backend', 'victoriametrics', 'webhook-receiver-a', 'webhook-receiver-b'", "'up', '-d', '--force-recreate', 'victoriametrics', 'otel-collector', 'backend', 'burn-demo', 'webhook-receiver-a', 'webhook-receiver-b'")},
                 @{file='verify-alert-history.ps1';tokens=@("-Services @('backend','otel-collector')", 'Begin-GeordiCaptureHandoff', 'Invoke-GeordiCaptureHandoffReplacement')}
             )
@@ -428,6 +431,7 @@ try {
                 @{stage='M10-reset';service='backend'},
                 @{stage='M11-reset';service='backend'},
                 @{stage='M12-reset';service='backend'},
+                @{stage='M12-reset';service='otel-collector'},
                 @{stage='M12-scheduler-enable';service='backend'},
                 @{stage='M13-reset';service='backend'},
                 @{stage='M13-reset';service='otel-collector'}
@@ -494,10 +498,10 @@ try {
                 Assert-CaptureGeneration ($scannerPaths.Count -eq $records.Count) ("$service scanner inventory omitted a nonempty generation")
             }
             Assert-CaptureGeneration ($finalManifest.captureGenerations.backend.Count -eq 6 -and
-                $finalManifest.captureGenerations['otel-collector'].Count -eq 2 -and
+                $finalManifest.captureGenerations['otel-collector'].Count -eq 3 -and
                 $finalManifest.captureGenerations.frontend.Count -eq 1 -and
                 $replacementOperations.Count -eq $stageSequence.Count) 'pre-M14 service-specific recreate/reuse classification drifted'
-            Write-Output 'pre_m14_generation_boundaries=PASS stages=M9-M10-M11-M12-M13-M14-boundary backend_recreated=M10,M11,M12-reset,M12-enable,M13 collector_reused=M10-M12_recreated=M13 frontend=reused vm=snapshot-only'
+            Write-Output 'pre_m14_generation_boundaries=PASS stages=M9-M10-M11-M12-M13-M14-boundary backend_recreated=M10,M11,M12-reset,M12-enable,M13 collector_recreated=M12,M13 frontend=reused vm=snapshot-only frontend=reused vm=snapshot-only'
 
             $invalidBase=Read-GenerationManifest $root
             $clone={param($m) ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $m -Depth 64 -Compress) -AsHashtable}.GetNewClosure()
