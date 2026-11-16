@@ -61,3 +61,19 @@ The post-follower plan itself specifies the required phase order but not the com
 **Conclusion:** the original accepted regression set's exact membership and order are not recoverable from the currently available repository history and checked-in documents. This does not rule out an external transcript, local reflog, untracked file, or earlier workspace copy.
 
 **Next action:** produce a new artifact labelled `RECONSTRUCTED — NOT HISTORICAL`, derived from the scoped ExecPlans and checkpoint evidence. For each proposed item, record its source, exact command/case, prior evidence status (PASS / failed attempt / not run / unknown), and whether it must be rerun. Present that sequence for owner approval before executing it. Do not infer it from the harness `ValidateSet`, the overlap 26-gate sequence, or the M11→M12 19-gate sequence.
+
+
+## Test-entry-point recovery addendum — 2026-11-16
+
+The follow-up repository inspection recovered the exact focused test entry points. This supersedes the earlier statement that the paths/invocations were unknown; it does not establish the historical accepted-set order and does not authorize execution.
+
+- Shared seam: `scripts/Test-GeordiPostFollowerReadiness.ps1`, cases `CallbackAbsent`, `Ordering`, `WrongFollower`, `ReadinessFailure`, and `CleanupFailure`.
+- M11 caller: `scripts/Test-GeordiM11BackendGenerations.ps1 -SelfTest`.
+- M12 main backend caller: `scripts/Test-GeordiM12BackendGenerations.ps1 -Case SelfTest`.
+- M12 overlap backend caller: `scripts/Test-GeordiM12OverlapBackendVmGenerations.ps1 -Case SelfTest`.
+- M12 overlap Collector caller: `scripts/Test-GeordiM12OverlapCollector.ps1 -SelfTest`.
+- Capture-generation contract: `scripts/Test-GeordiCaptureGenerations.ps1 -Case AuthContract`, then `-Case Boundaries`.
+
+The direct seam test is narrow. The four caller self-tests are broader compatibility suites: they also exercise volume ownership, persisted metric evidence, recovery/sequence invariants, and static wiring. They should be identified as caller-level regression coverage, not as pure callback unit tests. M10, the separate fixture-transfer 18-gate/A–S matrix, the M11→M12 19-gate remediation, and the formal overlap 26-gate sequence remain separate.
+
+The proposed integrated offline proof and rationale are recorded in `docs/plans/M19-ACCEPTED-REGRESSION-RECONSTRUCTION.md`, Addendum 9. No test was executed during this discovery pass. Owner approval remains required before running the reconstructed sequence.
