@@ -190,3 +190,86 @@ A green reconstructed offline set is **not** M19 acceptance and does not authori
 ## 8. Current conclusion
 
 The available evidence supports a useful reconstruction of focused checks and their previous statuses, but not recovery of the historical accepted set's exact membership or order. This document preserves that distinction. It is ready for owner review as a **new proposed sequence**, not as recovered historical fact.
+
+
+---
+
+## 9. Addendum — exact test entry points recovered — 2026-11-16
+
+This addendum supersedes the `UNKNOWN` command-discovery notes in Sections 3 and 6 where the exact entry point is now established. It does **not** claim that these tests formed the historical accepted sequence or that they have been executed in this reconstruction.
+
+### 9.1 Shared post-follower microtests
+
+Authoritative file: `scripts/Test-GeordiPostFollowerReadiness.ps1`.
+
+The script exposes five explicit cases. Run each case separately so a failure is attributable:
+
+```powershell
+$cases = @('CallbackAbsent','Ordering','WrongFollower','ReadinessFailure','CleanupFailure')
+foreach ($case in $cases) {
+    pwsh -NoProfile -File scripts/Test-GeordiPostFollowerReadiness.ps1 -Case $case
+    if ($LASTEXITCODE -ne 0) { throw "PostFollowerReadiness/$case failed: $LASTEXITCODE" }
+}
+```
+
+What it actually proves:
+- callback omission preserves legacy behavior;
+- replacement → identity resolution → follower start → persisted binding validation → callback → handoff completion order;
+- wrong follower does not reach readiness, cleanup is attempted, and the handoff remains incomplete;
+- readiness failure remains primary, cleanup is attempted, and old sealed evidence remains immutable;
+- cleanup failure does not mask the readiness failure and only its exception type is retained as secondary metadata.
+
+This is the direct shared-seam test. It is not an end-to-end M19 test.
+
+### 9.2 Caller-level focused regressions
+
+The exact test entry points and supported aggregate invocations are:
+
+| Order | File | Invocation | What the aggregate actually covers |
+|---|---|---|---|
+| 2.1 | `scripts/Test-GeordiM11BackendGenerations.ps1` | `pwsh -NoProfile -File scripts/Test-GeordiM11BackendGenerations.ps1 -SelfTest` | Three synthetic M11 backend boundaries, failure matrix, dedicated-volume removal safety, and production wiring |
+| 2.2 | `scripts/Test-GeordiM12BackendGenerations.ps1` | `pwsh -NoProfile -File scripts/Test-GeordiM12BackendGenerations.ps1 -Case SelfTest` | M12 reset evidence publication/reuse/integrity/races, backend positive chain and failure cases, volume/command scope, metric phases, recovery ordering, and transferred-path wiring |
+| 2.3 | `scripts/Test-GeordiM12OverlapBackendVmGenerations.ps1` | `pwsh -NoProfile -File scripts/Test-GeordiM12OverlapBackendVmGenerations.ps1 -Case SelfTest` | Command scope, entry state, volume ownership, persisted VM evidence, backend positive handoff and 12 fault cases at each of two boundaries, full overlap sequence, and cross-service failure |
+| 2.4 | `scripts/Test-GeordiM12OverlapCollector.ps1` | `pwsh -NoProfile -File scripts/Test-GeordiM12OverlapCollector.ps1 -SelfTest` | CI nonactivation/source map, Compose propagation isolation, command scope, sequential Collector handoffs, wrapper failures, wrong-follower checks at both boundaries, and second-handoff failure matrix |
+
+For every invocation, the caller must check `$LASTEXITCODE` immediately and stop on nonzero. These are synthetic/config-only test harnesses according to their plans; their code should still be inspected before execution to verify that the current version remains free of runtime lifecycle actions.
+
+**Important scope observation:** the M11 and especially M12 `SelfTest` aggregations prove more than the post-follower callback alone. They include adjacent evidence, volume, recovery, and transfer-wiring invariants. That breadth is not automatically scope drift: those checks protect the caller workflows that now depend on the shared seam. But they must be reported as caller-compatibility regression coverage, not mislabeled as pure callback unit tests.
+
+### 9.3 Boundary/authentication checks — exact commands retained
+
+The exact invocations in Phase 3 remain:
+
+```powershell
+pwsh -NoProfile -File scripts/Test-GeordiCaptureGenerations.ps1 -Case AuthContract
+if ($LASTEXITCODE -ne 0) { throw "AuthContract failed: $LASTEXITCODE" }
+
+pwsh -NoProfile -File scripts/Test-GeordiCaptureGenerations.ps1 -Case Boundaries
+if ($LASTEXITCODE -ne 0) { throw "Boundaries failed: $LASTEXITCODE" }
+```
+
+### 9.4 Narrowed classification — what belongs in the integrated offline proof
+
+For the specific question "does the shared post-follower readiness change work, and did its authorized callers preserve their contracts?", the proposed integrated proof is:
+
+1. **Direct seam:** five `Test-GeordiPostFollowerReadiness.ps1` cases.
+2. **Caller compatibility:** M11 backend, M12 backend, M12 overlap backend, and M12 overlap Collector aggregate self-tests listed above.
+3. **Capture-generation contract:** parser, `AuthContract`, and `Boundaries`.
+4. **Static scope and independent review.**
+
+Keep these outside that integrated proof unless a separate acceptance criterion explicitly requires them:
+- M10's seven-case replacement suite: M10 was expressly not migrated to this callback seam; its suite remains a separate compatibility guard if a reviewer identifies a concrete shared-helper regression risk.
+- M11→M12 fixture-transfer 18-gate / A–S validation: a separate capability proof.
+- M11→M12 remediation 19-gate sequence: a separate formal remediation proof.
+- Formal M12 overlap 26-gate sequence: conditional later validation, not a prerequisite to understanding the focused callback behavior.
+
+### 9.5 Recommendation on the concern that these tests caused scope drift
+
+Do **not** run every discovered test merely to infer what Codex intended. The test code makes the intent legible without execution:
+- the five-case post-follower script defines the shared contract;
+- the four caller self-tests verify that each authorized integration still respects its own lifecycle and failure invariants;
+- AuthContract and Boundaries validate separate capture-generation/authentication boundaries.
+
+The aggregate caller tests are broader than the seam, but they are bounded, named, and mapped to the four authorized callers in the ExecPlan. Their inclusion is defensible as regression coverage. Tests for M10, fixture-transfer gate sets, the 19-gate remediation, and 26-gate overlap sequence should remain separate.
+
+**Execution status:** no tests were run while recovering these entry points. Owner approval for the reconstructed execution sequence is still required.
