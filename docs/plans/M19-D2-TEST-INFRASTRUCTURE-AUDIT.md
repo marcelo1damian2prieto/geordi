@@ -70,35 +70,54 @@ The current milestone record still identifies the nine-channel runtime scan and 
 
 ## Changes made on this branch
 
-Only `scripts/Test-GeordiCaptureGenerations.ps1` was modified:
+The branch contains the D2 audit document and a modification to `scripts/Test-GeordiCaptureGenerations.ps1`:
 
 1. Corrected stale M10/M11/M12 source markers and added explicit checks against the current M10/M12 replacement helpers.
 2. Added the M12 Collector to the synthetic boundary sequence, in the implementation's replacement order.
 3. Changed the expected Collector generation count from two to three and corrected the boundary summary.
+4. Corrected the synthetic `negative-unsealed` handoff fixture to pass the process-identity and stop-process callbacks used by the other synthetic cases.
+5. Corrected the same-container negative case to assert the implemented fail-closed contract: the duplicate container identity is rejected before a new generation is registered, and the handoff becomes `incomplete-replacement`.
+6. Retained the StrictMode-safe property check for optional `absent` facts.
 
-No application code, CI configuration, Compose configuration, TLS/certificates, runtime captures, or protected volumes were changed.
+No application code, CI configuration, Compose configuration, TLS/certificates, runtime captures, or protected volumes were changed. The temporary diagnostic instrumentation used during local debugging was removed before the clean regression run.
 
 ## Validation performed
 
+The following results were reported from the user's Windows PowerShell 7 checkout on 2026-11-16:
+
+- PowerShell parser check: **PASS** after restoring the complete test file and applying the StrictMode-safe correction.
+- `Test-GeordiCaptureGenerations.ps1 -Case AuthContract`: **PASS**, with `evaluation_auth_contract=PASS`; immediately queried `$LASTEXITCODE` was `0`.
+- `Test-GeordiCaptureGenerations.ps1 -Case Boundaries`: completed without a visible exception and emitted both:
+  - `pre_m14_generation_boundaries=PASS`
+  - `pre_m14_generation_fail_closed=PASS`
+
+The Boundaries output covered the M9–M14 synthetic stage summary and the negative cases for unsealed generation, follower mismatch, missing new generation, same container, wrong new follower, invalid order, missing capture, missing handoff, timestamp mismatch, and historical immutability.
+
+**Evidence limitation:** the user did not capture `$LASTEXITCODE` immediately after the final clean Boundaries execution. Its output is therefore recorded as a successful visible test completion, but the explicit process exit code remains unrecorded. These are focused local regressions, not the full accepted regression sequence.
+
+- Temporary diagnostic markers `MOCK PROCESS CHECK`, `SEAL CORE ORIGINAL FAILURE`, and `SAME-CONTAINER DIAGNOSTIC` were checked with `Select-String`; no matches were returned.
 - Read-only inspection of the current scripts and CI configuration.
 - Static source-fragment comparison: all 21 revised positive/negative marker checks matched the current source.
 - Manual review of the changed synthetic stage sequence and expected generation cardinalities.
 
 ## Validation not performed
 
-- PowerShell parser execution.
-- `AuthContract` or `Boundaries` execution.
-- Accepted regression sequence.
-- Docker/runtime tests, CI pipeline, cleanup, TLS/certificate operations, capture mutation, or protected-volume operations.
+- Full accepted regression sequence from its first item.
+- Nine-channel runtime scan and sanitized failure-diagnostic scan.
+- Publishable-artifact sweep.
+- Detailed actuator/startup contract matrix.
+- Fresh independent milestone/shared-readiness review.
+- Docker/runtime tests, GitLab pipeline end-to-end execution, cleanup, TLS/certificate operations, capture mutation, or protected-volume operations.
+- Full CI critical-path timing against the configured timeout budget.
 
-The current execution environment does not provide `pwsh`; the static comparison is not a substitute for PowerShell parsing or execution. **Gate 5 / Boundaries remains NOT PROVEN.**
+No Docker command, cleanup script, TLS operation, or volume operation was executed during this audit.
 
 ## Resume sequence
 
-1. On a Windows/PowerShell 7 environment with the correct checkout, parse `scripts/Test-GeordiCaptureGenerations.ps1`.
-2. Run `Test-GeordiCaptureGenerations.ps1 -Case AuthContract`.
-3. Run `Test-GeordiCaptureGenerations.ps1 -Case Boundaries`; stop on the first failure and do not weaken generation assertions to force a pass.
-4. If both pass, restart the accepted regression set from its first item and stop on the first failure.
-5. Obtain the fresh read-only shared-readiness review. Only a clean review and green accepted regression set can authorize the next formal gate sequence.
+1. Capture and record the explicit exit code for the clean `Boundaries` run (expected `0`).
+2. If it is `0`, restart the accepted regression set from its first item and stop on the first failure; do not weaken generation assertions to force a pass.
+3. Complete the remaining non-runtime/static D2 review, including the CI invocation gap and timeout budget evidence.
+4. Obtain the fresh read-only shared-readiness review. Only a clean review and green accepted regression set can authorize the next formal gate sequence.
+5. Schedule runtime/CI evidence only after the required isolated runner/daemon and explicit authorization are available.
 
 M19 acceptance, CI activation, M13 implementation, runtime operations, and candidate promotion remain blocked.
