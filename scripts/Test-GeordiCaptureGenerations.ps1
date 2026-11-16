@@ -197,7 +197,8 @@ try {
             Assert-CaptureGeneration ($sealed.byteCount -eq 0 -and $sealed.sha256 -ceq $emptyHash -and
                 $sealed.stderrByteCount -eq 0 -and $sealed.stderrSha256 -ceq $emptyHash -and
                 (Test-Path -LiteralPath $sealed.capturePath -PathType Leaf) -and (Test-Path -LiteralPath $sealed.stderrCapturePath -PathType Leaf)) `
-                'silent OIDC generation did not seal both existing empty streams with exact identities and hashes'            $emptyPathsRejected=$false
+                'silent OIDC generation did not seal both existing empty streams with exact identities and hashes'
+            $emptyPathsRejected=$false
             try { $null=Get-GeordiCaptureGenerationPaths -Manifest (Read-GenerationManifest $root) -Service 'oidc-fixture' } catch { $emptyPathsRejected=$true }
             Assert-CaptureGeneration $emptyPathsRejected 'empty physical streams were incorrectly exposed to the credential scanner'
             Write-Output 'capture_generation_empty_streams=PASS silent_oidc=true stdout=0 stderr=0 existing_and_hashed=true scanner_sources=0'
@@ -396,7 +397,8 @@ try {
             Write-Output 'capture_generation_handoff_timestamps=PASS active_and_already_sealed_chronology=true recomputed_gap=true normalized_offsets=true chronology_and_identity_fail_closed=true'
         }
         'AuthContract' {
-            Test-GeordiEvaluationAuthenticationContractCases        }
+            Test-GeordiEvaluationAuthenticationContractCases
+        }
         'Boundaries' {
             $root=New-GenerationTestRoot
             $sourceFacts=@(
@@ -595,6 +597,7 @@ try {
                 Assert-CaptureGeneration ($wrongRejected -and @($wrongState.captureGenerations.backend | Where-Object terminalStatus -ceq 'incomplete-start').Count -eq 1) `
                     'new follower bound to the wrong container was accepted'
             }finally{Remove-GenerationTestRoot $wrongFollowerRoot}
+
             $oldest=Get-GeordiCaptureGenerationRecord $finalManifest backend ([string]$finalManifest.captureGenerations.backend[0].generationId)
             $oldestHash=(Get-FileHash -LiteralPath $oldest.capturePath -Algorithm SHA256).Hash
             $oldestItem=Get-Item -LiteralPath $oldest.capturePath -Force
@@ -795,3 +798,215 @@ try {
                 $event.status -ceq 'old-sealed' -and $sealed.generationId -ceq $oldId) 'already-sealed handoff did not preserve the canonical source instant or complete a valid transition'
             Write-Output ('already_sealed_handoff_timestamp=PASS source_type='+$oldType+' wire_canonical=true exact_instant=true completed_transition=true')
         }
+        'AlreadySealedCulture' {
+            $originalCulture=[Threading.Thread]::CurrentThread.CurrentCulture
+            $originalUiCulture=[Threading.Thread]::CurrentThread.CurrentUICulture
+            $cultures=[Collections.Generic.List[string]]::new()
+            try{
+                foreach($cultureName in @('en-US','fr-FR')){
+                    $culture=[Globalization.CultureInfo]::GetCultureInfo($cultureName)
+                    [Threading.Thread]::CurrentThread.CurrentCulture=$culture
+                    [Threading.Thread]::CurrentThread.CurrentUICulture=$culture
+                    $cultureRoot=New-GenerationTestRoot
+                    try{
+                        $oldId=Start-SyntheticGeneration $cultureRoot backend ('c' * 64)
+                        $null=Seal-SyntheticGeneration $cultureRoot backend $oldId
+                        $sourceManifest=Read-GenerationManifest $cultureRoot
+                        $sourceRecord=Get-GeordiCaptureGenerationRecord $sourceManifest backend $oldId
+                        $sourceInstant=ConvertTo-GeordiCaptureUtcInstant -Value $sourceRecord.captureEndedUtc -Field 'oldGeneration.captureEndedUtc'
+                        $handoff=Begin-GeordiCaptureHandoff -CaptureRoot $cultureRoot -Service backend -Reason 'culture-already-sealed' `
+                            -TestProcessIdentity $script:mockTestProcess -StopProcess $script:mockStopProcess
+                        $wire=[System.Text.Json.JsonDocument]::Parse([IO.File]::ReadAllText((Join-Path $cultureRoot 'manifest.json')))
+                        try{$wireTimestamp=$wire.RootElement.GetProperty('captureHandoffs').GetProperty($handoff).GetProperty('oldCaptureEndedUtc').GetString()}finally{$wire.Dispose()}
+                        $wireCanonical=$wireTimestamp -match '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{7}(?:Z|[+-]\d{2}:\d{2})$'
+                        $event=(Read-GenerationManifest $cultureRoot).captureHandoffs[$handoff]
+                        $eventInstant=ConvertTo-GeordiCaptureUtcInstant -Value $event.oldCaptureEndedUtc -Field 'handoff.oldCaptureEndedUtc'
+                        if(!$wireCanonical -or $sourceInstant.UtcTicks -ne $eventInstant.UtcTicks){throw "Already-sealed timestamp changed under culture $cultureName."}
+                        $newId=Start-SyntheticGeneration $cultureRoot backend ('d' * 64) -HandoffId $handoff
+                        $null=Seal-SyntheticGeneration $cultureRoot backend $newId
+                        Assert-GeordiCaptureGenerationManifest (Read-GenerationManifest $cultureRoot)
+                        $cultures.Add($cultureName)
+                    }finally{Remove-GenerationTestRoot $cultureRoot}
+                }
+            }finally{
+                [Threading.Thread]::CurrentThread.CurrentCulture=$originalCulture
+                [Threading.Thread]::CurrentThread.CurrentUICulture=$originalUiCulture
+            }
+            Write-Output ('already_sealed_handoff_culture=PASS cultures='+($cultures -join ',')+' canonical=true instant_preserved=true restored=true')
+        }
+        'ActivePathChronology' {
+            $oldId=Start-SyntheticGeneration $root backend ('9' * 64)
+            $handoff=Begin-GeordiCaptureHandoff -CaptureRoot $root -Service backend -Reason 'active-path-chronology' `
+                -TestProcessIdentity $script:mockTestProcess -StopProcess $script:mockStopProcess
+            $newId=Start-SyntheticGeneration $root backend ('a' * 64) -HandoffId $handoff
+            $null=Seal-SyntheticGeneration $root backend $newId
+            $manifest=Read-GenerationManifest $root
+            Assert-GeordiCaptureGenerationManifest $manifest
+            $old=Get-GeordiCaptureGenerationRecord $manifest backend $oldId
+            $new=Get-GeordiCaptureGenerationRecord $manifest backend $newId
+            $event=$manifest.captureHandoffs[$handoff]
+            $oldStart=ConvertTo-GeordiCaptureUtcInstant $old.captureStartedUtc oldStart
+            $oldEnd=ConvertTo-GeordiCaptureUtcInstant $old.captureEndedUtc oldEnd
+            $handoffStart=ConvertTo-GeordiCaptureUtcInstant $event.startedUtc handoffStart
+            $newStart=ConvertTo-GeordiCaptureUtcInstant $new.captureStartedUtc newStart
+            $completed=ConvertTo-GeordiCaptureUtcInstant $event.completedUtc completed
+            Assert-CaptureGeneration ($oldStart.UtcTicks -le $handoffStart.UtcTicks -and $handoffStart.UtcTicks -le $oldEnd.UtcTicks -and
+                $oldEnd.UtcTicks -le $newStart.UtcTicks -and $handoffStart.UtcTicks -le $newStart.UtcTicks -and
+                $newStart.UtcTicks -le $completed.UtcTicks) 'active-path chronology did not preserve the source generation ordering'
+            Write-Output 'active_handoff_chronology=PASS old_start_le_handoff_start=true handoff_start_le_old_end=true old_end_le_new_start=true new_start_le_complete=true'
+        }
+        'RetryRetainedFailure' {
+            $oldId=Start-SyntheticGeneration $root backend ('e' * 64)
+            $null=Seal-SyntheticGeneration $root backend $oldId
+            $first=Begin-GeordiCaptureHandoff -CaptureRoot $root -Service backend -Reason 'first-failed-attempt' `
+                -TestProcessIdentity $script:mockTestProcess -StopProcess $script:mockStopProcess
+            $firstFailed=$false
+            try{Invoke-GeordiCaptureHandoffReplacement -CaptureRoot $root -Service backend -HandoffId $first `
+                -RepositoryRoot (Get-Location).Path -Replace {throw 'synthetic replacement failure'} `
+                -GetContainerIdentity {param($service) New-ContainerIdentity ('f' * 64) $service} -StartFollower $script:mockStart | Out-Null}
+            catch{$firstFailed=$true}
+            $second=Begin-GeordiCaptureHandoff -CaptureRoot $root -Service backend -Reason 'second-attempt' `
+                -TestProcessIdentity $script:mockTestProcess -StopProcess $script:mockStopProcess
+            $secondGeneration=Invoke-GeordiCaptureHandoffReplacement -CaptureRoot $root -Service backend -HandoffId $second `
+                -RepositoryRoot (Get-Location).Path -Replace {} -GetContainerIdentity {param($service) New-ContainerIdentity ('1' * 64) $service} `
+                -StartFollower $script:mockStart
+            $secondSealed=Seal-SyntheticGeneration $root backend $secondGeneration
+            $retryManifest=Read-GenerationManifest $root
+            $rejection=$null
+            try{Assert-GeordiCaptureGenerationManifest $retryManifest}catch{$rejection=[string]$_.Exception.Message}
+            $expectedFailure='Capture handoff is incomplete or has an unexplained gap.'
+            Assert-CaptureGeneration ($firstFailed -and $retryManifest.captureHandoffs[$first].status -ceq 'incomplete-replacement' -and
+                $retryManifest.captureHandoffs[$second].status -ceq 'complete' -and $secondSealed.terminalStatus -ceq 'sealed' -and
+                $retryManifest.captureHandoffs[$first].oldGenerationId -ceq $retryManifest.captureHandoffs[$second].oldGenerationId -and
+                $rejection -ceq $expectedFailure) 'retained-failure retry did not complete operationally or was rejected for a reason other than incomplete handoff'
+            Write-Output 'capture_handoff_retry=PASS second_handoff=true second_generation=true second_complete=true first_failure_retained=true final_manifest=REJECTED category=INCOMPLETE_HANDOFF'
+        }
+        'HandoffBoundaryUniqueness' {
+            $generationA=Start-SyntheticGeneration $root backend ('a' * 64)
+            $handoffAB=Begin-GeordiCaptureHandoff -CaptureRoot $root -Service backend -Reason 'boundary-a-to-b' `
+                -TestProcessIdentity $script:mockTestProcess -StopProcess $script:mockStopProcess
+            $generationB=Start-SyntheticGeneration $root backend ('b' * 64) -HandoffId $handoffAB
+            $null=Seal-SyntheticGeneration $root backend $generationB
+            $handoffBC=Begin-GeordiCaptureHandoff -CaptureRoot $root -Service backend -Reason 'boundary-b-to-c' `
+                -TestProcessIdentity $script:mockTestProcess -StopProcess $script:mockStopProcess
+            $generationC=Start-SyntheticGeneration $root backend ('c' * 64) -HandoffId $handoffBC
+            $null=Seal-SyntheticGeneration $root backend $generationC
+            $validChain=Read-GenerationManifest $root
+            Assert-GeordiCaptureGenerationManifest $validChain
+            Assert-CaptureGeneration ($validChain.captureHandoffs[$handoffAB].oldGenerationId -ceq $generationA -and
+                $validChain.captureHandoffs[$handoffAB].newGenerationId -ceq $generationB -and
+                $validChain.captureHandoffs[$handoffBC].oldGenerationId -ceq $generationB -and
+                $validChain.captureHandoffs[$handoffBC].newGenerationId -ceq $generationC) 'consecutive A->B->C handoffs did not validate'
+
+            $duplicate=ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $validChain -Depth 64 -Compress) -AsHashtable
+            $duplicateId=[guid]::NewGuid().ToString('N')
+            $duplicateRecord=[ordered]@{}
+            foreach($key in $duplicate.captureHandoffs[$handoffAB].Keys){$duplicateRecord[$key]=$duplicate.captureHandoffs[$handoffAB][$key]}
+            $oldRecord=Get-GeordiCaptureGenerationRecord $duplicate backend $generationA
+            $newRecord=Get-GeordiCaptureGenerationRecord $duplicate backend $generationB
+            $duplicateRecord.handoffId=$duplicateId
+            $duplicateRecord.replacementReason='different-reason'
+            $duplicateRecord.startedUtc=([DateTimeOffset]$oldRecord.captureEndedUtc).ToString('o')
+            $duplicateRecord.completedUtc=([DateTimeOffset]$newRecord.captureStartedUtc).ToString('o')
+            $duplicate.captureHandoffs[$duplicateId]=$duplicateRecord
+            $duplicateRejected=$false
+            $duplicateFailure=''
+            try{Assert-GeordiCaptureGenerationManifest $duplicate}catch{$duplicateRejected=$true;$duplicateFailure=[string]$_.Exception.Message}
+            Assert-CaptureGeneration ($duplicateRejected -and $duplicateFailure.Contains('Duplicate completed capture handoff boundary')) `
+                'a distinct handoff ID/reason/timestamps made a repeated completed A->B boundary valid'
+
+            Write-Output 'capture_handoff_boundary_uniqueness=PASS chain_a_b_c=true duplicate_completed_boundary=reject'
+        }
+        'ReverseHandoffReference' {
+            $chain=New-SealedGenerationChain -Service backend -ContainerIds @([string]::new([char]'4',64),[string]::new([char]'5',64))
+            try{
+                $valid=Read-GenerationManifest $chain.Root
+                Assert-GeordiCaptureGenerationManifest $valid
+                $missing=ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $valid -Depth 64 -Compress) -AsHashtable
+                (Get-GeordiCaptureGenerationRecord $missing backend $chain.Generations[1]).handoffId=''
+                $missingRejected=$false
+                try{Assert-GeordiCaptureGenerationManifest $missing}catch{$missingRejected=$true}
+                Assert-CaptureGeneration $missingRejected 'empty incoming handoff reference was accepted'
+
+                $wrong=ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $valid -Depth 64 -Compress) -AsHashtable
+                $wrongId=[guid]::NewGuid().ToString('N')
+                (Get-GeordiCaptureGenerationRecord $wrong backend $chain.Generations[1]).handoffId=$wrongId
+                $wrongRejected=$false
+                try{Assert-GeordiCaptureGenerationManifest $wrong}catch{$wrongRejected=$true}
+                Assert-CaptureGeneration $wrongRejected 'missing or incorrect incoming handoff target was accepted'
+
+                $mismatched=ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $valid -Depth 64 -Compress) -AsHashtable
+                $originalId=[string]$chain.Handoffs[0]
+                $otherId=[guid]::NewGuid().ToString('N')
+                $other=Copy-SyntheticHandoff $mismatched.captureHandoffs[$originalId]
+                $other.handoffId=$otherId
+                $mismatched.captureHandoffs[$otherId]=$other
+                (Get-GeordiCaptureGenerationRecord $mismatched backend $chain.Generations[1]).handoffId=$otherId
+                $mismatchRejected=$false
+                try{Assert-GeordiCaptureGenerationManifest $mismatched}catch{$mismatchRejected=$true}
+                Assert-CaptureGeneration $mismatchRejected 'generation and completed handoff did not reference the same authoritative incoming handoff'
+            }finally{Remove-GenerationTestRoot $chain.Root}
+            Write-Output 'capture_handoff_reverse_reference=PASS initial_generation_unlinked=true missing_wrong_and_mismatched_incoming_rejected=true'
+        }
+        'OrphanHandoff' {
+            $chain=New-SealedGenerationChain -Service backend -ContainerIds @([string]::new([char]'6',64),[string]::new([char]'7',64),[string]::new([char]'8',64))
+            try{
+                $candidate=Read-GenerationManifest $chain.Root
+                Assert-GeordiCaptureGenerationManifest $candidate
+                $old=Get-GeordiCaptureGenerationRecord $candidate backend $chain.Generations[0]
+                $new=Get-GeordiCaptureGenerationRecord $candidate backend $chain.Generations[2]
+                $orphanId=[guid]::NewGuid().ToString('N')
+                $orphan=Copy-SyntheticHandoff $candidate.captureHandoffs[$chain.Handoffs[0]]
+                $oldEnd=ConvertTo-GeordiCaptureUtcInstant $old.captureEndedUtc oldEnd
+                $newStart=ConvertTo-GeordiCaptureUtcInstant $new.captureStartedUtc newStart
+                $gapTicks=$newStart.UtcTicks-$oldEnd.UtcTicks
+                Assert-CaptureGeneration ($gapTicks -ge 0) 'synthetic nonadjacent orphan fixture unexpectedly overlaps'
+                $gapMilliseconds=[long][Math]::Floor([double]$gapTicks/[TimeSpan]::TicksPerMillisecond)
+                $orphan.handoffId=$orphanId
+                $orphan.oldGenerationId=[string]$old.generationId
+                $orphan.newGenerationId=[string]$new.generationId
+                $orphan.oldContainerId=[string]$old.containerId
+                $orphan.newContainerId=[string]$new.containerId
+                $orphan.status='complete';$orphan.gapState='bounded-transition'
+                $orphan.startedUtc=[string]$old.captureEndedUtc
+                $orphan.oldCaptureEndedUtc=[string]$old.captureEndedUtc
+                $orphan.newCaptureStartedUtc=[string]$new.captureStartedUtc
+                $orphan.completedUtc=[string]$new.captureStartedUtc
+                $orphan.gapDurationMilliseconds=$gapMilliseconds
+                $orphan.maximumGapMilliseconds=$gapMilliseconds+1000
+                $candidate.captureHandoffs[$orphanId]=$orphan
+                $rejected=$false
+                try{Assert-GeordiCaptureGenerationManifest $candidate}catch{$rejected=$true}
+                Assert-CaptureGeneration $rejected 'completed A->C orphan handoff with valid identities and chronology was accepted over A->B->C'
+            }finally{Remove-GenerationTestRoot $chain.Root}
+            Write-Output 'capture_handoff_orphan=PASS completed_a_to_c_over_a_to_b_to_c=rejected'
+        }
+        'HandoffAdjacency' {
+            $ab=New-SealedGenerationChain -Service backend -ContainerIds @([string]::new([char]'9',64),[string]::new([char]'a',64))
+            try{Assert-GeordiCaptureGenerationManifest (Read-GenerationManifest $ab.Root)}finally{Remove-GenerationTestRoot $ab.Root}
+            $abc=New-SealedGenerationChain -Service backend -ContainerIds @([string]::new([char]'b',64),[string]::new([char]'c',64),[string]::new([char]'d',64))
+            try{
+                $candidate=Read-GenerationManifest $abc.Root
+                Assert-GeordiCaptureGenerationManifest $candidate
+                $old=Get-GeordiCaptureGenerationRecord $candidate backend $abc.Generations[0]
+                $new=Get-GeordiCaptureGenerationRecord $candidate backend $abc.Generations[2]
+                $nonAdjacent=Copy-SyntheticHandoff $candidate.captureHandoffs[$abc.Handoffs[0]]
+                $nonAdjacentId=[guid]::NewGuid().ToString('N')
+                $oldEnd=ConvertTo-GeordiCaptureUtcInstant $old.captureEndedUtc oldEnd
+                $newStart=ConvertTo-GeordiCaptureUtcInstant $new.captureStartedUtc newStart
+                $gap=[long][Math]::Floor([double]($newStart.UtcTicks-$oldEnd.UtcTicks)/[TimeSpan]::TicksPerMillisecond)
+                $nonAdjacent.handoffId=$nonAdjacentId;$nonAdjacent.oldGenerationId=[string]$old.generationId
+                $nonAdjacent.newGenerationId=[string]$new.generationId;$nonAdjacent.oldContainerId=[string]$old.containerId
+                $nonAdjacent.newContainerId=[string]$new.containerId;$nonAdjacent.status='complete';$nonAdjacent.gapState='bounded-transition'
+                $nonAdjacent.startedUtc=[string]$old.captureEndedUtc;$nonAdjacent.oldCaptureEndedUtc=[string]$old.captureEndedUtc
+                $nonAdjacent.newCaptureStartedUtc=[string]$new.captureStartedUtc;$nonAdjacent.completedUtc=[string]$new.captureStartedUtc
+                $nonAdjacent.gapDurationMilliseconds=$gap;$nonAdjacent.maximumGapMilliseconds=$gap+1000
+                $candidate.captureHandoffs[$nonAdjacentId]=$nonAdjacent
+                $rejected=$false
+                try{Assert-GeordiCaptureGenerationManifest $candidate}catch{$rejected=$true}
+                Assert-CaptureGeneration $rejected 'handoff to an existing but non-adjacent generation was accepted'
+            }finally{Remove-GenerationTestRoot $abc.Root}
+            Write-Output 'capture_handoff_adjacency=PASS a_to_b=true a_to_b_to_c=true nonadjacent_target=rejected'
+        }
+    }
+} finally { Remove-GenerationTestRoot $root }
