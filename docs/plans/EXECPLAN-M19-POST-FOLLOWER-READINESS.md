@@ -50,3 +50,14 @@ These focused results do not establish that the full accepted regression set pas
 **Open item:** recover the exact membership and order of the accepted regression set from repository history and contemporaneous plans. Do not infer it from the `ValidateSet` cases in `Test-GeordiCaptureGenerations.ps1`, nor conflate it with the formal overlap 26-gate sequence or the separate M11→M12 19-gate remediation sequence. If the original order cannot be substantiated, label any proposed sequence as a new reconstruction and obtain owner approval before execution.
 
 The required next sequence remains: recover/approve accepted regression order → run it fail-fast → fresh independent read-only review → only if clean, formal overlap 26-gate sequence → fresh final review. M19 remains NOT READY; no runtime/Docker lifecycle, CI activation, TLS, capture mutation, cleanup, protected-volume operation, M13, or candidate promotion is authorized here.
+
+
+## Second-pass history finding — 2026-11-16
+
+The D2 branch history was inspected commit by commit. Its nine commits ahead of `m19` before the documentation addenda contain seven changes to `Test-GeordiCaptureGenerations.ps1` and two D2 audit-document commits; none supplies an earlier accepted-regression inventory. The `m19` base is exposed as a full-tree snapshot, so the available Git history does not provide earlier incremental revisions of the planning documents.
+
+The post-follower plan itself specifies the required phase order but not the commands or complete membership of the accepted regression set. The resume checkpoint and milestone record contain individual prior PASS results and scoped validation descriptions, not a canonical ordered list. The separate M10/M11/M12/overlap/fixture-transfer ExecPlans define independent validation slices and cannot be treated as one accepted set without an explicit reconstruction.
+
+**Conclusion:** the original accepted regression set's exact membership and order are not recoverable from the currently available repository history and checked-in documents. This does not rule out an external transcript, local reflog, untracked file, or earlier workspace copy.
+
+**Next action:** produce a new artifact labelled `RECONSTRUCTED — NOT HISTORICAL`, derived from the scoped ExecPlans and checkpoint evidence. For each proposed item, record its source, exact command/case, prior evidence status (PASS / failed attempt / not run / unknown), and whether it must be rerun. Present that sequence for owner approval before executing it. Do not infer it from the harness `ValidateSet`, the overlap 26-gate sequence, or the M11→M12 19-gate sequence.
