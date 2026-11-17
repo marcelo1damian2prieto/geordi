@@ -30,7 +30,7 @@ function Assert-TlsFixtureRejected([string] $Path, [string] $Label) {
     Assert-TlsRegression $rejected "$Label was accepted."
 }
 
-function Set-ExpiredCa([string] $Path) {
+function Set-ReplacementCa([string] $Path, [bool] $Expired) {
     $key = [Security.Cryptography.RSA]::Create(2048)
     $certificate = $null
     try {
@@ -46,7 +46,11 @@ function Set-ExpiredCa([string] $Path) {
                 [Security.Cryptography.X509Certificates.X509KeyUsageFlags]::KeyCertSign -bor
                 [Security.Cryptography.X509Certificates.X509KeyUsageFlags]::CrlSign, $true))
         $now = [DateTimeOffset]::UtcNow
-        $certificate = $request.CreateSelfSigned($now.AddDays(-3), $now.AddDays(-1))
+        if ($Expired) {
+            $certificate = $request.CreateSelfSigned($now.AddDays(-3), $now.AddDays(-1))
+        } else {
+            $certificate = $request.CreateSelfSigned($now.AddMinutes(-5), $now.AddDays(2))
+        }
         [IO.File]::WriteAllText((Join-Path $Path 'ca.pem'), $certificate.ExportCertificatePem(), [Text.Encoding]::ASCII)
         [IO.File]::WriteAllBytes((Join-Path $Path 'ca.cer'), $certificate.Export(
             [Security.Cryptography.X509Certificates.X509ContentType]::Cert))
@@ -80,9 +84,15 @@ try {
     Assert-TlsFixtureRejected $wrongSan 'auth certificate with incorrect DNS SAN'
     Write-Output 'm19_tls_material_wrong_san=FAIL_CLOSED'
 
+    $wrongChain = New-TlsNegativeFixture 'wrong-chain'
+    $fixtures.Add($wrongChain)
+    Set-ReplacementCa $wrongChain $false
+    Assert-TlsFixtureRejected $wrongChain 'leaf certificate signed by a different CA'
+    Write-Output 'm19_tls_material_wrong_chain=FAIL_CLOSED'
+
     $expiredCa = New-TlsNegativeFixture 'expired-ca'
     $fixtures.Add($expiredCa)
-    Set-ExpiredCa $expiredCa
+    Set-ReplacementCa $expiredCa $true
     Assert-TlsFixtureRejected $expiredCa 'expired CA certificate'
     Write-Output 'm19_tls_material_expired_ca=FAIL_CLOSED'
 
