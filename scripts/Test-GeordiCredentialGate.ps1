@@ -97,6 +97,8 @@ try {
     Import-Module $artifactModule -Force -ErrorAction Stop
     try {
         $artifactInventory = Get-GeordiPublishableArtifactInventory -RootPath $artifactRoot -Mode SelfTest
+        $artifactInventory = Test-GeordiPublishableArtifactInventory -RootPath $artifactRoot -ExpectedInventory $artifactInventory -Mode SelfTest
+        $artifactInventory = Test-GeordiPublishableArtifactContent -RootPath $artifactRoot -Inventory $artifactInventory -Mode SelfTest
     } finally {
         Remove-Module GeordiPublishableArtifacts -ErrorAction SilentlyContinue
     }
@@ -232,6 +234,47 @@ try {
     $badInventory.fileCount--
     [IO.File]::WriteAllText($inventoryPath, (ConvertTo-Json $badInventory -Compress))
     Write-Output 'gate_case=artifact_inventory_unavailable result=FAIL_CLOSED'
+
+    $originalIndex = [IO.File]::ReadAllText((Join-Path $artifactRoot 'frontend/dist/index.html'))
+    [IO.File]::AppendAllText((Join-Path $artifactRoot 'frontend/dist/index.html'), 'changed-after-inventory')
+    Assert-PrivateGateFails { & $artifactScanner -ManifestPath $manifestPath -RootPath $artifactRoot } 'artifact digest changed' $secret
+    [IO.File]::WriteAllText((Join-Path $artifactRoot 'frontend/dist/index.html'), $originalIndex, [Text.UTF8Encoding]::new($false))
+    Write-Output 'gate_case=artifact_digest_mutation result=FAIL_CLOSED'
+
+    $unsafeArchivePath = Join-Path $artifactRoot 'frontend/dist/unsafe.zip'
+    $unsafeArchive = [IO.Compression.ZipFile]::Open($unsafeArchivePath,[IO.Compression.ZipArchiveMode]::Create)
+    try {
+        $unsafeEntry = $unsafeArchive.CreateEntry('oidc-fixture/fixture.txt')
+        $unsafeWriter = [IO.StreamWriter]::new($unsafeEntry.Open(),[Text.UTF8Encoding]::new($false))
+        try { $unsafeWriter.Write('synthetic forbidden fixture') } finally { $unsafeWriter.Dispose() }
+    } finally { $unsafeArchive.Dispose() }
+    Import-Module $artifactModule -Force -ErrorAction Stop
+    try {
+        $artifactInventory = Get-GeordiPublishableArtifactInventory -RootPath $artifactRoot -Mode SelfTest
+    } finally {
+        Remove-Module GeordiPublishableArtifacts -ErrorAction SilentlyContinue
+    }
+    [IO.File]::WriteAllText($inventoryPath, (ConvertTo-Json -InputObject $artifactInventory -Depth 12 -Compress), [Text.UTF8Encoding]::new($false))
+    $manifest.captures['ci-artifacts'] = @($inventoryPath) + @($artifactInventory.files | ForEach-Object {
+        Join-Path $artifactRoot ([string]$_.path.Replace('/',[IO.Path]::DirectorySeparatorChar))
+    })
+    $manifest.attempts[$attemptId].channels.captures = $manifest.captures
+    [IO.File]::WriteAllText($manifestPath, (ConvertTo-Json -InputObject $manifest -Depth 12), [Text.UTF8Encoding]::new($false))
+    Assert-PrivateGateFails { & $artifactScanner -ManifestPath $manifestPath -RootPath $artifactRoot } 'forbidden archive entry' $secret
+    Remove-Item -LiteralPath $unsafeArchivePath -Force
+    Import-Module $artifactModule -Force -ErrorAction Stop
+    try {
+        $artifactInventory = Get-GeordiPublishableArtifactInventory -RootPath $artifactRoot -Mode SelfTest
+    } finally {
+        Remove-Module GeordiPublishableArtifacts -ErrorAction SilentlyContinue
+    }
+    [IO.File]::WriteAllText($inventoryPath, (ConvertTo-Json -InputObject $artifactInventory -Depth 12 -Compress), [Text.UTF8Encoding]::new($false))
+    $manifest.captures['ci-artifacts'] = @($inventoryPath) + @($artifactInventory.files | ForEach-Object {
+        Join-Path $artifactRoot ([string]$_.path.Replace('/',[IO.Path]::DirectorySeparatorChar))
+    })
+    $manifest.attempts[$attemptId].channels.captures = $manifest.captures
+    [IO.File]::WriteAllText($manifestPath, (ConvertTo-Json -InputObject $manifest -Depth 12), [Text.UTF8Encoding]::new($false))
+    Write-Output 'gate_case=forbidden_archive_entry result=FAIL_CLOSED'
 
     $independentArtifactOutput=@(& $artifactScanner -Independent -RootPath $artifactRoot)
     if ($independentArtifactOutput.Count -ne 1 -or $independentArtifactOutput[0] -notmatch 'result=PASS') {
