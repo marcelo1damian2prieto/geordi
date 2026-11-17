@@ -14,6 +14,39 @@ function Read-GeordiCaptureStartFile {
     } finally { $stream.Dispose() }
 }
 
+function Write-GeordiCaptureStartupDiagnostic {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [Parameter(Mandatory)][string] $FailureStage,
+        [Parameter(Mandatory)][string] $FailureCode,
+        [AllowNull()][object] $WorkerExitCode,
+        [AllowNull()][string] $ExceptionType,
+        [Parameter(Mandatory)][ValidateSet('confirmed','unconfirmed','not-required')][string] $CleanupStatus
+    )
+    $fullPath = [IO.Path]::GetFullPath($Path)
+    $temporaryPath = $fullPath + '.' + [guid]::NewGuid().ToString('N') + '.tmp'
+    $diagnostic = [ordered]@{
+        version = 1
+        failureStage = $FailureStage
+        failureCode = $FailureCode
+        workerExitCode = $WorkerExitCode
+        exceptionType = $ExceptionType
+        cleanupStatus = $CleanupStatus
+        observedUtc = [DateTimeOffset]::UtcNow.ToString('o')
+    }
+    try {
+        [IO.File]::WriteAllText($temporaryPath,(ConvertTo-Json -InputObject $diagnostic -Compress),[Text.UTF8Encoding]::new($false))
+        try {
+            [IO.File]::Move($temporaryPath,$fullPath)
+        } catch {
+            if (-not [IO.File]::Exists($fullPath)) { throw }
+        }
+    } finally {
+        if ([IO.File]::Exists($temporaryPath)) { [IO.File]::Delete($temporaryPath) }
+    }
+}
+
 function Stop-GeordiCaptureProcessTree {
     [CmdletBinding()]
     param(
@@ -146,33 +179,57 @@ function Invoke-GeordiBoundedLogFollowerStart {
         [AllowNull()] $TargetMetadata,
         [ValidateRange(1,20)][int] $TimeoutSeconds = 8
     )
+    $startupDiagnosticPath = Join-Path (Split-Path -Parent ([IO.Path]::GetFullPath($ProcessRecordPath))) 'startup-diagnostic.json'
     $payload = @{ dockerPath=$DockerPath;dockerArguments=$DockerArguments;workingDirectory=$WorkingDirectory
         standardOutputPath=$StandardOutputPath;standardErrorPath=$StandardErrorPath;processRecordPath=$ProcessRecordPath
-        targetMetadata=$TargetMetadata }
+        startupDiagnosticPath=$startupDiagnosticPath;targetMetadata=$TargetMetadata }
     $encodedPayload = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(
         (ConvertTo-Json -InputObject $payload -Compress -Depth 4)))
     $quotedWorker = '"' + $WorkerPath + '"'
     $launcher = $null
     $cleanupVerified = $true
     $cleanupFailure = $null
+    $failureStage = 'launcher-startup'
+    $failureCode = 'launcher-start-failed'
+    $workerExitCode = $null
+    $exceptionType = $null
     $clock = [Diagnostics.Stopwatch]::StartNew()
     try {
         $launcher = Start-Process -FilePath $PowerShellPath `
             -ArgumentList @('-NoLogo','-NoProfile','-File',$quotedWorker,'-PayloadBase64',$encodedPayload) `
             -WorkingDirectory $WorkingDirectory -WindowStyle Hidden -PassThru
         if (!$launcher.WaitForExit($TimeoutSeconds * 1000)) {
+            $failureStage = 'launcher-readiness'
+            $failureCode = 'launcher-timeout'
             Stop-GeordiCaptureProcessTree -ProcessId $launcher.Id
             throw 'Capture follower process launch/readiness exceeded its bound.'
         }
-        if ($launcher.ExitCode -ne 0 -or !(Test-Path -LiteralPath $ProcessRecordPath -PathType Leaf)) {
+        if ($launcher.ExitCode -ne 0) {
+            $workerExitCode = [int]$launcher.ExitCode
+            $failureStage = 'worker-result'
+            $failureCode = switch ($workerExitCode) {
+                21 { 'worker-exited-early' }
+                22 { 'worker-startup-failed' }
+                23 { 'worker-cleanup-unconfirmed' }
+                default { 'worker-failed-with-unknown-exit-code' }
+            }
             throw 'Capture follower process failed its bounded startup check.'
         }
+        if (!(Test-Path -LiteralPath $ProcessRecordPath -PathType Leaf)) {
+            $failureStage = 'launcher-protocol'
+            $failureCode = 'process-record-missing'
+            throw 'Capture follower process failed its bounded startup check.'
+        }
+        $failureStage = 'launcher-record-validation'
+        $failureCode = 'process-record-invalid'
         $recordText = Read-GeordiCaptureStartFile -Path $ProcessRecordPath
         $record = $recordText | ConvertFrom-Json -DateKind String -ErrorAction Stop
         if ([int]$record.id -le 0 -or [string]::IsNullOrWhiteSpace([string]$record.name) -or
                 [string]::IsNullOrWhiteSpace([string]$record.startUtc)) {
             throw 'Capture follower process identity record is malformed.'
         }
+        $failureStage = 'launcher-readiness'
+        $failureCode = 'follower-readiness-failed'
         $process = Get-Process -Id ([int]$record.id) -ErrorAction SilentlyContinue
         if (!$process -or $process.ProcessName -cne [string]$record.name -or
                 $process.StartTime.ToUniversalTime().Ticks -ne ([DateTimeOffset]$record.startUtc).UtcTicks -or
@@ -182,6 +239,7 @@ function Invoke-GeordiBoundedLogFollowerStart {
         }
         return $record
     } catch {
+        $exceptionType = $_.Exception.GetType().FullName
         if (Test-Path -LiteralPath $ProcessRecordPath) {
             try {
                 $record = (Read-GeordiCaptureStartFile -Path $ProcessRecordPath) | ConvertFrom-Json
@@ -201,6 +259,12 @@ function Invoke-GeordiBoundedLogFollowerStart {
                 $cleanupVerified = $false
                 $cleanupFailure = $_.Exception.Message
             }
+        }
+        if (-not [IO.File]::Exists($startupDiagnosticPath)) {
+            try {
+                $diagnosticCleanupStatus = if ($cleanupVerified) { 'confirmed' } else { 'unconfirmed' }
+                Write-GeordiCaptureStartupDiagnostic -Path $startupDiagnosticPath -FailureStage $failureStage -FailureCode $failureCode -WorkerExitCode $workerExitCode -ExceptionType $exceptionType -CleanupStatus $diagnosticCleanupStatus
+            } catch { }
         }
         if (-not $cleanupVerified) {
             throw "Capture follower startup failed; process/file cleanup could not be confirmed. $cleanupFailure"
