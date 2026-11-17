@@ -52,6 +52,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate Compose model
         run: docker compose config --quiet
+      - name: Verify M14 fixture orchestration contracts
+        shell: pwsh
+        run: |
+          ./scripts/Test-GeordiM14ComposeScope.ps1 -Case Mutation
+          ./scripts/Test-GeordiM14ComposeScope.ps1 -Case Dependencies
+          ./scripts/Test-GeordiSchedulerIsolation.ps1 -SelfTest -M14PartialAcquisitionOnly
       - name: Validate Collector configuration
         run: >-
           docker run --rm
