@@ -2840,3 +2840,69 @@ runtime proof was not run. Atomic M11→M12 CI activation is READY FOR OWNER ACC
 M12 backend generations remain OWNER ACCEPTED. Gate 5 remains BLOCKED, the candidate
 remains DIAGNOSTIC ONLY, and M19 remains `M19 NOT READY — REMEDIATION REQUIRED`.
 Next action: owner review before any runtime gate.
+
+
+## 2026-11-17 — Publishable-artifact gate refactor planning checkpoint
+
+This addendum records a separate, documentation-only planning slice on
+`fix/m19-log-follower-json-dates` at baseline
+`50cff4143ab315509abfcb55707a96b8dd71411d`. It does not alter the M19 acceptance
+status or supersede earlier runtime evidence.
+
+### Contract analysis and approved plan
+
+The owner-approved plan is
+[EXECPLAN-M19-PUBLISHABLE-ARTIFACT-GATE.md](EXECPLAN-M19-PUBLISHABLE-ARTIFACT-GATE.md).
+
+- PLAN-T01 — analysis of `Test-GeordiCredentialGate.ps1`,
+  `Test-GeordiCredentialGateRequired.ps1`, and
+  `Test-GeordiPublishableArtifacts.ps1`: **COMPLETE**.
+- PLAN-T02 — shared publishable-artifact module interface specification:
+  **APPROVED**, owner decision option A on 2026-11-17.
+- Implementation: **NOT AUTHORIZED**.
+
+The approved design extracts publishable-artifact enumeration, inventory/hash
+validation, archive inspection and path-safety checks into
+`scripts/lib/GeordiPublishableArtifacts.psm1`. Production and SelfTest will use the
+same validation rules with different explicitly supplied roots. Reparse points are
+rejected, existing inspection limits are retained, and public script parameters/output
+contracts are preserved.
+
+### Findings that motivate the refactor
+
+The current Credential Gate SelfTest still enumerates real repository build outputs.
+The observed local invocation stopped at the precondition:
+
+`Gate self-test requires built publishable artifacts.`
+
+This is a SelfTest/build-output coupling finding, not proof that the production artifact
+gate itself is defective.
+
+A separate fixture-contract gap was identified: the synthetic manifest does not provide
+the accepted Finalize attempt (`acceptedAttemptId` and `attempts`) required by the
+Required Gate, and its Tempo fixture lacks the segment metadata required by the existing
+credential scanner. Therefore the positive synthetic manifest case cannot satisfy the
+current production validation contract. The approved correction is to complete the
+synthetic fixtures, not to relax production validation.
+
+### Compatibility prerequisite and safety boundary
+
+The exact local PowerShell edition/version output is still outstanding. Before
+implementation, record:
+
+```powershell
+$PSVersionTable.PSVersion.ToString()
+$PSVersionTable.PSEdition
+```
+
+Then confirm the compatibility target against supported repository/CI environments.
+The planning phase is closed, but this prerequisite blocks implementation until resolved.
+
+No module or script was created or modified in this planning slice. No backend/frontend
+build, M19 Begin/Finalize, Docker/Compose lifecycle, cleanup, TLS operation, private
+capture inspection, `.runtime/m19` access or protected-volume operation was authorized
+or performed as part of this plan.
+
+**Overall M19 status remains `M19 NOT READY — REMEDIATION REQUIRED`.** The approved
+offline design plan is not M19 acceptance evidence and does not promote any runtime,
+credential, artifact or Finalize gate to PASS.
