@@ -73,6 +73,30 @@ Start-Sleep -Seconds 30
     Write-Output 'capture_start_case=iso8601_argument_preserved result=PASS'
     Write-Output 'capture_start_case=live_follower result=PASS bounded=5s deterministic_stop=PASS'
 
+    $nonStoppingTaskkillPath = Join-Path $root 'taskkill-noop.cmd'
+    [IO.File]::WriteAllText($nonStoppingTaskkillPath,"@echo off`r`nexit /b 1`r`n",[Text.UTF8Encoding]::new($false))
+    $timeoutProbe = Start-Process -FilePath $powerShellPath -ArgumentList @('-NoLogo','-NoProfile','-Command','Start-Sleep -Seconds 30') -WindowStyle Hidden -PassThru
+    $timeoutClock = [Diagnostics.Stopwatch]::StartNew()
+    try {
+        try {
+            Stop-GeordiCaptureProcessTree -ProcessId $timeoutProbe.Id -TimeoutSeconds 1 -TaskkillPath $nonStoppingTaskkillPath
+            throw 'Process-tree stop accepted a process that remained alive past its deadline.'
+        } catch {
+            if ($_.Exception.Message -eq 'Process-tree stop accepted a process that remained alive past its deadline.') { throw }
+            if ($_.Exception.Message -notmatch 'could not be confirmed stopped within 1 seconds') { throw }
+        }
+        $timeoutClock.Stop()
+        if ($timeoutClock.Elapsed.TotalSeconds -ge 4) {
+            throw 'Process-tree stop did not report its bounded timeout promptly.'
+        }
+        Write-Output ("capture_start_case=stop_timeout result=FAIL_CLOSED duration_seconds={0:N2} explicit_failure=PASS" -f $timeoutClock.Elapsed.TotalSeconds)
+    } finally {
+        $timeoutClock.Stop()
+        if (Get-Process -Id $timeoutProbe.Id -ErrorAction SilentlyContinue) {
+            Stop-GeordiCaptureProcessTree -ProcessId $timeoutProbe.Id -TimeoutSeconds 5
+        }
+    }
+
     $clock = [Diagnostics.Stopwatch]::StartNew()
     try {
         Invoke-GeordiBoundedLogFollowerStart -PowerShellPath $powerShellPath -WorkerPath $workerPath `
