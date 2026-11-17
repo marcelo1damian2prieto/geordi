@@ -10,6 +10,19 @@ $runtimeDirectory = Join-Path $runtimeParent 'm19'
 $publicThumbprintPath = Join-Path $runtimeParent 'm19-ca-thumbprint.txt'
 $expectedCaSubject = 'CN=Geordi M19 Ephemeral Test CA'
 
+function Remove-ExactM19LocalMachineRoot([string] $Thumbprint, [string] $Subject) {
+    $installed = Test-GeordiTlsStoreThumbprint -ExpectedThumbprint $Thumbprint -ExpectedSubject $Subject
+    if (!$installed) {
+        Write-Output 'Recorded M19 CA thumbprint is already absent from LocalMachine Root; no store mutation required.'
+        return
+    }
+
+    Invoke-GeordiTlsStoreActionBounded -Action Remove -ExpectedThumbprint $Thumbprint -ExpectedSubject $Subject
+    if (Test-GeordiTlsStoreThumbprint -ExpectedThumbprint $Thumbprint -ExpectedSubject $Subject) {
+        throw 'Recorded M19 CA thumbprint remains in LocalMachine Root after removal.'
+    }
+}
+
 $runtimeExists = Test-Path -LiteralPath $runtimeDirectory
 $publicPathExists = Test-Path -LiteralPath $publicThumbprintPath
 if ($publicPathExists -and !(Test-Path -LiteralPath $publicThumbprintPath -PathType Leaf)) {
@@ -99,9 +112,8 @@ if ($browserManifestExists -and $publicManifestExists) {
             throw 'Recorded certificate is not a CA; refusing store cleanup.'
         }
 
-        # The bounded store operation is idempotent and scoped to this exact run-owned thumbprint.
-        Invoke-GeordiTlsStoreActionBounded -Action Remove -ExpectedThumbprint $browserThumbprint -ExpectedSubject $expectedCaSubject
-        Invoke-GeordiTlsStoreActionBounded -Action VerifyAbsent -ExpectedThumbprint $browserThumbprint -ExpectedSubject $expectedCaSubject
+        # Read-only probe avoids requiring elevation when the exact CA is already absent.
+        Remove-ExactM19LocalMachineRoot $browserThumbprint $expectedCaSubject
     } finally {
         $ca.Dispose()
     }
@@ -112,8 +124,7 @@ elseif (!$runtimeExists -and $publicManifestExists) {
     if ($publicThumbprint -notmatch '^[A-Fa-f0-9]{40}$') {
         throw 'Invalid orphaned public M19 thumbprint manifest; refusing cleanup.'
     }
-    Invoke-GeordiTlsStoreActionBounded -Action Remove -ExpectedThumbprint $publicThumbprint -ExpectedSubject $expectedCaSubject
-    Invoke-GeordiTlsStoreActionBounded -Action VerifyAbsent -ExpectedThumbprint $publicThumbprint -ExpectedSubject $expectedCaSubject
+    Remove-ExactM19LocalMachineRoot $publicThumbprint $expectedCaSubject
 }
 
 if ($runtimeExists) {
