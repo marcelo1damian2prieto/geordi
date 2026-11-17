@@ -2859,7 +2859,7 @@ The owner-approved plan is
   `Test-GeordiPublishableArtifacts.ps1`: **COMPLETE**.
 - PLAN-T02 — shared publishable-artifact module interface specification:
   **APPROVED**, owner decision option A on 2026-11-17.
-- Implementation: **NOT AUTHORIZED**.
+- Implementation at the initial planning checkpoint: **NOT YET AUTHORIZED**; this was superseded by the owner's explicit authorization later on 2026-11-17.
 
 The approved design extracts publishable-artifact enumeration, inventory/hash
 validation, archive inspection and path-safety checks into
@@ -2906,3 +2906,27 @@ or performed as part of this plan.
 **Overall M19 status remains `M19 NOT READY — REMEDIATION REQUIRED`.** The approved
 offline design plan is not M19 acceptance evidence and does not promote any runtime,
 credential, artifact or Finalize gate to PASS.
+
+
+## 2026-11-17 — Publishable-artifact gate implementation checkpoint
+
+The owner explicitly authorized implementation after approval of PLAN-T02. Source changes have now been published to `fix/m19-log-follower-json-dates`.
+
+### Source changes
+
+- Added `scripts/lib/GeordiPublishableArtifacts.psm1` with exported inventory, inventory-validation and archive-content validation functions.
+- Refactored `scripts/Test-GeordiPublishableArtifacts.ps1` to delegate manifest-backed and independent inspection to the module. Existing `-ManifestPath` and `-Independent` behavior/output are retained; optional `-RootPath` selects the explicit synthetic root for SelfTest.
+- Updated `scripts/Test-GeordiCredentialGate.ps1` to build synthetic backend reports/JARs, frontend output, inventory and a segmented Tempo fixture under its own temporary capture root.
+- Added the accepted Finalize attempt fixture, with one completed attempt, the six required PASS phases, and channel/additional-source state bound to the published manifest.
+- Added negative artifact cases for inventory mismatch, digest mutation, forbidden archive paths, traversal, missing required artifact, malformed archive and reparse-point rejection where the host permits symbolic-link creation.
+- Kept `Test-GeordiCredentialGateRequired.ps1` as the private-evidence gate. It does not call the artifact module; the artifact scan remains an independently orchestrated gate, preventing credential-gate status from being coupled to artifact-gate status.
+
+### Verification status
+
+The source has been written through the connected GitHub repository integration. No PowerShell parser, Credential Gate SelfTest, focused artifact scan, build or CI job has been executed in this session. The implementation is therefore **source-level only; verification is PENDING**. The prior failure message about built artifacts is historical and is the condition this SelfTest refactor is intended to remove; no new PASS result is claimed.
+
+The repository documents PowerShell 7 as the Windows integration runner and the existing scripts use PowerShell 7 JSON support. PowerShell 7 is the implementation target. The exact local `$PSVersionTable` output remains outstanding before local execution can be claimed compatible.
+
+No M19 Begin/Finalize, `New-GeordiCredentialEvidence.ps1` action mode, Docker lifecycle, cleanup, TLS/certificate operation, `.runtime/m19` inspection, private capture inspection or protected-volume operation was performed as part of this implementation. The existing safe-diagnostics step in SelfTest may query Docker container status; it does not perform a lifecycle action.
+
+**M19 remains `M19 NOT READY — REMEDIATION REQUIRED`.** This implementation and its synthetic tests are not runtime credential-leak evidence, artifact acceptance evidence or milestone closure.
