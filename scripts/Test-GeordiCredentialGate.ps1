@@ -283,6 +283,19 @@ try {
     [IO.File]::WriteAllText($inventoryPath, (ConvertTo-Json -InputObject $artifactInventory -Depth 12 -Compress), [Text.UTF8Encoding]::new($false))
     Write-Output 'gate_case=artifact_path_traversal result=FAIL_CLOSED'
 
+    $requiredArtifactPath = Join-Path $artifactRoot 'backend/target/pmd.xml'
+    $requiredArtifactContent = [IO.File]::ReadAllText($requiredArtifactPath)
+    Remove-Item -LiteralPath $requiredArtifactPath -Force
+    Assert-PrivateGateFails { & $artifactScanner -Independent -RootPath $artifactRoot } 'required artifact missing' $secret
+    [IO.File]::WriteAllText($requiredArtifactPath,$requiredArtifactContent,[Text.UTF8Encoding]::new($false))
+    Write-Output 'gate_case=required_artifact_missing result=FAIL_CLOSED'
+
+    $invalidArchivePath = Join-Path $artifactRoot 'frontend/dist/invalid.zip'
+    [IO.File]::WriteAllText($invalidArchivePath,'not-a-zip-archive',[Text.UTF8Encoding]::new($false))
+    Assert-PrivateGateFails { & $artifactScanner -Independent -RootPath $artifactRoot } 'invalid archive' $secret
+    Remove-Item -LiteralPath $invalidArchivePath -Force
+    Write-Output 'gate_case=invalid_archive result=FAIL_CLOSED'
+
     $outsideArtifactDirectory = Join-Path $root 'outside-artifact-target'
     [void][IO.Directory]::CreateDirectory($outsideArtifactDirectory)
     $reparsePath = Join-Path $artifactRoot 'frontend/dist/reparse-target'
