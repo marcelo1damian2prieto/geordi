@@ -51,12 +51,18 @@ function Stop-GeordiCaptureProcessTree {
     try {
         do {
             $currentProcesses = @(Get-CimInstance -ClassName Win32_Process -Property ProcessId,CreationDate -ErrorAction Stop)
-            $remaining = @($trackedProcesses | Where-Object {
-                $tracked = $_
-                $currentProcesses | Where-Object {
-                    ([int]$_.ProcessId -eq $tracked.Id) -and ([string]$_.CreationDate -ceq $tracked.CreationDate)
+            $remaining = @(
+                foreach ($tracked in $trackedProcesses) {
+                    $isAlive = $false
+                    foreach ($current in $currentProcesses) {
+                        if (([int]$current.ProcessId -eq $tracked.Id) -and ([string]$current.CreationDate -ceq $tracked.CreationDate)) {
+                            $isAlive = $true
+                            break
+                        }
+                    }
+                    if ($isAlive) { $tracked }
                 }
-            })
+            )
             if ($remaining.Count -eq 0) { return }
             if ($clock.Elapsed.TotalSeconds -ge $TimeoutSeconds) { break }
             Start-Sleep -Milliseconds 25
@@ -122,6 +128,7 @@ function Invoke-GeordiBoundedLogFollowerStart {
     $quotedWorker = '"' + $WorkerPath + '"'
     $launcher = $null
     $cleanupVerified = $true
+    $cleanupFailure = $null
     $clock = [Diagnostics.Stopwatch]::StartNew()
     try {
         $launcher = Start-Process -FilePath $PowerShellPath `
