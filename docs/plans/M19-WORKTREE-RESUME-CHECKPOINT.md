@@ -158,3 +158,46 @@ The second read-only pass examined the D2 branch commits and the relevant M19 pl
 The exact historical membership and order of the post-follower accepted regression set are **not recoverable from the currently available branch history and checked-in planning documents**. This is a bounded conclusion about the evidence inspected, not proof that no external transcript, local reflog, untracked file, or earlier workspace copy exists.
 
 Do not label a proposed list as the original accepted sequence. The next valid step is to prepare a clearly labelled **reconstructed regression sequence** from the scoped ExecPlans and known checkpointed PASS evidence, identify every item as previously passed / not yet rerun / pending, and submit that reconstruction for owner approval before execution.
+
+
+## 2026-11-16 — Post-follower regression architecture review
+
+This addendum supersedes the previous generic instruction to execute one reconstructed offline/static sequence. It preserves all historical checkpoints and prior PASS records.
+
+### Reconstructed implementation intent
+
+The shared AfterFollowerValidated seam enforces this order: container replacement and new identity resolution; follower startup; validation of returned and persisted process/container/service/project binding; publication of that binding; readiness callback; handoff completion. Callback failure leaves truthful incomplete state, attempts cleanup, preserves the primary error and sealed history. Callback omission preserves legacy behavior.
+
+The test code reflects a layered strategy:
+- Direct shared contract: five cases in Test-GeordiPostFollowerReadiness.ps1.
+- M11 caller/workflow regression: Test-GeordiM11BackendGenerations.ps1 -SelfTest.
+- M12 backend caller/workflow regression: Test-GeordiM12BackendGenerations.ps1 -Case SelfTest.
+- M12 overlap backend caller/workflow regression: Test-GeordiM12OverlapBackendVmGenerations.ps1 -Case SelfTest.
+- M12 overlap Collector caller/workflow regression: Test-GeordiM12OverlapCollector.ps1 -SelfTest.
+- Adjacent capture-generation/authentication contracts: Test-GeordiCaptureGenerations.ps1 -Case AuthContract and -Case Boundaries.
+- Static scope review and independent review.
+
+The four caller suites are broader than the callback contract. They protect domain invariants such as evidence publication, recovery, volume ownership, command scope, Compose isolation and production wiring. Report them as caller/workflow regressions, not as pure callback unit tests.
+
+### Safety classification correction
+
+The reviewed M11, M12 backend and M12 overlap backend synthetic paths use generated temporary roots and injected replacement/process/readiness/volume adapters. Their reviewed SelfTest paths inspect command arguments rather than executing Docker lifecycle operations.
+
+The M12 overlap Collector path has one important exception: Get-GeordiM12OverlapComposeConfiguration executes the real Docker CLI with docker compose ... config --format json. This renders configuration only; it does not start, stop, recreate or remove containers, delete volumes, or activate CI. The Collector SelfTest is therefore not wholly offline, even though its lifecycle callbacks are synthetic. The current script has no dedicated selector for only the Compose isolation/rendering portion.
+
+Temporary Remove-Item calls inspected in these test harnesses target generated temporary roots or files beneath them. No reviewed synthetic test path targets protected M19 volumes or real capture roots.
+
+### Revised proposed resume sequence — not historical
+
+1. Read-only branch/worktree/diff preconditions; preserve all existing state.
+2. Parse affected scripts and helpers; run the five direct shared-seam cases individually, fail-fast.
+3. Run strictly synthetic caller regressions: M11, M12 backend, M12 overlap backend.
+4. Run AuthContract, then Boundaries, with immediate exit-code checks.
+5. Separately obtain owner approval for M12 overlap Collector SelfTest's Docker CLI config-render dependency. Either permit that configuration-render command only or defer the suite and record the coverage gap. No Docker lifecycle permission is implied.
+6. Perform read-only scope review and obtain a fresh independent review.
+
+Do not add M10 seven-case replacement, fixture-transfer 18-gate/A–S, M11→M12 19-gate remediation or formal overlap 26-gate validation to this focused sequence. The 26-gate sequence remains conditional on a green approved focused set and clean independent review.
+
+### Execution status and milestone
+
+This was a static repository review and documentation update only. No test, parser, Docker command, Compose command, runtime operation, cleanup, capture mutation, CI activation, TLS/certificate operation or protected-volume operation was executed in this step. Prior focused PASS results remain historical evidence; the complete reconstructed sequence remains NOT RUN. M19 remains NOT READY — REMEDIATION REQUIRED.
