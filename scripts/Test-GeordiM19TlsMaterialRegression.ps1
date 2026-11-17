@@ -72,6 +72,12 @@ try {
     Assert-TlsFixtureRejected $missingPassword 'missing truststore password'
     Write-Output 'm19_tls_material_missing_file=FAIL_CLOSED'
 
+    $wrongAuthPassword = New-TlsNegativeFixture 'wrong-auth-password'
+    $fixtures.Add($wrongAuthPassword)
+    [IO.File]::WriteAllText((Join-Path $wrongAuthPassword 'auth.password'), 'not-the-auth-password')
+    Assert-TlsFixtureRejected $wrongAuthPassword 'incorrect OIDC PKCS12 password'
+    Write-Output 'm19_tls_material_wrong_auth_password=FAIL_CLOSED'
+
     $wrongPassword = New-TlsNegativeFixture 'wrong-password'
     $fixtures.Add($wrongPassword)
     [IO.File]::WriteAllText((Join-Path $wrongPassword 'truststore.password'), 'not-the-truststore-password')
@@ -83,6 +89,12 @@ try {
     Copy-Item -LiteralPath (Join-Path $wrongSan 'geordi-cert.pem') -Destination (Join-Path $wrongSan 'auth-cert.pem') -Force
     Assert-TlsFixtureRejected $wrongSan 'auth certificate with incorrect DNS SAN'
     Write-Output 'm19_tls_material_wrong_san=FAIL_CLOSED'
+
+    $wrongFrontendKey = New-TlsNegativeFixture 'wrong-frontend-key'
+    $fixtures.Add($wrongFrontendKey)
+    Copy-Item -LiteralPath (Join-Path $wrongFrontendKey 'auth-key.pem') -Destination (Join-Path $wrongFrontendKey 'geordi-key.pem') -Force
+    Assert-TlsFixtureRejected $wrongFrontendKey 'frontend certificate/private-key mismatch'
+    Write-Output 'm19_tls_material_wrong_frontend_key=FAIL_CLOSED'
 
     $wrongChain = New-TlsNegativeFixture 'wrong-chain'
     $fixtures.Add($wrongChain)
