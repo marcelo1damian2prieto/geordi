@@ -97,8 +97,14 @@ function Get-CollectorLogs {
 }
 
 function Get-PlatformVersion {
-    $platformJson = Invoke-TextRequest -Uri "$BackendBaseUrl/api/platform"
-    $platform = $platformJson | ConvertFrom-Json
+    # Platform metadata is a public, read-only endpoint. Do not initialize the
+    # M19 regression identity here: the CI smoke uses external OIDC discovery
+    # and intentionally does not start the local M19 token fixture.
+    $response = Invoke-GeordiAnonymousRequest -Uri "$BackendBaseUrl/api/platform" -TimeoutSeconds 5
+    if ($response.StatusCode -ne 200) {
+        throw "GET $BackendBaseUrl/api/platform returned HTTP $($response.StatusCode)."
+    }
+    $platform = ([string]$response.Content) | ConvertFrom-Json
     $version = [string] $platform.version
     if ([string]::IsNullOrWhiteSpace($version)) {
         throw "GET /api/platform did not return a non-blank version."
