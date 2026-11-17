@@ -605,5 +605,9 @@ with its dated checkpoint in
 [MILESTONE-019.md](docs/plans/MILESTONE-019.md).
 
 The publishable-artifact gate analysis and interface plan are owner-approved
-(2026-11-17). Implementation is not authorized. The supported PowerShell
-edition/version must be confirmed before implementation begins.
+(2026-11-17), and implementation is authorized and in progress. The shared
+`scripts/lib/GeordiPublishableArtifacts.psm1` module is integrated with the artifact
+validator and synthetic Credential Gate SelfTest. Source changes are published, but
+PowerShell parsing, SelfTest execution and independent review remain pending. The
+implementation target is PowerShell 7, matching the documented Windows CI runner;
+the local PowerShell edition/version remains to be confirmed before local verification.
