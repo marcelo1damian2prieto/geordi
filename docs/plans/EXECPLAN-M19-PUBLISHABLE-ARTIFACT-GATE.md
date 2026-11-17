@@ -20,7 +20,7 @@ Approved constraints:
 4. Retain current inspection limits unless evidence demonstrates they are insufficient.
 5. Build synthetic fixtures that satisfy the complete production validation contract.
 6. Do not add SelfTest-only exceptions to production security validation.
-7. Confirm the supported PowerShell edition/version before implementation.
+7. Target the repository's documented PowerShell 7 CI environment; confirm the local host edition/version before local execution.
 
 The repository's documented CI runner uses PowerShell 7, and existing scripts already depend on PowerShell 7 JSON features such as `ConvertFrom-Json -AsHashtable`. PowerShell 7 is therefore the implementation compatibility target. The user's local edition/version output remains outstanding and is required before claiming local execution compatibility, but does not block authoring against the repository's declared CI target.
 
@@ -341,7 +341,7 @@ Throughout implementation and verification:
 - **Approved design constraints:** preserve public contracts; extract without weakening; reject reparse points; retain current bounds; complete synthetic fixtures; no SelfTest security exceptions; confirm PowerShell compatibility before implementation.
 - **Implementation authorization:** **GRANTED** by owner on 2026-11-17.
 - **Implementation source changes:** module, artifact wrapper and Credential Gate SelfTest updated; no local PowerShell execution has been recorded.
-- **Current branch HEAD at this checkpoint:** to be recorded after final documentation reconciliation.
+- **Current branch HEAD at this checkpoint:** `90fd080ac5c92f7d7dc688946cc80f807fa07559` (before this documentation update).
 - **M19 milestone status:** unchanged — **M19 NOT READY — REMEDIATION REQUIRED**.
 
 
