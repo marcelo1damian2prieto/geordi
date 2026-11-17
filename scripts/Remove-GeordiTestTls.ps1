@@ -149,4 +149,8 @@ if ($publicManifestExists) {
     }
 }
 
-Write-Output 'Ephemeral M19 TLS material and thumbprint manifests were removed; recorded CA thumbprint is absent from LocalMachine Root.'
+if ($publicManifestExists -or $browserManifestExists) {
+    Write-Output 'Ephemeral M19 TLS material and thumbprint manifests were removed; recorded CA thumbprint is absent from LocalMachine Root.'
+} else {
+    Write-Output 'Local-only M19 TLS material was removed; no LocalMachine Root mutation was required.'
+}
