@@ -53,11 +53,9 @@ public final class GeordiTestOidcFixture {
         runKeytool(directory, storePassword, "-exportcert", "-rfc", "-alias", "issuer", "-keystore",
                 keyStoreFile.toString(), "-storetype", "PKCS12", "-storepass:env", "GEORDI_TEST_STORE_PASSWORD",
                 "-file", certificate.toString());
-        Path defaultTrustStore = Path.of(System.getProperty("java.home"), "lib", "security", "cacerts");
-        Files.copy(defaultTrustStore, trustStoreFile);
         runKeytool(directory, storePassword, "-importcert", "-noprompt", "-alias", "geordi-test-issuer",
-                "-file", certificate.toString(), "-keystore", trustStoreFile.toString(), "-storepass:env",
-                "GEORDI_TEST_STORE_PASSWORD");
+                "-file", certificate.toString(), "-keystore", trustStoreFile.toString(), "-storetype", "PKCS12",
+                "-storepass:env", "GEORDI_TEST_STORE_PASSWORD");
         keyStoreFile.toFile().deleteOnExit();
         trustStoreFile.toFile().deleteOnExit();
         certificate.toFile().deleteOnExit();
@@ -112,7 +110,7 @@ public final class GeordiTestOidcFixture {
             try {
                 instance = new GeordiTestOidcFixture();
             } catch (Exception failure) {
-                throw new IllegalStateException("M19 HTTPS issuer fixture could not start");
+                throw new IllegalStateException("M19 HTTPS issuer fixture could not start", failure);
             }
         }
         return instance;
