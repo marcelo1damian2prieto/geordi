@@ -120,18 +120,60 @@ function Get-PlatformVersion {
         Add-Type -AssemblyName System.IO.Compression
         $jarStream = [IO.File]::OpenRead($jarPath)
         $archive = [IO.Compression.ZipArchive]::new($jarStream, [IO.Compression.ZipArchiveMode]::Read, $false)
-
-        # Do not assume a fixed Spring Boot archive prefix. Locate the metadata
-        # by its path suffix and report the actual archive contents on mismatch.
         $buildInfoEntries = @(
             $archive.Entries | Where-Object {
-                $_.FullName -match '(^|/)META-INF/build-info[.]properties
+                $_.FullName.EndsWith('/META-INF/build-info.properties', [StringComparison]::Ordinal) -or
+                    $_.FullName.Equals('META-INF/build-info.properties', [StringComparison]::Ordinal)
+            }
+        )
+        if ($buildInfoEntries.Count -eq 0) {
+            $diagnosticEntries = @(
+                $archive.Entries |
+                    Where-Object { $_.FullName.Contains('build-info') -or $_.FullName.Contains('/META-INF/') } |
+                    Select-Object -First 20 -ExpandProperty FullName
+            )
+            $entrySummary = if ($diagnosticEntries.Count -gt 0) {
+                $diagnosticEntries -join ', '
+            } else {
+                '<no build-info or META-INF entries found>'
+            }
+            $diagnostic = ("The copied running backend JAR ({0} bytes, {1} entries) has no " +
+                "META-INF/build-info.properties entry. Relevant entries: {2}") -f
+                $jarInfo.Length, $archive.Entries.Count, $entrySummary
+            throw $diagnostic
+        }
+        if ($buildInfoEntries.Count -gt 1) {
+            $entryNames = ($buildInfoEntries | ForEach-Object { $_.FullName }) -join ', '
+            throw "The copied running backend JAR contains multiple build-info.properties entries: $entryNames"
+        }
+
+        $entry = $buildInfoEntries[0]
+        $entryStream = $entry.Open()
+        $reader = [IO.StreamReader]::new($entryStream)
+        $properties = $reader.ReadToEnd()
+        $versionMatch = [regex]::Match($properties, '(?m)^build[.]version=(?<version>[^\r\n]+)$')
+        if (!$versionMatch.Success -or [string]::IsNullOrWhiteSpace($versionMatch.Groups['version'].Value)) {
+            $diagnostic = ("Entry '{0}' exists in the copied running backend JAR but does not contain " +
+                "a non-empty build.version property.") -f $entry.FullName
+            throw $diagnostic
+        }
+        return $versionMatch.Groups['version'].Value.Trim()
+    } catch {
+        throw "Could not determine the running backend platform version: $($_.Exception.Message)"
+    } finally {
+        if ($reader) { $reader.Dispose() }
+        if ($entryStream) { $entryStream.Dispose() }
+        if ($archive) { $archive.Dispose() }
+        if ($jarStream) { $jarStream.Dispose() }
+        if (Test-Path -LiteralPath $tempDirectory) {
+            Remove-Item -LiteralPath $tempDirectory -Recurse -Force
+        }
+    }
+}
 
 function Get-SeriesAttribute {
     param([Parameter(Mandatory)][object] $Series, [Parameter(Mandatory)][string] $Name)
 
-    # VictoriaMetrics series labels are dictionaries with dotted attribute keys;
-    # tests may provide Prometheus-normalized underscore aliases.
     if ($Series -is [System.Collections.IDictionary]) {
         if ($Series.Contains($Name)) { return [string]$Series[$Name] }
         $normalizedName = $Name.Replace('.', '_')
