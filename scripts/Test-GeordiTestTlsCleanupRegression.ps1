@@ -211,6 +211,17 @@ try {
     Assert-CleanupRegression (!(Test-Path $wrongCa.StoreLog)) 'wrong-CA failure attempted a store operation.'
     Write-Output 'm19_tls_cleanup_ca_identity_mismatch=FAIL_CLOSED'
 
+    # A matching thumbprint with a different installed subject must not be removed.
+    $wrongStoreSubject = New-CleanupFixture 'wrong-store-subject'
+    $fixtures.Add($wrongStoreSubject.Root)
+    $storeSubjectThumbprint = Set-RegisteredCa $wrongStoreSubject
+    [IO.File]::WriteAllText($wrongStoreSubject.StoreState, "$storeSubjectThumbprint|CN=Unrelated Root", [Text.Encoding]::ASCII)
+    $result = Invoke-CleanupFixture $wrongStoreSubject
+    Assert-CleanupRegression ($result.ExitCode -ne 0) 'matching thumbprint with an unrelated LocalMachine subject was accepted.'
+    Assert-CleanupRegression ((Test-Path $wrongStoreSubject.Runtime) -and (Test-Path $wrongStoreSubject.PublicManifest)) 'wrong store subject failure deleted local material.'
+    Assert-CleanupRegression ([IO.File]::ReadAllText($wrongStoreSubject.StoreState).Contains('CN=Unrelated Root')) 'wrong store subject failure changed mock store state.'
+    Write-Output 'm19_tls_cleanup_store_subject_mismatch=FAIL_CLOSED'
+
     # Recovery after runtime removal but before public-manifest removal.
     $orphan = New-CleanupFixture 'orphan-manifest'
     $fixtures.Add($orphan.Root)
