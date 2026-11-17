@@ -407,6 +407,12 @@ try {
     Assert-SchedulerIsolation $rejectEnabled 'rendered scheduling=true was not rejected'
 
     $m14Source = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'verify-alert-history.ps1'))
+    Assert-SchedulerIsolation ($m14Source.Contains("if (\$SkipM19Capture) {") -and
+        $m14Source.Contains('$script:GeordiPrivateTokenSentinelOverride = { param($Token) }')) `
+        'capture-free M14 mode does not disable the authentication helper M19 sentinel fallback'
+    Assert-SchedulerIsolation ($m14Source.Contains('if ($SkipM19Capture) { return }') -and
+        $m14Source.Contains('if (-not $SkipM19Capture) {')) `
+        'capture-free M14 mode does not guard private sentinel and capture-root access'
     Assert-SchedulerIsolation ($m14Source.Contains("'COMPOSE_FILE', 'GEORDI_SCHEDULING_ALERT_ENABLED', 'GEORDI_M13_WEBHOOK_TOKEN_A', 'GEORDI_M13_WEBHOOK_TOKEN_B'")) `
         'M14 caller environment snapshot omits a variable changed by the script'
     Assert-SchedulerIsolation ($m14Source.IndexOf('Get-GeordiM14RenderedComposeConfiguration', [StringComparison]::Ordinal) -lt
