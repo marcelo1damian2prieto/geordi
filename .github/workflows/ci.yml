@@ -80,6 +80,47 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare ephemeral HTTPS ingress certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          runtime_dir="$GITHUB_WORKSPACE/.runtime/m19"
+          mkdir -p "$runtime_dir"
+          chmod 0755 "$GITHUB_WORKSPACE/.runtime" "$runtime_dir"
+
+          openssl req -x509 -newkey rsa:3072 -nodes -sha256 -days 2 \
+            -keyout "$runtime_dir/ca.key" \
+            -out "$runtime_dir/ca.pem" \
+            -subj "/CN=Geordi CI Ephemeral Test CA" \
+            -addext "basicConstraints=critical,CA:TRUE" \
+            -addext "keyUsage=critical,keyCertSign,cRLSign"
+
+          openssl req -new -newkey rsa:2048 -nodes -sha256 \
+            -keyout "$runtime_dir/geordi-key.pem" \
+            -out "$runtime_dir/geordi.csr" \
+            -subj "/CN=geordi.localhost"
+
+          cat > "$runtime_dir/geordi.ext" <<'EOF'
+          basicConstraints=critical,CA:FALSE
+          keyUsage=critical,digitalSignature,keyEncipherment
+          extendedKeyUsage=serverAuth
+          subjectAltName=DNS:geordi.localhost
+          EOF
+
+          openssl x509 -req -sha256 -days 2 \
+            -in "$runtime_dir/geordi.csr" \
+            -CA "$runtime_dir/ca.pem" \
+            -CAkey "$runtime_dir/ca.key" \
+            -CAcreateserial \
+            -out "$runtime_dir/geordi-cert.pem" \
+            -extfile "$runtime_dir/geordi.ext"
+
+          rm -f "$runtime_dir/ca.key" "$runtime_dir/geordi.csr" \
+            "$runtime_dir/geordi.ext" "$runtime_dir/ca.srl"
+          chmod 0644 "$runtime_dir/ca.pem" "$runtime_dir/geordi-cert.pem"
+          chmod 0600 "$runtime_dir/geordi-key.pem"
+          openssl verify -CAfile "$runtime_dir/ca.pem" \
+            -verify_hostname geordi.localhost "$runtime_dir/geordi-cert.pem"
       - name: Prepare ephemeral OIDC smoke credential
         shell: bash
         run: |
@@ -95,6 +136,9 @@ jobs:
         run: |
           set -euo pipefail
           test -s "$GEORDI_CI_OIDC_SECRET_FILE"
+          test -s .runtime/m19/ca.pem
+          test -s .runtime/m19/geordi-cert.pem
+          test -s .runtime/m19/geordi-key.pem
           docker compose -f compose.yaml -f compose.ci.yaml config --quiet
       - name: Build and start local stack
         run: docker compose -f compose.yaml -f compose.ci.yaml up -d --build --wait --wait-timeout 180
@@ -107,7 +151,7 @@ jobs:
       - name: Show service logs after failure
         if: failure()
         run: docker compose -f compose.yaml -f compose.ci.yaml logs --no-color
-      - name: Stop local stack and remove ephemeral credential
+      - name: Stop local stack and remove ephemeral credentials
         if: always()
         shell: bash
         run: |
@@ -115,3 +159,4 @@ jobs:
           if [ -n "${GEORDI_CI_OIDC_SECRET_FILE:-}" ]; then
             rm -f "$GEORDI_CI_OIDC_SECRET_FILE"
           fi
+          rm -rf .runtime/m19
