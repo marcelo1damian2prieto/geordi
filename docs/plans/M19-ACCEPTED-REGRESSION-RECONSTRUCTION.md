@@ -632,3 +632,64 @@ A green reconstructed set is a focused post-follower readiness result only. It i
 The historical sequence remains unrecoverable from the currently inspected repository history and checked-in plans. The proposed membership and order above are now fully specified and evidence-mapped as **RECONSTRUCTED — NOT HISTORICAL**.
 
 **Current decision requested:** approve or amend the reconstructed P0–P8 sequence before any full-sequence execution. This documentation update does not run tests or authorize the rerun of B4b.
+
+## 2026-11-16 — P0–P8 reconstructed sequence execution and review checkpoint
+
+This append-only addendum records the owner-approved execution evidence for the reconstructed sequence in Section 11. It does not recover historical membership/order and does not change the classification **RECONSTRUCTED — NOT HISTORICAL**. It supersedes the pending execution/review statements in Sections 11.3 and 11.6 only for this specific D2 execution.
+
+### Execution results
+
+| Phase | Scope | Result | Evidence / qualification |
+|---|---|---|---|
+| P0 | Read-only branch/worktree preconditions | **PASS** | Branch `d2/audit-boundaries-fix`; worktree clean; required paths present |
+| P1 | PowerShell parser, eight affected scripts/helpers | **PASS** | All eight paths parsed without errors |
+| P2 | Five shared post-follower cases | **PASS 5/5** | `CallbackAbsent`, `Ordering`, `WrongFollower`, `ReadinessFailure`, `CleanupFailure` |
+| P3 | M11, M12 backend, M12 overlap backend caller SelfTests | **PASS 3/3** | All three approved aggregate SelfTest invocations completed successfully |
+| P4 | Capture-generation authentication and boundaries | **PASS 2/2** | `AuthContract` (six negative controls) and corrected `Boundaries` |
+| P5 | M12 overlap Collector synthetic `-SelfTest` | **PASS** | Executed after correcting the isolation comparison to normalize the approved `restart` property in both normal and isolated copies; the earlier pre-correction attempt failed and is retained as historical failure evidence |
+| P6 | M12 overlap Collector `-ComposeIntegration` | **PASS** | Real Docker CLI configuration rendering only; normal/isolated render, seven restart edges → zero, normalized configuration equivalence, protected M19 mount configuration unchanged, eight negative propagation cases; lifecycle not invoked |
+| P7 | Read-only diff and scope review | **PASS** | Clean worktree; `git diff --check` and `git diff --check m19...HEAD` clean; exactly seven changed paths |
+| P8 | Fresh read-only review of the resulting D2 state | **PASS — static review** | No unresolved BLOCKER or HIGH finding identified; this is not a separate human approval or runtime verification |
+
+### P7 exact owner-supplied evidence
+
+Commands executed from the repository worktree:
+
+```powershell
+git status --short --branch
+git diff --check
+git diff --check m19...HEAD
+git diff --name-only m19...HEAD
+```
+
+The reported branch was `d2/audit-boundaries-fix...github/d2/audit-boundaries-fix` with no local changes. Both whitespace checks returned no output. The changed paths were exactly:
+
+1. `docs/plans/EXECPLAN-M19-POST-FOLLOWER-READINESS.md`
+2. `docs/plans/M19-ACCEPTED-REGRESSION-RECONSTRUCTION.md`
+3. `docs/plans/M19-D2-TEST-INFRASTRUCTURE-AUDIT.md`
+4. `docs/plans/M19-WORKTREE-RESUME-CHECKPOINT.md`
+5. `scripts/Test-GeordiCaptureGenerations.ps1`
+6. `scripts/Test-GeordiM12OverlapCollector.ps1`
+7. `scripts/lib/GeordiM12OverlapCollector.ps1`
+
+The remote comparison of `m19...d2/audit-boundaries-fix` reported 44 commits ahead, zero behind, and the same seven changed paths. The comparison is a committed branch diff; the separately reported clean local worktree is the local-state evidence.
+
+### P5 correction and failure history
+
+The first P5 attempt failed at the isolation equivalence assertion. Review found an asymmetric normalization defect: the normal configuration copy removed the approved `depends_on.*.restart` properties, while the isolated configuration retained their explicit `false` values. The correction normalizes the same seven approved properties in both copies before comparing the remaining configuration. It retains explicit validation that normal edges are `true` and isolated edges are `false` or absent, plus the residual-propagation check.
+
+The correction changed only `scripts/lib/GeordiM12OverlapCollector.ps1` on the D2 branch. The subsequent P5 result is recorded as PASS; the initial failed attempt remains part of the audit history and is not erased.
+
+### P8 review scope and limits
+
+The read-only review covered callback ordering and exact follower binding; failure-state truthfulness and cleanup precedence; generation/handoff history immutability; M11/M12 caller compatibility; M12 overlap isolation and protected mount configuration; CI nonactivation; and the seven-path branch scope. No unresolved BLOCKER or HIGH finding was identified.
+
+P8 is a static review of the resulting source and evidence. It does not constitute an independent human sign-off, a runtime test, or proof of M19 acceptance.
+
+### Final disposition
+
+The reconstructed P0–P8 sequence is recorded **GREEN for this focused D2 execution**, subject to the qualifications above. This does not recover the historical accepted sequence and does not merge the separate M10 seven-case suite, fixture-transfer 18-gate/A–S matrix, M11→M12 19-gate remediation, or formal overlap 26-gate sequence into this set.
+
+No Docker lifecycle, runtime validation, TLS/certificate operation, real capture mutation, cleanup, protected-volume operation, CI activation, M13, Gate 5 promotion, candidate promotion, or M19 acceptance is authorized or implied by this checkpoint.
+
+Overall milestone status remains **M19 NOT READY — REMEDIATION REQUIRED**.
