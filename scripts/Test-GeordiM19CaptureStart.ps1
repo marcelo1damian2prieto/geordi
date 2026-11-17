@@ -12,13 +12,21 @@ $powerShellPath = (Get-Command pwsh.exe -ErrorAction Stop).Source
 $commandProcessorPath = (Get-Command cmd.exe -ErrorAction Stop).Source
 $workerPath = Join-Path $PSScriptRoot 'lib/Start-GeordiLogFollowerWorker.ps1'
 $healthyPath = Join-Path $root 'healthy.ps1'
+$healthyStdoutPath = Join-Path $root 'healthy.stdout'
+$expectedSince = '2026-11-17T08:18:36.7258700+00:00'
 $exitsPath = Join-Path $root 'exits.ps1'
 $hangPath = Join-Path $root 'hang.ps1'
 $childPidPath = Join-Path $root 'hang.child.pid'
 $healthyRecord = Join-Path $root 'healthy.process.json'
 $exitRecord = Join-Path $root 'exit.process.json'
 try {
-    [IO.File]::WriteAllText($healthyPath,"Write-Output 'follower-ready'; Start-Sleep -Seconds 15",[Text.UTF8Encoding]::new($false))
+    $healthyScript = @'
+param([string] $Since)
+Write-Output "follower-since=$Since"
+Write-Output 'follower-ready'
+Start-Sleep -Seconds 15
+'@
+    [IO.File]::WriteAllText($healthyPath,$healthyScript,[Text.UTF8Encoding]::new($false))
     [IO.File]::WriteAllText($exitsPath,'exit 0',[Text.UTF8Encoding]::new($false))
     $hangWorker = @"
 param([string]`$PayloadBase64)
@@ -28,13 +36,18 @@ Start-Sleep -Seconds 30
 "@
     [IO.File]::WriteAllText($hangPath,$hangWorker,[Text.UTF8Encoding]::new($false))
     $healthy = Invoke-GeordiBoundedLogFollowerStart -PowerShellPath $powerShellPath -WorkerPath $workerPath `
-        -DockerPath $powerShellPath -DockerArguments @('-NoLogo','-NoProfile','-File',$healthyPath) `
-        -WorkingDirectory $root -StandardOutputPath (Join-Path $root 'healthy.stdout') `
+        -DockerPath $powerShellPath -DockerArguments @('-NoLogo','-NoProfile','-File',$healthyPath,$expectedSince) `
+        -WorkingDirectory $root -StandardOutputPath $healthyStdoutPath `
         -StandardErrorPath (Join-Path $root 'healthy.stderr') -ProcessRecordPath $healthyRecord -TimeoutSeconds 5
     if (-not (Test-Path -LiteralPath $healthyRecord) -or [int]$healthy.id -le 0) {
         throw 'Healthy follower startup did not produce bounded process identity evidence.'
     }
+    $healthyOutput = if (Test-Path -LiteralPath $healthyStdoutPath) { [IO.File]::ReadAllText($healthyStdoutPath) } else { '' }
     Stop-GeordiCaptureProcessTree -ProcessId ([int]$healthy.id)
+    if ($healthyOutput -cnotmatch [regex]::Escape("follower-since=$expectedSince")) {
+        throw 'ISO-8601 follower argument was not preserved as its original string.'
+    }
+    Write-Output 'capture_start_case=iso8601_argument_preserved result=PASS'
     Write-Output 'capture_start_case=live_follower result=PASS bounded=5s deterministic_stop=PASS'
 
     $clock = [Diagnostics.Stopwatch]::StartNew()
