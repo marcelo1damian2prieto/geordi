@@ -110,7 +110,7 @@ The following functions are implemented and exported by the module. `Mode` is co
 
 ### 4.1 `Get-GeordiPublishableArtifactInventory`
 
-Conceptual signature:
+Implemented signature:
 
 ```powershell
 Get-GeordiPublishableArtifactInventory `
@@ -338,10 +338,10 @@ Throughout implementation and verification:
 
 - **PLAN-T01:** analysis completed from baseline source inspection and owner-provided checkout evidence.
 - **PLAN-T02:** approved by owner, option A, 2026-11-17.
-- **Approved design constraints:** preserve public contracts; extract without weakening; reject reparse points; retain current bounds; complete synthetic fixtures; no SelfTest security exceptions; confirm PowerShell compatibility before implementation.
+- **Approved design constraints:** preserve public contracts; extract without weakening; reject reparse points; retain current bounds; complete synthetic fixtures; no SelfTest security exceptions; target PowerShell 7 per CI and confirm the local host before local verification.
 - **Implementation authorization:** **GRANTED** by owner on 2026-11-17.
 - **Implementation source changes:** module, artifact wrapper and Credential Gate SelfTest updated; no local PowerShell execution has been recorded.
-- **Implementation source HEAD at this checkpoint:** `0cf31ce456ed276f15601145c53e0ede431a08db`; subsequent commits in this branch update only the execution-plan/checkpoint documentation.
+- **Implementation source HEAD at this checkpoint:** `47e8277c06e8a87a455ce20243e8a2a942806988`; subsequent commits in this branch update only documentation.
 - **M19 milestone status:** unchanged — **M19 NOT READY — REMEDIATION REQUIRED**.
 
 
