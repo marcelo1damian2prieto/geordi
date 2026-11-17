@@ -11,7 +11,7 @@ function Assert-CleanupRegression([bool] $Condition, [string] $Message) {
     if (!$Condition) { throw "M19 TLS cleanup regression failed: $Message" }
 }
 
-function New-TestCa([string] $Directory, [string] $Name = 'primary') {
+function New-TestCa([string] $Directory, [string] $Name = 'ca') {
     $key = [Security.Cryptography.RSA]::Create(2048)
     $certificate = $null
     try {
