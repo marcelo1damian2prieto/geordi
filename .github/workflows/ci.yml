@@ -87,6 +87,7 @@ jobs:
           secret_file="$RUNNER_TEMP/geordi-oidc-client-secret"
           umask 077
           openssl rand -hex 32 > "$secret_file"
+          chmod 0444 "$secret_file"
           test -s "$secret_file"
           echo "GEORDI_CI_OIDC_SECRET_FILE=$secret_file" >> "$GITHUB_ENV"
       - name: Validate CI Compose configuration
