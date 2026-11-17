@@ -111,6 +111,8 @@ function Get-GeordiArtifactArchiveEntryCount {
 
     $archive = $null
     try {
+        $item = Get-Item -LiteralPath $Path -Force
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'root_path_rejected' }
         $archive = [IO.Compression.ZipFile]::OpenRead($Path)
         return [long]$archive.Entries.Count
     } catch {
@@ -270,8 +272,11 @@ function Test-GeordiPublishableArtifactContent {
             if ([IO.Path]::GetExtension($relative) -notin @('.jar','.zip')) { continue }
             $path = [IO.Path]::GetFullPath((Join-Path $root ($relative.Replace('/',[IO.Path]::DirectorySeparatorChar))))
             [void](Get-GeordiArtifactRelativePath -Root $root -FullPath $path)
+            Assert-GeordiArtifactPathChain -Root $root -FullPath $path
             $archive = $null
             try {
+                $item = Get-Item -LiteralPath $path -Force
+                if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'root_path_rejected' }
                 $archive = [IO.Compression.ZipFile]::OpenRead($path)
                 foreach ($archiveEntry in $archive.Entries) {
                     $entryCount++
