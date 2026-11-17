@@ -123,8 +123,11 @@ removal only when that exact thumbprint is present, and verifies absence afterwa
 A matching store entry must also have the expected CA subject and issuer. If both
 manifests are absent, the cleanup probes the CA in `ca.cer` read-only so a lost
 manifest cannot leave a run-owned CA trusted in Windows. Cleanup removes both
-thumbprint manifests and the runtime directory; an orphaned public manifest can be
-safely finalized after an interrupted cleanup. Reparse-point guards
+thumbprint manifests and only TLS-generator-owned files. It preserves non-TLS
+runtime content such as `alert-policies.yaml`, `slos.yaml`, and M18 IDs; the
+`.runtime/m19` directory is removed only when empty. The TLS generator can reuse
+that directory when no prior TLS-owned artifacts remain. An orphaned public manifest
+can be safely finalized after an interrupted cleanup. Reparse-point guards
 protect the repository `.runtime` parent, M19 runtime directory, manifests, and CA
 certificate. `scripts/Test-GeordiTestTlsCleanupRegression.ps1` exercises these cases
 against an isolated mock trust store and temporary repository, without modifying the
