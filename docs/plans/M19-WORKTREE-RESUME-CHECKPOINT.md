@@ -218,3 +218,12 @@ The selectors `-SelfTest` and `-ComposeIntegration` are mutually exclusive. No t
 Read-only review of the final source confirms that synthetic harness renderers use the synthetic fixture provider, `-SelfTest` exercises the injected Compose executor and synthetic configuration invariants, and `-ComposeIntegration` is the only selector that invokes the real Docker CLI config renderer. The integration selector is mutually exclusive with `-SelfTest` and `-Case`.
 
 No parser or test was executed. The implementation is statically reviewed but **not execution-verified**. Do not treat this as a PASS. Docker CLI config rendering remains a separate operation requiring its own authorization; lifecycle, runtime, cleanup, TLS, capture and protected-volume operations remain outside scope.
+
+ 
+### Branch-scope correction after D2-09 — 2026-11-16
+
+The current comparison `m19...d2/audit-boundaries-fix` reports 31 commits ahead, zero behind, and seven changed paths. In addition to the four documentation paths and the existing `scripts/Test-GeordiCaptureGenerations.ps1` correction, D2-09 adds:
+- `scripts/Test-GeordiM12OverlapCollector.ps1`
+- `scripts/lib/GeordiM12OverlapCollector.ps1`
+
+No application source, CI, Compose YAML, TLS/certificates, runtime captures or protected-volume definitions are changed. Earlier five-path snapshots remain historical and are superseded by this branch-scope correction.
