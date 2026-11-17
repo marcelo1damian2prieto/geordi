@@ -341,7 +341,7 @@ Throughout implementation and verification:
 - **Approved design constraints:** preserve public contracts; extract without weakening; reject reparse points; retain current bounds; complete synthetic fixtures; no SelfTest security exceptions; confirm PowerShell compatibility before implementation.
 - **Implementation authorization:** **GRANTED** by owner on 2026-11-17.
 - **Implementation source changes:** module, artifact wrapper and Credential Gate SelfTest updated; no local PowerShell execution has been recorded.
-- **Current branch HEAD at this checkpoint:** `90fd080ac5c92f7d7dc688946cc80f807fa07559` (before this documentation update).
+- **Implementation source HEAD at this checkpoint:** `0cf31ce456ed276f15601145c53e0ede431a08db`; subsequent commits in this branch update only the execution-plan/checkpoint documentation.
 - **M19 milestone status:** unchanged — **M19 NOT READY — REMEDIATION REQUIRED**.
 
 
