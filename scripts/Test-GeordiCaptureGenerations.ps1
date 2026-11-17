@@ -327,11 +327,13 @@ try {
                 param($source)
                 return ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $source -Depth 64 -Compress) -AsHashtable
             }.GetNewClosure()
+            $getGenerationRecordCommand=(Get-Command Get-GeordiCaptureGenerationRecord -CommandType Function).ScriptBlock
+            $assertManifestCommand=(Get-Command Assert-GeordiCaptureGenerationManifest -CommandType Function).ScriptBlock
             $setTimeline={
                 param($candidate,[string]$oldEnd,[string]$newStart,[long]$declared,[long]$maximum,
                     [string]$handoffStart,[string]$completed,[string]$recordedOld,[string]$recordedNew)
-                $oldRecord=Get-GeordiCaptureGenerationRecord $candidate backend $oldId
-                $newRecord=Get-GeordiCaptureGenerationRecord $candidate backend $newId
+                $oldRecord=& $getGenerationRecordCommand $candidate backend $oldId
+                $newRecord=& $getGenerationRecordCommand $candidate backend $newId
                 $event=$candidate.captureHandoffs[$handoffId]
                 $oldRecord.captureStartedUtc='2026-10-01T09:59:00.0000000Z'
                 $oldRecord.captureEndedUtc=$oldEnd
@@ -351,7 +353,7 @@ try {
                     [string]$handoffStart,[string]$completed,[string]$recordedOld,[string]$recordedNew)
                 $candidate=& $cloneManifest $base
                 & $setTimeline $candidate $oldEnd $newStart $declared $maximum $handoffStart $completed $recordedOld $recordedNew
-                Assert-GeordiCaptureGenerationManifest $candidate
+                & $assertManifestCommand $candidate
             }.GetNewClosure()
             $assertInvalid={
                 param([string]$name,[scriptblock]$mutate)
@@ -361,7 +363,7 @@ try {
                     '2026-10-01T10:00:00.0000000Z' '2026-10-01T10:00:00.8500000Z'
                 & $mutate $candidate
                 $rejected=$false
-                try { Assert-GeordiCaptureGenerationManifest $candidate } catch { $rejected=$true }
+                try { & $assertManifestCommand $candidate } catch { $rejected=$true }
                 Assert-CaptureGeneration $rejected ("invalid handoff timestamp case was accepted: " + $name)
             }.GetNewClosure()
 
@@ -459,13 +461,16 @@ try {
                     ("$($operation.stage) changed historical old-generation evidence before replacement")
                 $nextContainerOrdinal++
                 $newContainerId=$nextContainerOrdinal.ToString('x64')
+                $readGenerationManifestCommand=(Get-Command Read-GenerationManifest -CommandType Function).ScriptBlock
+                $getGenerationRecordCommand=(Get-Command Get-GeordiCaptureGenerationRecord -CommandType Function).ScriptBlock
+                $newContainerIdentityCommand=(Get-Command New-ContainerIdentity -CommandType Function).ScriptBlock
                 $replaceAction={
-                    $latest=Read-GenerationManifest $root
-                    $latestOld=Get-GeordiCaptureGenerationRecord $latest $service $oldId
+                    $latest=& $readGenerationManifestCommand $root
+                    $latestOld=& $getGenerationRecordCommand $latest $service $oldId
                     if($latestOld.terminalStatus -cne 'sealed'){throw 'synthetic replace called before old seal'}
                     $replacementOperations.Add($stage + ':' + $service)
                 }.GetNewClosure()
-                $identityProvider={param($name) New-ContainerIdentity $newContainerId $name}.GetNewClosure()
+                $identityProvider={param($name) & $newContainerIdentityCommand $newContainerId $name}.GetNewClosure()
                 $newGeneration=Invoke-GeordiCaptureHandoffReplacement -CaptureRoot $root -Service $service -HandoffId $handoff `
                     -RepositoryRoot (Get-Location).Path -Replace $replaceAction -GetContainerIdentity $identityProvider -StartFollower $script:mockStart
                 $after=Read-GenerationManifest $root
