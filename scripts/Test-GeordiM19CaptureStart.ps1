@@ -133,7 +133,7 @@ Start-Sleep -Seconds 30
 
     $workerFailureClock = [Diagnostics.Stopwatch]::StartNew()
     try {
-        Invoke-GeordiBoundedLogFollowerStart -PowerShellPath $powerShellPath -WorkerPath $workerPath -DockerPath (Join-Path $root 'missing-docker-executable.exe') -DockerArguments @() -WorkingDirectory $root -StandardOutputPath (Join-Path $root 'worker-failure.stdout') -StandardErrorPath (Join-Path $root 'worker-failure.stderr') -ProcessRecordPath (Join-Path $root 'worker-failure.process.json') -TimeoutSeconds 5 | Out-Null
+        Invoke-GeordiBoundedLogFollowerStart -PowerShellPath $powerShellPath -WorkerPath $workerPath -DockerPath (Join-Path $root 'missing-docker-executable.exe') -DockerArguments @('--version') -WorkingDirectory $root -StandardOutputPath (Join-Path $root 'worker-failure.stdout') -StandardErrorPath (Join-Path $root 'worker-failure.stderr') -ProcessRecordPath (Join-Path $root 'worker-failure.process.json') -TimeoutSeconds 5 | Out-Null
         throw 'Worker startup exception was accepted.'
     } catch {
         if ($_.Exception.Message -eq 'Worker startup exception was accepted.') { throw }
@@ -200,7 +200,9 @@ Start-Sleep -Seconds 30
     if ($earlyDiagnostic.version -ne 1 -or $earlyDiagnostic.failureStage -cne 'worker-readiness' -or
             $earlyDiagnostic.failureCode -cne 'worker-exited-early' -or [int]$earlyDiagnostic.workerExitCode -ne 21 -or
             $earlyDiagnostic.cleanupStatus -cne 'not-required' -or $null -ne $earlyDiagnostic.exceptionType) {
-        throw 'Early-exit diagnostic did not contain the expected bounded classification.'
+        throw ("Early-exit diagnostic classification mismatch: version={0}; stage={1}; code={2}; workerExitCode={3}; cleanupStatus={4}; exceptionType={5}" -f
+            $earlyDiagnostic.version, $earlyDiagnostic.failureStage, $earlyDiagnostic.failureCode,
+            $earlyDiagnostic.workerExitCode, $earlyDiagnostic.cleanupStatus, [string]$earlyDiagnostic.exceptionType)
     }
     if ($earlyDiagnostic.PSObject.Properties.Name -contains 'message' -or $earlyDiagnostic.PSObject.Properties.Name -contains 'arguments') {
         throw 'Startup diagnostic exposed a forbidden message or execution arguments.'
