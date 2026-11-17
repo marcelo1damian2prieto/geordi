@@ -6,6 +6,7 @@ Set-StrictMode -Version Latest
 if (!$SelfTest) { throw 'Use -SelfTest to run the bounded fail-closed gate simulations.' }
 . (Join-Path $PSScriptRoot 'lib/GeordiCredentialGateOrchestration.ps1')
 . (Join-Path $PSScriptRoot 'lib/GeordiPrivateEvidence.ps1')
+. (Join-Path $PSScriptRoot 'lib/GeordiTempoEvidence.ps1')
 
 $root = Join-Path ([IO.Path]::GetTempPath()) ('geordi-m19-capture-selftest-' + [guid]::NewGuid().ToString('N'))
 [void][IO.Directory]::CreateDirectory($root)
@@ -49,46 +50,44 @@ try {
         }
     }
 
-    $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-    $artifactRoots = @(
-        'backend/target/surefire-reports','backend/target/pmd.xml',
-        'backend/target/spotbugsXml.xml','backend/target/geordi-backend-0.1.0-SNAPSHOT.jar',
-        'backend/target/geordi-backend-0.1.0-SNAPSHOT-security-telemetry.jar',
-        'backend/.ci-artifact/application.jar','backend/.ci-artifact/security-telemetry.jar',
-        'backend/target/verified-artifact.properties','frontend/dist')
-    $artifactFiles = [Collections.Generic.List[IO.FileInfo]]::new()
-    foreach ($relative in $artifactRoots) {
-        $path = Join-Path $repositoryRoot $relative
-        if (!(Test-Path -LiteralPath $path)) {
-            if ($relative -in @('backend/.ci-artifact/application.jar','backend/.ci-artifact/security-telemetry.jar')) { continue }
-            throw 'Gate self-test requires built publishable artifacts.'
-        }
-        $item = Get-Item -LiteralPath $path
-        if ($item.PSIsContainer) {
-            foreach ($file in Get-ChildItem -LiteralPath $path -File -Recurse) { $artifactFiles.Add($file) }
-        } else { $artifactFiles.Add($item) }
+    $artifactRoot = Join-Path $root 'publishable-artifacts'
+    $artifactDirectories = @(
+        'backend/target/surefire-reports',
+        'backend/target',
+        'frontend/dist'
+    )
+    foreach ($relativeDirectory in $artifactDirectories) {
+        [void][IO.Directory]::CreateDirectory((Join-Path $artifactRoot $relativeDirectory))
     }
-    $failsafeRoot = Join-Path $repositoryRoot 'backend/target/failsafe-reports'
-    if (Test-Path -LiteralPath $failsafeRoot) {
-        foreach ($file in Get-ChildItem -LiteralPath $failsafeRoot -File -Recurse) { $artifactFiles.Add($file) }
+    [IO.File]::WriteAllText((Join-Path $artifactRoot 'backend/target/surefire-reports/TEST-geordi.xml'), '<testsuite tests="1" failures="0"/>')
+    [IO.File]::WriteAllText((Join-Path $artifactRoot 'backend/target/pmd.xml'), '<pmd/>')
+    [IO.File]::WriteAllText((Join-Path $artifactRoot 'backend/target/spotbugsXml.xml'), '<BugCollection/>')
+    [IO.File]::WriteAllText((Join-Path $artifactRoot 'backend/target/verified-artifact.properties'), 'verified=true')
+
+    foreach ($archiveName in @('geordi-backend-0.1.0-SNAPSHOT.jar','geordi-backend-0.1.0-SNAPSHOT-security-telemetry.jar')) {
+        $archivePath = Join-Path $artifactRoot ('backend/target/' + $archiveName)
+        $archive = [IO.Compression.ZipFile]::Open($archivePath,[IO.Compression.ZipArchiveMode]::Create)
+        try {
+            $entry = $archive.CreateEntry('META-INF/MANIFEST.MF')
+            $writer = [IO.StreamWriter]::new($entry.Open(),[Text.UTF8Encoding]::new($false))
+            try { $writer.Write("Manifest-Version: 1.0" + [Environment]::NewLine) } finally { $writer.Dispose() }
+        } finally { $archive.Dispose() }
     }
-    $archiveCount = 0; $archiveEntryCount = 0
-    foreach ($file in $artifactFiles) {
-        if ($file.Extension -in @('.jar','.zip')) {
-            $archiveCount++
-            $archive = [IO.Compression.ZipFile]::OpenRead($file.FullName)
-            try { $archiveEntryCount += $archive.Entries.Count } finally { $archive.Dispose() }
-        }
+    [IO.File]::WriteAllText((Join-Path $artifactRoot 'frontend/dist/index.html'), '<!doctype html><title>synthetic artifact</title>')
+
+    $artifactModule = Join-Path $PSScriptRoot 'lib/GeordiPublishableArtifacts.psm1'
+    Import-Module $artifactModule -Force -ErrorAction Stop
+    try {
+        $artifactInventory = Get-GeordiPublishableArtifactInventory -RootPath $artifactRoot -Mode SelfTest
+    } finally {
+        Remove-Module GeordiPublishableArtifacts -ErrorAction SilentlyContinue
     }
     $inventoryPath = Join-Path $root 'publishable-artifact-inventory.json'
-    $artifactEntries = @($artifactFiles | Sort-Object FullName | ForEach-Object {
-        $relative = $_.FullName.Substring($repositoryRoot.Length).TrimStart([IO.Path]::DirectorySeparatorChar).Replace('\','/')
-        @{ path=$relative; sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
-    })
-    [IO.File]::WriteAllText($inventoryPath, (ConvertTo-Json -Depth 8 -Compress @{ artifactInventory='complete';
-        fileCount=$artifactFiles.Count; archiveCount=$archiveCount; archiveEntryCount=$archiveEntryCount; files=$artifactEntries }))
+    [IO.File]::WriteAllText($inventoryPath, (ConvertTo-Json -InputObject $artifactInventory -Depth 12 -Compress), [Text.UTF8Encoding]::new($false))
     $manifest.controls['ci-artifacts'] = 'artifactInventory'
-    $manifest.captures['ci-artifacts'] = @($inventoryPath) + @($artifactFiles | ForEach-Object FullName)
+    $manifest.captures['ci-artifacts'] = @($inventoryPath) + @($artifactInventory.files | ForEach-Object {
+        Join-Path $artifactRoot ([string]$_.path.Replace('/',[IO.Path]::DirectorySeparatorChar))
+    })
 
     foreach ($channel in @('loki','victoriametrics')) {
         $control = if ($channel -eq 'loki') { 'Security decision' } else { 'geordi.security.authentication.attempts' }
