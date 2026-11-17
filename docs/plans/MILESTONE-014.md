@@ -91,6 +91,29 @@ M9–M13 regression chain. Legacy determinism, no fabricated start, subsequent n
 identity, and corruption fail-closed behavior are covered by focused
 persistence/domain tests in addition to the isolated normal-lifecycle smoke.
 
+### Local TLS material preflight
+
+Before the M14 smoke resets or recreates any fixture container, 
+`scripts/verify-alert-history.ps1` runs the read-only
+`scripts/Test-GeordiM19TlsMaterial.ps1` preflight after rendering the effective Compose
+configuration. It validates the ephemeral CA PEM/DER identity, CA validity and constraints,
+the OIDC `auth.p12` certificate/private key and `auth.localhost` SAN, the exact CA in the
+Java PKCS12 truststore, and the frontend `geordi.localhost` PEM certificate/key pair.
+It does not contact services, invoke Docker, import certificates into OS trust, renew
+certificates, or modify runtime material. A failure aborts before M14 fixture reset.
+
+The standalone validator accepts `-RuntimeDirectory` for isolated test fixtures.
+`scripts/Test-GeordiM19TlsMaterialRegression.ps1` runs a positive check against the
+current `.runtime/m19` material and negative checks for a missing password, incorrect
+truststore password, wrong DNS SAN, wrong CA chain, and expired CA. The regression harness
+copies fixtures to a temporary directory and removes those copies on completion.
+
+The generator remains `scripts/New-GeordiTestTls.ps1`; the preflight never regenerates
+material. Regeneration and trust-store cleanup must continue through the existing
+`New-GeordiTestTls.ps1` / `Remove-GeordiTestTls.ps1` lifecycle. The frontend PEM/key
+pair is validated because Compose mounts it into Nginx; `geordi.p12` is not validated
+because no runtime consumer is configured.
+
 ### Authoritative closure evidence
 
 The authoritative GitLab pipeline checked out implementation commit
