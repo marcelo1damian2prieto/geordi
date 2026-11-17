@@ -513,10 +513,14 @@ try {
             Write-Output 'pre_m14_generation_boundaries=PASS stages=M9-M10-M11-M12-M13-M14-boundary backend_recreated=M10,M11,M12-reset,M12-enable,M13 collector_recreated=M12,M13 frontend=reused vm=snapshot-only'
 
             $invalidBase=Read-GenerationManifest $root
+            $assertManifestCommand=(Get-Command Assert-GeordiCaptureGenerationManifest -CommandType Function).ScriptBlock
+            $assertCaptureGenerationCommand=(Get-Command Assert-CaptureGeneration -CommandType Function).ScriptBlock
             $clone={param($m) ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $m -Depth 64 -Compress) -AsHashtable}.GetNewClosure()
-            $expectRejected={param([string]$name,$candidate)
-                $rejected=$false;try{Assert-GeordiCaptureGenerationManifest $candidate}catch{$rejected=$true}
-                Assert-CaptureGeneration $rejected ("pre-M14 fail-closed case was accepted: "+$name)
+            $expectRejected={
+                param([string]$name,$candidate)
+                $rejected=$false
+                try { & $assertManifestCommand $candidate } catch { $rejected=$true }
+                & $assertCaptureGenerationCommand $rejected ("pre-M14 fail-closed case was accepted: "+$name)
             }.GetNewClosure()
 
             $missingGeneration=& $clone $invalidBase
