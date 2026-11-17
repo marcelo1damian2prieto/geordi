@@ -148,6 +148,7 @@ function New-GeordiM14FixtureOwnershipState {
         StartupAttempted = $false
         StartupStartedUtc = $null
         BaselineContainerIds = @()
+        BaselineStoppedContainers = @()
     }
 }
 
