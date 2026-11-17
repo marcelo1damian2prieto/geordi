@@ -76,6 +76,9 @@ if (![string]::Equals($resolvedRuntimeParent, $expectedRuntimeParent, [StringCom
 }
 
 if ($runtimeExists) {
+    if (!(Test-Path -LiteralPath $runtimeDirectory -PathType Container)) {
+        throw 'M19 runtime path exists but is not a directory; refusing cleanup.'
+    }
     $runtimeItem = Get-Item -LiteralPath $runtimeDirectory -Force
     if (($runtimeItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
         throw 'Refusing to remove M19 runtime material through a reparse point.'
