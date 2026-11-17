@@ -593,3 +593,17 @@ See:
 - `docs/architecture/`
 - `docs/adr/`
 - `docs/plans/`
+
+
+## Milestone 19 — Security and acceptance hardening
+
+M19 remains **NOT READY — REMEDIATION REQUIRED**; the approved planning work below does
+not constitute runtime acceptance. The current publishable-artifact gate refactor plan
+is documented in
+[EXECPLAN-M19-PUBLISHABLE-ARTIFACT-GATE.md](docs/plans/EXECPLAN-M19-PUBLISHABLE-ARTIFACT-GATE.md),
+with its dated checkpoint in
+[MILESTONE-019.md](docs/plans/MILESTONE-019.md).
+
+The publishable-artifact gate analysis and interface plan are owner-approved
+(2026-11-17). Implementation is not authorized. The supported PowerShell
+edition/version must be confirmed before implementation begins.
