@@ -249,3 +249,73 @@ The earlier branch-scope snapshot above predates the D2-09 implementation and is
 - `scripts/lib/GeordiM12OverlapCollector.ps1`
 
 The two new script paths implement the D2-09 test-harness separation. No application source, GitLab CI, Compose YAML, TLS/certificates, runtime capture, or protected-volume definitions appear in the current diff. This correction supersedes the earlier five-path branch-scope snapshot.
+
+## D2-10 — M12 overlap Collector B+C execution evidence — 2026-11-16
+
+**Disposition:** owner-reported execution PASS on `d2/audit-boundaries-fix`. This addendum records the supplied console output; it does not claim a full accepted-regression run or M19 acceptance.
+
+### Parser validation
+
+The owner ran the PowerShell AST parser against both affected files:
+
+- `scripts/lib/GeordiM12OverlapCollector.ps1` — **PASS**.
+- `scripts/Test-GeordiM12OverlapCollector.ps1` — **PASS**.
+
+No parser errors were emitted.
+
+### Synthetic SelfTest validation (B)
+
+The owner ran:
+
+```powershell
+pwsh -NoProfile -File scripts/Test-GeordiM12OverlapCollector.ps1 -SelfTest
+```
+
+The output reported PASS for:
+- lifecycle map/shared adapter;
+- normal and isolated synthetic render invariants (7 reverse restart edges and 0, respectively);
+- normalized `depends_on.restart` configuration equivalence;
+- protected M19 mount configuration unchanged;
+- propagation negative matrix (8 cases);
+- Collector command scope;
+- exact-follower handoffs and startup ordering;
+- M13 entry Collector state;
+- wrapper failures and wrong-follower rejection at both boundaries;
+- second-handoff failure cases, including readiness cleanup failure.
+
+The final marker was:
+
+```text
+m12_overlap_collector_self_test=PASS runtime=NOT_RUN ci=unchanged backend_generation=deferred
+```
+
+The subsequent `$LASTEXITCODE` guard did not throw. This records the focused SelfTest process as successful; it does not establish the full accepted regression sequence.
+
+### Real Compose config-render integration (C)
+
+The owner then ran:
+
+```powershell
+pwsh -NoProfile -File scripts/Test-GeordiM12OverlapCollector.ps1 -ComposeIntegration
+```
+
+The supplied output reported:
+- normal Compose render: **PASS**, reverse restart edges = 7;
+- isolated Compose render: **PASS**, reverse restart edges = 0;
+- configuration equivalence: **PASS**, normalized field = `depends_on.restart`;
+- protected M19 mount configuration: **PASS**, unchanged;
+- propagation negative matrix: **PASS**, 8 cases.
+
+The final marker was:
+
+```text
+m12_overlap_compose_integration=PASS docker_operation=config_render_only lifecycle=NOT_INVOKED
+```
+
+This is evidence for the real Compose configuration-render path only. It is not evidence of Docker lifecycle, runtime, cleanup, volume mutation, CI activation, TLS/certificate work, capture mutation, or protected-volume operations.
+
+### Current disposition
+
+The parser checks, B synthetic SelfTest, and C real Compose config-render integration are now recorded as **PASS based on owner-supplied console output**. The full accepted regression sequence remains **NOT RUN**; the independent read-only shared-readiness review and formal overlap 26-gate sequence remain pending. M19 remains **NOT READY — REMEDIATION REQUIRED**.
+
+No code, CI, Compose YAML, runtime state, captures, TLS material, or protected volumes were changed as part of recording this evidence.
