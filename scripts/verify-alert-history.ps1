@@ -387,7 +387,7 @@ function Reset-M14Fixture([string] $Root, [object] $Ownership) {
     if ($LASTEXITCODE -ne 0) { throw 'Unable to render the M14 Compose configuration for fixture reset.' }
     $inventory = Get-GeordiM14DockerResourceInventory
     $plan = Get-GeordiM14MutationPlan -Configuration $rendered
-    Assert-GeordiM14MutationPreflight -Plan $plan -ServiceInventory $inventory.Containers
+    Assert-GeordiM14MutationPreflight -Plan $plan -ServiceInventory $inventory.Containers -RepositoryRoot $Root
     $script:M14MutationPlan = $plan
     if ($script:M14CaptureRoot) {
         $script:M14PendingCaptureHandoffs = Begin-GeordiCaptureHandoffs -CaptureRoot $script:M14CaptureRoot `
@@ -441,27 +441,77 @@ function Remove-M14OwnedFixtureResources([object] $Ownership) {
         }
 }
 
+function Start-GeordiM14ExistingServices([string] $Root, [string[]] $Services) {
+    foreach ($service in $Services) {
+        $inventory = Get-GeordiM14DockerResourceInventory
+        $matches = @($inventory.Containers | Where-Object {
+            $_.Project -ceq 'geordi' -and $_.Service -ceq $service
+        })
+        if ($matches.Count -ne 1) {
+            throw "M14 startup requires exactly one existing '$service' container; found $($matches.Count)."
+        }
+        $container = $matches[0]
+        if ([IO.Path]::GetFullPath([string]$container.WorkingDirectory) -cne [IO.Path]::GetFullPath($Root)) {
+            throw "M14 startup refused '$service' because its container belongs to a different checkout."
+        }
+
+        if (-not $container.Running) {
+            & docker start ([string]$container.Id) | Out-Host
+            if ($LASTEXITCODE -ne 0) { throw "Unable to start the exact existing M14 dependency container for '$service'." }
+        }
+
+        $deadline = [DateTimeOffset]::UtcNow.AddSeconds(90)
+        $ready = $false
+        do {
+            $current = Get-GeordiM14DockerResourceInventory
+            $currentMatch = @($current.Containers | Where-Object { $_.Id -ceq $container.Id })
+            if ($currentMatch.Count -ne 1) { throw "M14 dependency '$service' changed container identity during startup." }
+            if ($currentMatch[0].Running -and $currentMatch[0].Healthy) {
+                $ready = $true
+                break
+            }
+            Start-Sleep -Milliseconds 500
+        } while ([DateTimeOffset]::UtcNow -lt $deadline)
+
+        if (-not $ready) { throw "M14 existing dependency '$service' did not become running and healthy." }
+        Write-Host ("M14 existing service ready service={0} container={1}" -f $service,$container.Id.Substring(0,[Math]::Min(12,$container.Id.Length)))
+    }
+}
+
 function Start-M14FixtureServices([string] $Root, [object] $Plan) {
+    # Start pre-existing prerequisites by inspected container ID; do not let
+    # Compose recreate unrelated services or traverse dependency edges.
+    foreach ($group in $Plan.ExistingStartGroups | Where-Object { $_.Phase -ceq 'prerequisites' }) {
+        Start-GeordiM14ExistingServices -Root $Root -Services $group.Services
+    }
+
     foreach ($command in $Plan.Commands) {
         $arguments = @('--project-directory',$Root,'up','-d','--no-deps','--wait','--wait-timeout','60')
         if ($command.ForceRecreate) { $arguments += '--force-recreate' }
         $arguments += @($command.Services)
-        foreach ($service in @($command.Services)) {
-            if ($script:M14CaptureRoot -and $service -in @('backend','otel-collector') -and $command.ForceRecreate) {
-                $handoffId = [string]$script:M14PendingCaptureHandoffs[$service]
-                if ([string]::IsNullOrWhiteSpace($handoffId)) { throw 'M14 capture handoff identity is missing after replacement.' }
-                $serviceArguments = @($arguments | Where-Object { $_ -notin @($command.Services) }) + @($service)
-                $null = Invoke-GeordiCaptureHandoffReplacement -CaptureRoot $script:M14CaptureRoot -Service $service `
-                    -HandoffId $handoffId -RepositoryRoot $Root -Reason 'm14-fixture-generation' `
-                    -Replace { Compose $serviceArguments ("M14 scoped startup {0}" -f $service) } `
-                    -GetContainerIdentity { param($name) Get-GeordiCurrentCaptureContainerIdentity -Service $name -RepositoryRoot $Root }
-            } else {
-                Compose $arguments ("M14 scoped startup {0}" -f ($command.Services -join ','))
-                break
+
+        $captureServices = @($command.Services | Where-Object {
+            -not $SkipM19Capture -and $script:M14CaptureRoot -and $_ -in @('backend','otel-collector') -and $command.ForceRecreate
+        })
+        if ($captureServices.Count -eq 1) {
+            $service = [string]$captureServices[0]
+            $handoffId = [string]$script:M14PendingCaptureHandoffs[$service]
+            if ([string]::IsNullOrWhiteSpace($handoffId)) {
+                throw "M14 capture handoff identity is missing for '$service'."
             }
+            $serviceArguments = @('--project-directory',$Root,'up','-d','--no-deps','--wait','--wait-timeout','60','--force-recreate',$service)
+            $null = Invoke-GeordiCaptureHandoffReplacement -CaptureRoot $script:M14CaptureRoot -Service $service -HandoffId $handoffId -RepositoryRoot $Root -Reason 'm14-fixture-generation' -Replace { Compose $serviceArguments ("M14 scoped startup {0}" -f $service) } -GetContainerIdentity { param($name) Get-GeordiCurrentCaptureContainerIdentity -Service $name -RepositoryRoot $Root }
+        } else {
+            Compose $arguments ("M14 scoped startup {0}" -f ($command.Services -join ','))
         }
     }
+
+    # Start demo and ingress containers only after their upstream services.
+    foreach ($group in $Plan.ExistingStartGroups | Where-Object { $_.Phase -ceq 'post-backend' }) {
+        Start-GeordiM14ExistingServices -Root $Root -Services $group.Services
+    }
 }
+
 function H2-Scalar([string] $Root, [string] $Sql) {
     $clock = [Diagnostics.Stopwatch]::StartNew()
     $result = 'FAIL'
@@ -545,11 +595,16 @@ try {
         $script:GeordiPrivateTokenSentinelOverride = { param($Token) Add-GeordiDiagnosticSentinel -Source $script:DiagnosticSentinelSource -Class 'runtime-bearer' -Value ([string]$Token) }
         foreach ($token in @($script:HistorySecrets.TokenA,$script:HistorySecrets.TokenB)) { Add-M19PrivateSentinel $token 'webhook-token' }
     }
-    $transportPreflight = Test-GeordiAuthenticatedTransport -RepositoryRoot $root
     Reset-M14Fixture $root $fixtureOwnership
     $fixtureOwnership.StartupAttempted = $true
     $fixtureOwnership.StartupStartedUtc = [DateTimeOffset]::UtcNow
     Start-M14FixtureServices $root $script:M14MutationPlan
+
+    # Run HTTPS transport checks only after frontend, OIDC and backend startup.
+    Wait-Until {
+        (Invoke-GeordiAnonymousRequest -Uri "$FrontendBaseUrl/" -TimeoutSeconds 10).StatusCode -eq 200
+    } $deadline 'M14 HTTPS frontend did not become ready.'
+    $transportPreflight = Test-GeordiAuthenticatedTransport -RepositoryRoot $root
     Wait-Until { (Invoke-GeordiAnonymousRequest -Uri "$BackendBaseUrl/actuator/health/readiness" -TimeoutSeconds 10).StatusCode -eq 200 } $deadline 'M14 backend did not become ready.'
     Initialize-GeordiAuthentication -Identity REGRESSION -RepositoryRoot $root
     $regressionIdentityResponse = Send-Backend "$BackendBaseUrl/api/me"
