@@ -33,6 +33,13 @@ try {
         })
         if ($inventoryFiles.Count -ne 1) { throw 'Artifact inventory control missing.' }
         $inventoryFile = [IO.Path]::GetFullPath([string]$inventoryFiles[0])
+        $manifestRoot = [IO.Path]::GetFullPath([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($ManifestPath))).TrimEnd([IO.Path]::DirectorySeparatorChar,[IO.Path]::AltDirectorySeparatorChar)
+        $manifestRootPrefix = $manifestRoot + [IO.Path]::DirectorySeparatorChar
+        $inventoryItem = Get-Item -LiteralPath $inventoryFile -Force
+        if (!$inventoryFile.StartsWith($manifestRootPrefix,[StringComparison]::OrdinalIgnoreCase) -or
+            ($inventoryItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw 'Artifact inventory path invalid.'
+        }
         $expectedInventory = Get-Content -LiteralPath $inventoryFile -Raw | ConvertFrom-Json -AsHashtable
 
         $root = [IO.Path]::GetFullPath($inspectionRoot).TrimEnd([IO.Path]::DirectorySeparatorChar,[IO.Path]::AltDirectorySeparatorChar)
