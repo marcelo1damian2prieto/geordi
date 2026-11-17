@@ -51,7 +51,7 @@ function Invoke-GeordiBoundedLogFollowerStart {
     try {
         $launcher = Start-Process -FilePath $PowerShellPath `
             -ArgumentList @('-NoLogo','-NoProfile','-File',$quotedWorker,'-PayloadBase64',$encodedPayload) `
-            -WorkingDirectory $WorkingDirectory -WindowStyle Hidden -PassThru `
+            -WorkingDirectory $WorkingDirectory -WindowStyle Hidden -PassThru
         if (!$launcher.WaitForExit($TimeoutSeconds * 1000)) {
             Stop-GeordiCaptureProcessTree -ProcessId $launcher.Id
             throw 'Capture follower process launch/readiness exceeded its bound.'
