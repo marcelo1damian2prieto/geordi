@@ -42,7 +42,16 @@ Start-Sleep -Seconds 30
     if (-not (Test-Path -LiteralPath $healthyRecord) -or [int]$healthy.id -le 0) {
         throw 'Healthy follower startup did not produce bounded process identity evidence.'
     }
-    $healthyOutput = if (Test-Path -LiteralPath $healthyStdoutPath) { [IO.File]::ReadAllText($healthyStdoutPath) } else { '' }
+    $healthyClock = [Diagnostics.Stopwatch]::StartNew()
+    $healthyOutput = ''
+    do {
+        if (Test-Path -LiteralPath $healthyStdoutPath) {
+            $healthyOutput = [IO.File]::ReadAllText($healthyStdoutPath)
+        }
+        if ($healthyOutput -cmatch [regex]::Escape("follower-since=$expectedSince")) { break }
+        Start-Sleep -Milliseconds 25
+    } while ($healthyClock.Elapsed.TotalSeconds -lt 2)
+    $healthyClock.Stop()
     Stop-GeordiCaptureProcessTree -ProcessId ([int]$healthy.id)
     if ($healthyOutput -cnotmatch [regex]::Escape("follower-since=$expectedSince")) {
         throw 'ISO-8601 follower argument was not preserved as its original string.'
