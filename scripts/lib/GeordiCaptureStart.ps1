@@ -39,8 +39,6 @@ function Invoke-GeordiBoundedLogFollowerStart {
         [AllowNull()] $TargetMetadata,
         [ValidateRange(1,20)][int] $TimeoutSeconds = 8
     )
-    $workerOutput = "$ProcessRecordPath.launcher.out"
-    $workerError = "$ProcessRecordPath.launcher.err"
     $payload = @{ dockerPath=$DockerPath;dockerArguments=$DockerArguments;workingDirectory=$WorkingDirectory
         standardOutputPath=$StandardOutputPath;standardErrorPath=$StandardErrorPath;processRecordPath=$ProcessRecordPath
         targetMetadata=$TargetMetadata }
@@ -96,11 +94,6 @@ function Invoke-GeordiBoundedLogFollowerStart {
         $clock.Stop()
         if ($launcher) {
             $launcher.Dispose()
-        }
-        if ($cleanupVerified) {
-            foreach ($path in @($workerOutput,$workerError)) {
-                if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue }
-            }
         }
     }
 }
