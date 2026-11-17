@@ -60,6 +60,9 @@ jobs:
           ./scripts/Test-GeordiM14ComposeScope.ps1 -Case Mutation
           ./scripts/Test-GeordiM14ComposeScope.ps1 -Case Dependencies
           ./scripts/Test-GeordiSchedulerIsolation.ps1 -SelfTest -M14PartialAcquisitionOnly
+      - name: Validate PowerShell syntax
+        shell: pwsh
+        run: |
           $paths = @(
             './scripts/verify-alert-history.ps1',
             './scripts/lib/GeordiSchedulerIsolation.ps1',
@@ -77,8 +80,11 @@ jobs:
               $parseErrors | ForEach-Object { Write-Error $_.Message }
               throw "PowerShell parser rejected $path."
             }
+            Write-Host "PASS: PowerShell syntax $path"
           }
-          ./scripts/verify-otel.ps1 -SelfTest
+      - name: Run OTEL smoke self-test
+        shell: pwsh
+        run: ./scripts/verify-otel.ps1 -SelfTest
       - name: Validate Collector configuration
         run: >-
           docker run --rm
