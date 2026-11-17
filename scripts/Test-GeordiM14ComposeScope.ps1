@@ -39,18 +39,34 @@ switch ($Case) {
             'oidc-fixture' -notin $plan.MutationSet) 'frontend, burn-demo or OIDC entered the mutation set'
         Assert-M14ComposeScope ($plan.Commands.Count -eq 4 -and @($plan.Commands | Where-Object { !$_.NoDeps }).Count -eq 0) `
             'startup commands are not explicit and dependency-bounded'
+        Assert-M14ComposeScope ((@($plan.ExistingStartGroups[0].Services) -join ',') -ceq 'loki,tempo,webhook-receiver,oidc-fixture' -and
+            (@($plan.ExistingStartGroups[1].Services) -join ',') -ceq 'demo-downstream,burn-demo,frontend') `
+            'pre-existing service startup order does not respect M14 dependency boundaries'
         Assert-M14ComposeScope (@($plan.Commands | Where-Object { $_.ForceRecreate -and $_.Services.Count -gt 1 }).Count -eq 0) `
             'force-recreate is broader than one semantically changed service'
         Write-Output 'm14_compose_mutation_scope=PASS recreate=backend,victoriametrics,otel-collector create=webhook-receiver-a,webhook-receiver-b frontend=preserved'
     }
     'Dependencies' {
         $plan = Get-GeordiM14MutationPlan -Configuration $configuration
-        foreach ($name in $plan.RequiredExisting) {
-            # This assertion exercises the exact fail-closed preflight contract without Docker.
-            $inventory = @($plan.RequiredExisting + $plan.Recreate | ForEach-Object { [pscustomobject]@{ Service=$_; Running=$true; Healthy=$true } })
-            Assert-GeordiM14MutationPreflight -Plan $plan -ServiceInventory $inventory
-            break
-        }
+        # Static preflight accepts stopped containers but requires unique identities
+        # from this checkout. No Docker daemon or running service is needed here.
+        $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+        $inventory = @($plan.RequiredExisting + $plan.Recreate | ForEach-Object {
+            [pscustomobject]@{
+                Project='geordi'; Service=$_; WorkingDirectory=$repositoryRoot
+                Running=$false; Healthy=$false
+            }
+        })
+        Assert-GeordiM14MutationPreflight -Plan $plan -ServiceInventory $inventory -RepositoryRoot $repositoryRoot
+        $foreignInventory = @($inventory | ForEach-Object {
+            $copy = $_.PSObject.Copy()
+            if ($copy.Service -ceq 'frontend') { $copy.WorkingDirectory = (Join-Path $repositoryRoot '..\other-geordi-checkout') }
+            $copy
+        })
+        $foreignRejected = $false
+        try { Assert-GeordiM14MutationPreflight -Plan $plan -ServiceInventory $foreignInventory -RepositoryRoot $repositoryRoot }
+        catch { $foreignRejected = $true }
+        Assert-M14ComposeScope $foreignRejected 'a required service from a different checkout was accepted'
         Set-Dependency 'frontend' 'backend' $true
         $propagationRejected = $false
         try { $null = Get-GeordiM14MutationPlan -Configuration $configuration } catch { $propagationRejected = $true }
