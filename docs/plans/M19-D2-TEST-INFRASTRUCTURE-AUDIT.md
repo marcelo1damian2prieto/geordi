@@ -206,3 +206,20 @@ The current comparison of d2/audit-boundaries-fix against m19 reports 21 commits
 - scripts/Test-GeordiCaptureGenerations.ps1
 
 The four documentation paths contain the audit/reconstruction/checkpoint updates. The only script path remains the previously reviewed D2 test-harness correction. No application source, GitLab CI, Compose configuration, TLS/certificates, runtime captures or protected-volume definitions appear in the current diff.
+
+ 
+## D2-09 — Compose renderer isolation and explicit integration selector — 2026-11-16
+
+**Disposition:** implemented on `d2/audit-boundaries-fix`; execution remains unauthorized and not performed.
+
+The M12 overlap Collector validation is now split into independently selectable layers:
+
+1. **Synthetic executor contract in `-SelfTest`:** the Compose renderer accepts an injected executor. The contract checks the complete argv for normal and overlay rendering, successful JSON parsing, non-zero exit, malformed JSON and empty output. The injected path does not invoke Docker.
+2. **Synthetic configuration invariants in `-SelfTest`:** normal and isolated configuration fixtures are supplied directly to the existing isolation assertions. The seven approved restart edges, unchanged service inventory and protected-volume configuration, reverse-edge absence and eight negative mutations remain checked against the synthetic fixtures.
+3. **Real Compose integration in `-ComposeIntegration`:** renders the normal configuration and the replacement/isolation overlay configuration using the Docker CLI `config --format json` command, then applies the same configuration assertions. This selector is mutually exclusive with `-SelfTest` and `-Case`.
+
+The existing synthetic lifecycle harnesses now use synthetic Compose configuration fixtures instead of the real Docker CLI renderer. The real integration selector is the only explicit entry point for the Docker CLI configuration-render dependency. It does not authorize or invoke Docker lifecycle operations.
+
+**Safety boundary:** no `up`, `down`, `restart`, `rm`, `prune`, build, volume mutation, CI activation, TLS operation, capture mutation or protected-volume operation is part of this change.
+
+**Validation status:** no PowerShell parser, test script, `-SelfTest`, `-ComposeIntegration`, Docker, Compose or runtime command was executed while implementing this change. The new paths and assertions require subsequent static review before any execution authorization. M19 remains **NOT READY — REMEDIATION REQUIRED**.
