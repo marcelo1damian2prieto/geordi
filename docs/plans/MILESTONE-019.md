@@ -2918,7 +2918,7 @@ The owner explicitly authorized implementation after approval of PLAN-T02. Sourc
 - Refactored `scripts/Test-GeordiPublishableArtifacts.ps1` to delegate manifest-backed and independent inspection to the module. Existing `-ManifestPath` and `-Independent` behavior/output are retained; optional `-RootPath` selects the explicit synthetic root for SelfTest.
 - Updated `scripts/Test-GeordiCredentialGate.ps1` to build synthetic backend reports/JARs, frontend output, inventory and a segmented Tempo fixture under its own temporary capture root.
 - Added the accepted Finalize attempt fixture, with one completed attempt, the six required PASS phases, and channel/additional-source state bound to the published manifest.
-- Added negative artifact cases for inventory mismatch, digest mutation, forbidden archive paths, traversal, missing required artifact, malformed archive and reparse-point rejection where the host permits symbolic-link creation.
+- Added negative cases for missing accepted attempt, failed Finalize phase, malformed Tempo metadata, missing required artifact, inventory mismatch/duplicate/traversal, digest mutation, forbidden archive paths, malformed ZIP and reparse-point rejection where the host permits symbolic-link creation.
 - Kept `Test-GeordiCredentialGateRequired.ps1` as the private-evidence gate. It does not call the artifact module; the artifact scan remains an independently orchestrated gate, preventing credential-gate status from being coupled to artifact-gate status.
 
 ### Verification status
