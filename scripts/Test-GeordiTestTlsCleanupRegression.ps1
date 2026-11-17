@@ -239,11 +239,26 @@ try {
     $fixtures.Add($localOnly.Root)
     New-Item -ItemType Directory -Path $localOnly.Runtime -Force | Out-Null
     [IO.File]::WriteAllText((Join-Path $localOnly.Runtime 'local-only.txt'), 'fixture', [Text.Encoding]::ASCII)
+    $localOnlyThumbprint = New-TestCa $localOnly.Runtime
     $result = Invoke-CleanupFixture $localOnly
     Assert-CleanupRegression ($result.ExitCode -eq 0) "local-only cleanup failed: $($result.Stderr)"
     Assert-CleanupRegression (!(Test-Path $localOnly.Runtime)) 'local-only cleanup left runtime files.'
-    Assert-CleanupRegression (!(Test-Path $localOnly.StoreLog)) 'local-only cleanup unexpectedly touched LocalMachine Root.'
+    $localOnlyActions = [IO.File]::ReadAllText($localOnly.StoreLog)
+    Assert-CleanupRegression ($localOnlyActions -match '(?m)^Test\\|') 'local-only cleanup did not perform a read-only CA trust probe.'
+    Assert-CleanupRegression ($localOnlyActions -notmatch '(?m)^Remove\\|') 'local-only cleanup mutated LocalMachine Root although the CA was absent.'
     Write-Output 'm19_tls_cleanup_local_only=PASS'
+
+    # If trust manifests are missing but the CA remains installed, ca.cer still
+    # provides the exact identity needed to remove only that run-owned root.
+    $unmanifestedInstalled = New-CleanupFixture 'unmanifested-installed'
+    $fixtures.Add($unmanifestedInstalled.Root)
+    New-Item -ItemType Directory -Path $unmanifestedInstalled.Runtime -Force | Out-Null
+    $unmanifestedThumbprint = New-TestCa $unmanifestedInstalled.Runtime
+    [IO.File]::WriteAllText($unmanifestedInstalled.StoreState, "$unmanifestedThumbprint|CN=Geordi M19 Ephemeral Test CA", [Text.Encoding]::ASCII)
+    $result = Invoke-CleanupFixture $unmanifestedInstalled
+    Assert-CleanupRegression ($result.ExitCode -eq 0) "unmanifested installed CA cleanup failed: $($result.Stderr)"
+    Assert-CleanupRegression (!(Test-Path $unmanifestedInstalled.Runtime) -and !(Test-Path $unmanifestedInstalled.StoreState)) 'unmanifested installed CA was not removed.'
+    Write-Output 'm19_tls_cleanup_unmanifested_installed_ca=PASS'
 
     # A runtime junction to an external directory must be rejected without deleting its target.
     $junction = New-CleanupFixture 'junction-guard'
