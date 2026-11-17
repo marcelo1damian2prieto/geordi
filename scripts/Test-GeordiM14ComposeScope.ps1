@@ -59,7 +59,10 @@ switch ($Case) {
         })
         Assert-GeordiM14MutationPreflight -Plan $plan -ServiceInventory $inventory -RepositoryRoot $repositoryRoot
         $foreignInventory = @($inventory | ForEach-Object {
-            $copy = $_.PSObject.Copy()
+            $copy = [pscustomobject]@{
+                Project=$_.Project; Service=$_.Service; WorkingDirectory=$_.WorkingDirectory
+                Running=$_.Running; Healthy=$_.Healthy
+            }
             if ($copy.Service -ceq 'frontend') { $copy.WorkingDirectory = (Join-Path $repositoryRoot '..\other-geordi-checkout') }
             $copy
         })
