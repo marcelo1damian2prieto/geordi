@@ -181,7 +181,7 @@ try {
     Assert-CleanupRegression ($result.ExitCode -eq 0) "cleanup with already-absent CA failed: $($result.Stderr)"
     Assert-CleanupRegression (!(Test-Path $absent.Runtime) -and !(Test-Path $absent.PublicManifest)) 'already-absent cleanup left manifests or runtime.'
     $absentActions = [IO.File]::ReadAllText($absent.StoreLog)
-    Assert-CleanupRegression ($absentActions -notmatch '(?m)^Remove\\|') 'cleanup attempted store mutation although the CA was already absent.'
+    Assert-CleanupRegression ($absentActions -notmatch '(?m)^Remove\|') 'cleanup attempted store mutation although the CA was already absent.'
     Write-Output 'm19_tls_cleanup_ca_already_absent=PASS'
 
     # Inconsistent manifests must fail closed before store mutation or file deletion.
@@ -244,7 +244,23 @@ try {
     $result = Invoke-CleanupFixture $junction
     Assert-CleanupRegression ($result.ExitCode -ne 0) 'runtime junction was accepted.'
     Assert-CleanupRegression (Test-Path $outsideSentinel) 'runtime junction guard deleted data outside the repository.'
-    Write-Output 'm19_tls_cleanup_reparse_guard=FAIL_CLOSED'
+    Remove-Item -LiteralPath $junction.Runtime -Force
+    Write-Output 'm19_tls_cleanup_runtime_reparse_guard=FAIL_CLOSED'
+
+    # The .runtime parent itself must not redirect cleanup outside the repository.
+    $parentJunction = New-CleanupFixture 'parent-junction-guard'
+    $fixtures.Add($parentJunction.Root)
+    $externalRuntime = Join-Path $parentJunction.Root 'external-runtime'
+    New-Item -ItemType Directory -Path (Join-Path $externalRuntime 'm19') -Force | Out-Null
+    $externalSentinel = Join-Path $externalRuntime 'm19\keep.txt'
+    [IO.File]::WriteAllText($externalSentinel, 'must remain', [Text.Encoding]::ASCII)
+    Remove-Item -LiteralPath $parentJunction.RuntimeParent -Force
+    New-Item -ItemType Junction -Path $parentJunction.RuntimeParent -Target $externalRuntime | Out-Null
+    $result = Invoke-CleanupFixture $parentJunction
+    Assert-CleanupRegression ($result.ExitCode -ne 0) '.runtime parent junction was accepted.'
+    Assert-CleanupRegression (Test-Path $externalSentinel) '.runtime parent junction guard deleted external runtime data.'
+    Remove-Item -LiteralPath $parentJunction.RuntimeParent -Force
+    Write-Output 'm19_tls_cleanup_parent_reparse_guard=FAIL_CLOSED'
 
     Write-Output 'm19_tls_cleanup_regression=PASS'
 } finally {
