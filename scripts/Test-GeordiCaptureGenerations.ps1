@@ -329,6 +329,7 @@ try {
             }.GetNewClosure()
             $getGenerationRecordCommand=(Get-Command Get-GeordiCaptureGenerationRecord -CommandType Function).ScriptBlock
             $assertManifestCommand=(Get-Command Assert-GeordiCaptureGenerationManifest -CommandType Function).ScriptBlock
+            $assertCaptureGenerationCommand=(Get-Command Assert-CaptureGeneration -CommandType Function).ScriptBlock
             $setTimeline={
                 param($candidate,[string]$oldEnd,[string]$newStart,[long]$declared,[long]$maximum,
                     [string]$handoffStart,[string]$completed,[string]$recordedOld,[string]$recordedNew)
@@ -364,7 +365,7 @@ try {
                 & $mutate $candidate
                 $rejected=$false
                 try { & $assertManifestCommand $candidate } catch { $rejected=$true }
-                Assert-CaptureGeneration $rejected ("invalid handoff timestamp case was accepted: " + $name)
+                & $assertCaptureGenerationCommand $rejected ("invalid handoff timestamp case was accepted: " + $name)
             }.GetNewClosure()
 
             & $assertValid 'zero-gap' '2026-10-01T10:00:00.0000000Z' '2026-10-01T10:00:00.0000000Z' 0 1000 `
