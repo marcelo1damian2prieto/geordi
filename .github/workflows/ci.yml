@@ -50,15 +50,26 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Validate Compose model
-        run: docker compose config --quiet
+      - name: Validate Compose models
+        run: |
+          docker compose config --quiet
+          docker compose --file compose.yaml --file compose.m19.yaml config --quiet
       - name: Verify M14 fixture orchestration contracts
         shell: pwsh
         run: |
           ./scripts/Test-GeordiM14ComposeScope.ps1 -Case Mutation
           ./scripts/Test-GeordiM14ComposeScope.ps1 -Case Dependencies
           ./scripts/Test-GeordiSchedulerIsolation.ps1 -SelfTest -M14PartialAcquisitionOnly
-          foreach ($path in @('./scripts/verify-alert-history.ps1', './scripts/lib/GeordiSchedulerIsolation.ps1', './scripts/lib/GeordiAuthentication.ps1')) {
+          $paths = @(
+            './scripts/verify-alert-history.ps1',
+            './scripts/lib/GeordiSchedulerIsolation.ps1',
+            './scripts/lib/GeordiAuthentication.ps1',
+            './scripts/New-GeordiTestTls.ps1',
+            './scripts/New-GeordiM19SmokeConfig.ps1',
+            './scripts/verify-otel.ps1',
+            './scripts/verify-metrics.ps1'
+          )
+          foreach ($path in $paths) {
             $tokens = $null
             $parseErrors = $null
             [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path).Path, [ref]$tokens, [ref]$parseErrors) | Out-Null
@@ -67,6 +78,7 @@ jobs:
               throw "PowerShell parser rejected $path."
             }
           }
+          ./scripts/verify-otel.ps1 -SelfTest
       - name: Validate Collector configuration
         run: >-
           docker run --rm
@@ -77,71 +89,28 @@ jobs:
   local-stack-smoke:
     runs-on: ubuntu-24.04
     needs: [backend, frontend, deployment-configuration]
-    timeout-minutes: 20
+    timeout-minutes: 25
+    env:
+      # Linux runners use ':' as the COMPOSE_FILE separator. This keeps
+      # docker compose calls made inside PowerShell smoke scripts on M19 too.
+      COMPOSE_FILE: compose.yaml:compose.m19.yaml
     steps:
       - uses: actions/checkout@v4
-      - name: Prepare ephemeral HTTPS ingress certificate
-        shell: bash
+      - name: Prepare ephemeral M19 TLS and OIDC material
+        shell: pwsh
         run: |
-          set -euo pipefail
-          runtime_dir="$GITHUB_WORKSPACE/.runtime/m19"
-          mkdir -p "$runtime_dir"
-          chmod 0755 "$GITHUB_WORKSPACE/.runtime" "$runtime_dir"
-
-          openssl req -x509 -newkey rsa:3072 -nodes -sha256 -days 2 \
-            -keyout "$runtime_dir/ca.key" \
-            -out "$runtime_dir/ca.pem" \
-            -subj "/CN=Geordi CI Ephemeral Test CA" \
-            -addext "basicConstraints=critical,CA:TRUE" \
-            -addext "keyUsage=critical,keyCertSign,cRLSign"
-
-          openssl req -new -newkey rsa:2048 -nodes -sha256 \
-            -keyout "$runtime_dir/geordi-key.pem" \
-            -out "$runtime_dir/geordi.csr" \
-            -subj "/CN=geordi.localhost"
-
-          cat > "$runtime_dir/geordi.ext" <<'EOF'
-          basicConstraints=critical,CA:FALSE
-          keyUsage=critical,digitalSignature,keyEncipherment
-          extendedKeyUsage=serverAuth
-          subjectAltName=DNS:geordi.localhost
-          EOF
-
-          openssl x509 -req -sha256 -days 2 \
-            -in "$runtime_dir/geordi.csr" \
-            -CA "$runtime_dir/ca.pem" \
-            -CAkey "$runtime_dir/ca.key" \
-            -CAcreateserial \
-            -out "$runtime_dir/geordi-cert.pem" \
-            -extfile "$runtime_dir/geordi.ext"
-
-          rm -f "$runtime_dir/ca.key" "$runtime_dir/geordi.csr" \
-            "$runtime_dir/geordi.ext" "$runtime_dir/ca.srl"
-          chmod 0644 "$runtime_dir/ca.pem" "$runtime_dir/geordi-cert.pem"
-          chmod 0600 "$runtime_dir/geordi-key.pem"
-          openssl verify -CAfile "$runtime_dir/ca.pem" \
-            -verify_hostname geordi.localhost "$runtime_dir/geordi-cert.pem"
-      - name: Prepare ephemeral OIDC smoke credential
-        shell: bash
+          ./scripts/New-GeordiTestTls.ps1
+          ./scripts/New-GeordiM19SmokeConfig.ps1
+      - name: Validate M19 Compose configuration
         run: |
-          set -euo pipefail
-          secret_file="$RUNNER_TEMP/geordi-oidc-client-secret"
-          umask 077
-          openssl rand -hex 32 | tr -d '\n' > "$secret_file"
-          chmod 0444 "$secret_file"
-          test -s "$secret_file"
-          echo "GEORDI_CI_OIDC_SECRET_FILE=$secret_file" >> "$GITHUB_ENV"
-      - name: Validate CI Compose configuration
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -s "$GEORDI_CI_OIDC_SECRET_FILE"
           test -s .runtime/m19/ca.pem
-          test -s .runtime/m19/geordi-cert.pem
-          test -s .runtime/m19/geordi-key.pem
-          docker compose -f compose.yaml -f compose.ci.yaml config --quiet
-      - name: Build and start local stack
-        run: docker compose -f compose.yaml -f compose.ci.yaml up -d --build --wait --wait-timeout 180
+          test -s .runtime/m19/auth.p12
+          test -s .runtime/m19/client-secret
+          test -s .runtime/m19/control-secret
+          test -s .runtime/m19/truststore.p12
+          docker compose config --quiet
+      - name: Build and start M19 local stack
+        run: docker compose up -d --build --wait --wait-timeout 240
       - name: Verify OpenTelemetry flow
         shell: pwsh
         run: ./scripts/verify-otel.ps1 -TimeoutSeconds 120
@@ -150,13 +119,10 @@ jobs:
         run: ./scripts/verify-metrics.ps1 -TimeoutSeconds 150
       - name: Show service logs after failure
         if: failure()
-        run: docker compose -f compose.yaml -f compose.ci.yaml logs --no-color
+        run: docker compose logs --no-color
       - name: Stop local stack and remove ephemeral credentials
         if: always()
         shell: bash
         run: |
-          docker compose -f compose.yaml -f compose.ci.yaml down --volumes
-          if [ -n "${GEORDI_CI_OIDC_SECRET_FILE:-}" ]; then
-            rm -f "$GEORDI_CI_OIDC_SECRET_FILE"
-          fi
+          docker compose down --volumes --remove-orphans || true
           rm -rf .runtime/m19
