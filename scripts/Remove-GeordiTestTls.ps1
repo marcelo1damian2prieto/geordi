@@ -129,10 +129,53 @@ if ($browserManifestExists -and $publicManifestExists) {
 elseif (!$runtimeExists -and $publicManifestExists) {
     # Recovery if a prior cleanup removed .runtime/m19 but stopped before deleting the public manifest.
     $publicThumbprint = [IO.File]::ReadAllText($publicThumbprintPath).Trim()
-    if ($publicThumbprint -notmatch '^[A-Fa-f0-9]{40}$') {
+    if ($publicThumbprint -notmatch '^[A-Fa-f0-9]{40}
+    Remove-Item -LiteralPath $resolvedRuntimeDirectory -Recurse -Force
+    if (Test-Path -LiteralPath $resolvedRuntimeDirectory) {
+        throw 'M19 TLS runtime files remain after cleanup.'
+    }
+}
+
+if ($publicManifestExists) {
+    Remove-Item -LiteralPath $publicThumbprintPath -Force
+    if (Test-Path -LiteralPath $publicThumbprintPath) {
+        throw 'Public M19 CA thumbprint manifest remains after cleanup.'
+    }
+}
+
+Write-Output 'M19 TLS runtime cleanup completed; any run-owned CA found in LocalMachine Root was removed and verified absent.'
+) {
         throw 'Invalid orphaned public M19 thumbprint manifest; refusing cleanup.'
     }
     Remove-ExactM19LocalMachineRoot $publicThumbprint $expectedCaSubject
+}
+elseif ($runtimeExists -and !$browserManifestExists -and !$publicManifestExists) {
+    # Local-only generation normally has no trust manifests. Still inspect ca.cer
+    # read-only so a lost manifest cannot leave a run-owned CA trusted in Windows.
+    $caPath = Join-Path $runtimeDirectory 'ca.cer'
+    if (Test-Path -LiteralPath $caPath -PathType Leaf) {
+        $caItem = Get-Item -LiteralPath $caPath -Force
+        if (($caItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw 'Refusing to inspect a local-only CA certificate through a reparse point.'
+        }
+        $ca = [Security.Cryptography.X509Certificates.X509Certificate2]::new($caPath)
+        try {
+            if ($ca.Subject -cne $expectedCaSubject -or $ca.Issuer -cne $expectedCaSubject -or $ca.HasPrivateKey) {
+                throw 'Local-only CA certificate identity is not the expected public ephemeral CA.'
+            }
+            $basicConstraintsExtension = $ca.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.19' } | Select-Object -First 1
+            if ($null -eq $basicConstraintsExtension) {
+                throw 'Local-only CA certificate has no Basic Constraints extension.'
+            }
+            $basicConstraints = [Security.Cryptography.X509Certificates.X509BasicConstraintsExtension]::new($basicConstraintsExtension, $basicConstraintsExtension.Critical)
+            if (!$basicConstraints.CertificateAuthority) {
+                throw 'Local-only certificate is not a CA; refusing store cleanup.'
+            }
+            Remove-ExactM19LocalMachineRoot $ca.Thumbprint $expectedCaSubject
+        } finally {
+            $ca.Dispose()
+        }
+    }
 }
 
 if ($runtimeExists) {
