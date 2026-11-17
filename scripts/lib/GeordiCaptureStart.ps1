@@ -19,60 +19,86 @@ function Stop-GeordiCaptureProcessTree {
     param(
         [Parameter(Mandatory)][ValidateRange(1,2147483647)][int] $ProcessId,
         [ValidateRange(1,30)][int] $TimeoutSeconds = 5,
-        [string] $TaskkillPath = (Join-Path $env:SystemRoot 'System32/taskkill.exe')
+        [string] $ExpectedStartUtc,
+        [scriptblock] $KillAction
     )
 
-    # Snapshot descendants before terminating the root and retain creation
-    # times to avoid treating a quickly reused PID as the original process.
-    $processSnapshot = @(Get-CimInstance -ClassName Win32_Process -Property ProcessId,ParentProcessId,CreationDate -ErrorAction Stop)
-    $treeIds = @($ProcessId)
-    $changed = $true
-    while ($changed) {
-        $changed = $false
-        foreach ($candidate in $processSnapshot) {
-            $candidateId = [int]$candidate.ProcessId
-            if (($treeIds -contains [int]$candidate.ParentProcessId) -and ($treeIds -notcontains $candidateId)) {
-                $treeIds += $candidateId
-                $changed = $true
+    # Open a process handle first. Killing through this handle avoids sending a
+    # later PID-only taskkill command to an unrelated process after PID reuse.
+    $rootProcess = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+    if (-not $rootProcess) { return }
+    try {
+        if ($ExpectedStartUtc) {
+            $expectedStart = [DateTimeOffset]::Parse(
+                $ExpectedStartUtc,
+                [Globalization.CultureInfo]::InvariantCulture,
+                [Globalization.DateTimeStyles]::RoundtripKind
+            ).ToUniversalTime()
+            if ($rootProcess.StartTime.ToUniversalTime().Ticks -ne $expectedStart.UtcTicks) {
+                throw 'Capture-start PID now belongs to a different process identity.'
             }
         }
-    }
-    $trackedProcesses = @($processSnapshot | Where-Object { $treeIds -contains [int]$_.ProcessId } |
-        ForEach-Object { [pscustomobject]@{ Id=[int]$_.ProcessId; CreationDate=[string]$_.CreationDate } })
 
-    if (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue) {
-        & $TaskkillPath /PID $ProcessId /T /F *> $null
-        $taskkillExitCode = $LASTEXITCODE
-    } else {
-        $taskkillExitCode = 128
-    }
+        # A successful empty snapshot is not evidence of termination. Require
+        # the root itself to be present before constructing the tracked tree.
+        $processSnapshot = @(Get-CimInstance -ClassName Win32_Process -Property ProcessId,ParentProcessId,CreationDate -ErrorAction Stop)
+        $rootSnapshot = @($processSnapshot | Where-Object { [int]$_.ProcessId -eq $ProcessId })
+        if ($rootSnapshot.Count -ne 1) {
+            throw 'Capture-start root process could not be confirmed in the process snapshot.'
+        }
 
-    $clock = [Diagnostics.Stopwatch]::StartNew()
-    try {
-        do {
-            $currentProcesses = @(Get-CimInstance -ClassName Win32_Process -Property ProcessId,CreationDate -ErrorAction Stop)
-            $remaining = @(
-                foreach ($tracked in $trackedProcesses) {
-                    $isAlive = $false
-                    foreach ($current in $currentProcesses) {
-                        if (([int]$current.ProcessId -eq $tracked.Id) -and ([string]$current.CreationDate -ceq $tracked.CreationDate)) {
-                            $isAlive = $true
-                            break
-                        }
-                    }
-                    if ($isAlive) { $tracked }
+        $treeIds = @($ProcessId)
+        $changed = $true
+        while ($changed) {
+            $changed = $false
+            foreach ($candidate in $processSnapshot) {
+                $candidateId = [int]$candidate.ProcessId
+                if (($treeIds -contains [int]$candidate.ParentProcessId) -and ($treeIds -notcontains $candidateId)) {
+                    $treeIds += $candidateId
+                    $changed = $true
                 }
-            )
-            if ($remaining.Count -eq 0) { return }
-            if ($clock.Elapsed.TotalSeconds -ge $TimeoutSeconds) { break }
-            Start-Sleep -Milliseconds 25
-        } while ($true)
-    } finally {
-        $clock.Stop()
-    }
+            }
+        }
+        $trackedProcesses = @($processSnapshot | Where-Object { $treeIds -contains [int]$_.ProcessId } |
+            ForEach-Object { [pscustomobject]@{ Id=[int]$_.ProcessId; CreationDate=[string]$_.CreationDate } })
 
-    $remainingIds = @($remaining | ForEach-Object { $_.Id }) -join ','
-    throw "Capture-start process tree could not be confirmed stopped within $TimeoutSeconds seconds (remaining PIDs: $remainingIds; taskkill exit: $taskkillExitCode)."
+        if ($KillAction) {
+            & $KillAction $rootProcess
+        } elseif (-not $rootProcess.HasExited) {
+            $rootProcess.Kill($true)
+        }
+        [void]$rootProcess.WaitForExit($TimeoutSeconds * 1000)
+
+        $clock = [Diagnostics.Stopwatch]::StartNew()
+        try {
+            do {
+                $currentProcesses = @(Get-CimInstance -ClassName Win32_Process -Property ProcessId,CreationDate -ErrorAction Stop)
+                $remaining = @(
+                    foreach ($tracked in $trackedProcesses) {
+                        $isAlive = $false
+                        foreach ($current in $currentProcesses) {
+                            if (([int]$current.ProcessId -eq $tracked.Id) -and
+                                    ([string]$current.CreationDate -ceq $tracked.CreationDate)) {
+                                $isAlive = $true
+                                break
+                            }
+                        }
+                        if ($isAlive) { $tracked }
+                    }
+                )
+                if ($remaining.Count -eq 0) { return }
+                if ($clock.Elapsed.TotalSeconds -ge $TimeoutSeconds) { break }
+                Start-Sleep -Milliseconds 25
+            } while ($true)
+        } finally {
+            $clock.Stop()
+        }
+
+        $remainingIds = @($remaining | ForEach-Object { $_.Id }) -join ','
+        throw "Capture-start process tree could not be confirmed stopped within $TimeoutSeconds seconds (remaining PIDs: $remainingIds)."
+    } finally {
+        $rootProcess.Dispose()
+    }
 }
 
 function Wait-GeordiCaptureFilesReleased {
