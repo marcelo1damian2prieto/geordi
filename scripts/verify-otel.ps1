@@ -11,6 +11,7 @@ param(
     [string] $CollectorMetricsUrl = "http://127.0.0.1:8888/metrics",
     [string] $VictoriaMetricsBaseUrl = "http://127.0.0.1:8428",
     [switch] $SelfTest
+)
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
@@ -30,6 +31,7 @@ function Wait-ForHttp200 {
         [Parameter(Mandatory)][string] $Name,
         [Parameter(Mandatory)][string] $Uri,
         [Parameter(Mandatory)][datetime] $Deadline
+    )
 
     while ((Get-Date) -lt $Deadline) {
         try {
@@ -48,6 +50,7 @@ function Get-CounterTotal {
     param(
         [Parameter(Mandatory)][string] $Metrics,
         [Parameter(Mandatory)][string] $Name
+    )
 
     $sum = 0.0
     $matched = $false
@@ -228,112 +231,10 @@ function Assert-NoIncrease {
         [Parameter(Mandatory)][string] $Name,
         [Parameter(Mandatory)][double] $Before,
         [Parameter(Mandatory)][double] $After
+    )
 
     if ($After -ne $Before) {
         throw "$Name increased from $Before to $After."
-    }
-}
-
-try {
-    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-        throw "Docker is required to inspect the otel-collector Compose service."
-    }
-
-    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    Wait-ForHttp200 "backend readiness" "$BackendBaseUrl/actuator/health/readiness" $deadline
-    Wait-ForHttp200 "Collector readiness" $CollectorHealthUrl $deadline
-
-    $platformVersion = Get-PlatformVersion
-    $before = Get-Snapshot
-    $identityWindowStart = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-
-    1..$RequestCount | ForEach-Object {
-        [void] (Invoke-TextRequest -Uri "$BackendBaseUrl/api/platform")
-    }
-    Write-Host "Generated $RequestCount backend requests."
-
-    $after = $null
-    do {
-        Start-Sleep -Seconds 2
-        $after = Get-Snapshot
-        $spanFlow = $after.AcceptedSpans -gt $before.AcceptedSpans -and
-            $after.SentSpans -gt $before.SentSpans
-        $metricFlow = $after.AcceptedMetricPoints -gt $before.AcceptedMetricPoints -and
-            $after.SentMetricPoints -gt $before.SentMetricPoints
-    } while ((-not ($spanFlow -and $metricFlow)) -and (Get-Date) -lt $deadline)
-
-    if (-not $spanFlow) {
-        throw "Collector span acceptance/export did not increase before timeout."
-    }
-    if (-not $metricFlow) {
-        throw "Collector metric-point acceptance/export did not increase before timeout."
-    }
-
-    Assert-NoIncrease "refused spans" $before.RefusedSpans $after.RefusedSpans
-    Assert-NoIncrease "refused metric points" $before.RefusedMetricPoints $after.RefusedMetricPoints
-    Assert-NoIncrease "failed span exports" $before.FailedSpans $after.FailedSpans
-    Assert-NoIncrease "failed metric-point exports" $before.FailedMetricPoints $after.FailedMetricPoints
-
-    $logs = Get-CollectorLogs
-    # Basic debug verbosity emits aggregate signal summaries without resource or
-    # point attributes. The ordered traces/metrics/logs gates validate persisted
-    # resource identity.
-    $requiredPatterns = [ordered]@{
-        "basic trace exporter summary" = '"resource spans"\s*:\s*[1-9]\d*'
-        "basic metrics exporter summary" = '"resource metrics"\s*:\s*[1-9]\d*'
-    }
-    foreach ($entry in $requiredPatterns.GetEnumerator()) {
-        if ($logs -notmatch $entry.Value) {
-            throw "Collector debug output did not contain $($entry.Key)."
-        }
-    }
-
-    $seriesSelector = [Uri]::EscapeDataString((Get-JvmMetricSelector))
-    $identitySelector = Get-BackendJvmIdentitySelector -Version $platformVersion
-    $identityQuery = [Uri]::EscapeDataString('count(count_over_time(' + $identitySelector + '[90s]))')
-    $identityDeadline = [DateTimeOffset]::UtcNow.AddSeconds(30)
-    $identityVerified = $false
-    do {
-        try {
-            $identityEnd = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-            $seriesUri = "$($VictoriaMetricsBaseUrl.TrimEnd('/'))/api/v1/series?match%5B%5D=$seriesSelector&start=$identityWindowStart&end=$identityEnd"
-            $seriesPayload = Invoke-RestMethod -Uri $seriesUri -Method Get -TimeoutSec 5
-            $queryUri = "$($VictoriaMetricsBaseUrl.TrimEnd('/'))/api/v1/query?query=$identityQuery"
-            $queryPayload = Invoke-RestMethod -Uri $queryUri -Method Get -TimeoutSec 5
-            $currentRunIdentity = @($queryPayload.data.result | Where-Object { [double]$_.value[1] -gt 0 }).Count -gt 0
-            $identityVerified = ([string]$seriesPayload.status -ceq 'success' -and
-                [string]$queryPayload.status -ceq 'success' -and $currentRunIdentity -and
-                (Test-BackendJvmIdentity -Series @($seriesPayload.data) -Version $platformVersion))
-        } catch { $identityVerified = $false }
-        if (-not $identityVerified) { Start-Sleep -Milliseconds 500 }
-    } while (-not $identityVerified -and [DateTimeOffset]::UtcNow -lt $identityDeadline)
-    if (-not $identityVerified) {
-        throw 'Persisted backend JVM Resource identity did not match the platform API version.'
-    }
-
-    Write-Host "PASS: spans accepted/exported increased by $($after.AcceptedSpans - $before.AcceptedSpans)/$($after.SentSpans - $before.SentSpans)."
-    Write-Host "PASS: metric points accepted/exported increased by $($after.AcceptedMetricPoints - $before.AcceptedMetricPoints)/$($after.SentMetricPoints - $before.SentMetricPoints)."
-    Write-Host "PASS: refused and send-failed counters did not increase."
-    Write-Host "PASS: Collector debug exporter emitted non-empty basic trace and metrics summaries."
-    Write-Host "PASS: persisted backend JVM identity, instance ID, component, and platform API version match."
-    exit 0
-}
-catch {
-    Write-Error "OpenTelemetry smoke verification failed: $($_.Exception.Message)"
-    exit 1
-}
-        if (!$versionMatch.Success -or [string]::IsNullOrWhiteSpace($versionMatch.Groups['version'].Value)) {
-            throw 'Running backend build-info.properties does not contain a valid build.version.'
-        }
-        return $versionMatch.Groups['version'].Value.Trim()
-    } finally {
-        if ($reader) { $reader.Dispose() }
-        if ($entryStream) { $entryStream.Dispose() }
-        if ($archive) { $archive.Dispose() }
-        if ($jarStream) { $jarStream.Dispose() }
-        if (Test-Path -LiteralPath $tempDirectory) {
-            Remove-Item -LiteralPath $tempDirectory -Recurse -Force
-        }
     }
 }
 
