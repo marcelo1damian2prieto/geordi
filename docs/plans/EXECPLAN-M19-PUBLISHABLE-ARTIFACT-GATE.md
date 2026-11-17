@@ -122,11 +122,11 @@ Responsibility: enumerate the artifact set under the supplied root and return an
 
 The result must carry the existing inventory information:
 
-- `artifactInventory`: normalized relative artifact paths.
+- `artifactInventory`: the existing completion marker, exactly `complete`.
 - `fileCount`.
 - `archiveCount`.
 - `archiveEntryCount`.
-- `files[]`, each containing a normalized relative `path` and lowercase SHA-256 digest.
+- `files[]`, each containing a normalized root-relative `path` and lowercase SHA-256 digest.
 
 Paths are relative to the supplied root, unique, normalized and incapable of escaping that root. Required and optional artifact membership must preserve the current script's behavior unless a separately approved decision changes it.
 
