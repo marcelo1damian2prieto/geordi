@@ -80,8 +80,23 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare ephemeral OIDC smoke credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          secret_file="$RUNNER_TEMP/geordi-oidc-client-secret"
+          umask 077
+          openssl rand -hex 32 > "$secret_file"
+          test -s "$secret_file"
+          echo "GEORDI_CI_OIDC_SECRET_FILE=$secret_file" >> "$GITHUB_ENV"
+      - name: Validate CI Compose configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s "$GEORDI_CI_OIDC_SECRET_FILE"
+          docker compose -f compose.yaml -f compose.ci.yaml config --quiet
       - name: Build and start local stack
-        run: docker compose up -d --build --wait --wait-timeout 180
+        run: docker compose -f compose.yaml -f compose.ci.yaml up -d --build --wait --wait-timeout 180
       - name: Verify OpenTelemetry flow
         shell: pwsh
         run: ./scripts/verify-otel.ps1 -TimeoutSeconds 120
@@ -90,7 +105,12 @@ jobs:
         run: ./scripts/verify-metrics.ps1 -TimeoutSeconds 150
       - name: Show service logs after failure
         if: failure()
-        run: docker compose logs --no-color
-      - name: Stop local stack
+        run: docker compose -f compose.yaml -f compose.ci.yaml logs --no-color
+      - name: Stop local stack and remove ephemeral credential
         if: always()
-        run: docker compose down --volumes
+        shell: bash
+        run: |
+          docker compose -f compose.yaml -f compose.ci.yaml down --volumes
+          if [ -n "${GEORDI_CI_OIDC_SECRET_FILE:-}" ]; then
+            rm -f "$GEORDI_CI_OIDC_SECRET_FILE"
+          fi
