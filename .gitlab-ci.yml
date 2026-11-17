@@ -135,6 +135,7 @@ deployment_configuration:
     - pwsh -NoProfile -File ./scripts/Test-GeordiCredentialLeaks.ps1 -LargeCaptureSelfTest
     - pwsh -NoProfile -File ./scripts/Test-GeordiCredentialGate.ps1 -SelfTest
     - pwsh -NoProfile -File ./scripts/Test-GeordiM19Cleanup.ps1 -SelfTest
+    - pwsh -NoProfile -File ./scripts/Test-GeordiM19CaptureStart.ps1 -SelfTest
     - docker run --rm -v "$CI_PROJECT_DIR/otel/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro" otel/opentelemetry-collector:0.157.0 validate --config=/etc/otelcol/config.yaml
     - docker run --rm -v "$CI_PROJECT_DIR/deploy/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro" grafana/tempo:2.7.2 "-config.file=/etc/tempo/tempo.yaml" "-config.verify=true"
     - docker run --rm -v "$CI_PROJECT_DIR/deploy/loki/loki.yaml:/etc/loki/local-config.yaml:ro" grafana/loki:3.7.2 --config.file=/etc/loki/local-config.yaml --verify-config=true
