@@ -66,8 +66,34 @@ function Assert-DnsSubjectAlternativeName(
     if ($null -eq $extension) {
         Stop-TlsMaterialValidation "$Label has no Subject Alternative Name extension."
     }
-    $formatted = $extension.Format($true)
-    if ($formatted -notmatch "(?im)(?:^|,\s*)DNS Name\s*=\s*$([regex]::Escape($DnsName))(?:\s*,|$)") {
+    # Parse GeneralNames from DER instead of X509Extension.Format(), whose
+    # output is localized (for example, "DNS Name" vs. "Nombre DNS").
+    $found = $false
+    try {
+        $reader = [System.Formats.Asn1.AsnReader]::new(
+            $extension.RawData,
+            [System.Formats.Asn1.AsnEncodingRules]::DER)
+        $generalNames = $reader.ReadSequence()
+        while ($generalNames.HasData) {
+            $tag = $generalNames.PeekTag()
+            if ($tag.TagClass -eq [System.Formats.Asn1.TagClass]::ContextSpecific -and $tag.TagValue -eq 2) {
+                $candidate = $generalNames.ReadCharacterString(
+                    [System.Formats.Asn1.UniversalTagNumber]::IA5String,
+                    $tag)
+                if ($candidate -ieq $DnsName) {
+                    $found = $true
+                }
+            } else {
+                [void]$generalNames.ReadEncodedValue()
+            }
+        }
+        if ($reader.HasData) {
+            Stop-TlsMaterialValidation "$Label has malformed trailing data in its Subject Alternative Name extension."
+        }
+    } catch {
+        Stop-TlsMaterialValidation "$Label has an unreadable Subject Alternative Name extension."
+    }
+    if (!$found) {
         Stop-TlsMaterialValidation "$Label does not contain the required DNS SAN '$DnsName'."
     }
 }
