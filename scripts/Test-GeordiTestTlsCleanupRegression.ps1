@@ -64,14 +64,18 @@ function Invoke-GeordiTlsStoreActionBounded {
     [IO.File]::AppendAllText($env:GEORDI_TLS_TEST_STORE_LOG, $entry)
     $statePath = $env:GEORDI_TLS_TEST_STORE_STATE
     $stored = if (Test-Path -LiteralPath $statePath) { [IO.File]::ReadAllText($statePath).Trim() } else { $null }
+    $storedParts = if ($stored) { $stored -split '\\|', 2 } else { @() }
     switch ($Action) {
         'Remove' {
-            if ($stored -eq $ExpectedThumbprint) {
+            if ($storedParts.Count -gt 0 -and $storedParts[0] -eq $ExpectedThumbprint) {
+                if ($storedParts.Count -ne 2 -or $storedParts[1] -ne $ExpectedSubject) {
+                    throw 'Mock LocalMachine Root subject does not match the expected ephemeral CA.'
+                }
                 Remove-Item -LiteralPath $statePath -Force
             }
         }
         'VerifyAbsent' {
-            if ($stored -eq $ExpectedThumbprint) {
+            if ($storedParts.Count -gt 0 -and $storedParts[0] -eq $ExpectedThumbprint) {
                 throw 'Mock LocalMachine Root still contains the requested thumbprint.'
             }
         }
@@ -123,14 +127,11 @@ function Invoke-CleanupFixture($Fixture) {
     }
 }
 
-function Set-RegisteredCa($Fixture, [string] $Thumbprint, [bool] $StoreInstalled) {
+function Set-RegisteredCa($Fixture) {
     New-Item -ItemType Directory -Path $Fixture.Runtime -Force | Out-Null
     $caThumbprint = New-TestCa $Fixture.Runtime
-    [IO.File]::WriteAllText((Join-Path $Fixture.Runtime 'browser-trust-thumbprint'), $Thumbprint, [Text.Encoding]::ASCII)
-    [IO.File]::WriteAllText($Fixture.PublicManifest, $Thumbprint, [Text.Encoding]::ASCII)
-    if ($StoreInstalled) {
-        [IO.File]::WriteAllText($Fixture.StoreState, $Thumbprint, [Text.Encoding]::ASCII)
-    }
+    [IO.File]::WriteAllText((Join-Path $Fixture.Runtime 'browser-trust-thumbprint'), $caThumbprint, [Text.Encoding]::ASCII)
+    [IO.File]::WriteAllText($Fixture.PublicManifest, $caThumbprint, [Text.Encoding]::ASCII)
     return $caThumbprint
 }
 
@@ -139,10 +140,8 @@ try {
     # Normal cleanup: exact CA is installed, both manifests and ca.cer agree.
     $normal = New-CleanupFixture 'normal'
     $fixtures.Add($normal.Root)
-    $thumbprint = Set-RegisteredCa $normal ([string]::Empty) $false
-    [IO.File]::WriteAllText((Join-Path $normal.Runtime 'browser-trust-thumbprint'), $thumbprint, [Text.Encoding]::ASCII)
-    [IO.File]::WriteAllText($normal.PublicManifest, $thumbprint, [Text.Encoding]::ASCII)
-    [IO.File]::WriteAllText($normal.StoreState, $thumbprint, [Text.Encoding]::ASCII)
+    $thumbprint = Set-RegisteredCa $normal
+    [IO.File]::WriteAllText($normal.StoreState, "$thumbprint|CN=Geordi M19 Ephemeral Test CA", [Text.Encoding]::ASCII)
     $sentinel = Join-Path $normal.RuntimeParent 'outside-sentinel.txt'
     [IO.File]::WriteAllText($sentinel, 'must remain', [Text.Encoding]::ASCII)
     $result = Invoke-CleanupFixture $normal
@@ -159,9 +158,7 @@ try {
     # Idempotent cleanup when the exact CA is already absent from the store.
     $absent = New-CleanupFixture 'already-absent'
     $fixtures.Add($absent.Root)
-    $thumbprint = Set-RegisteredCa $absent ([string]::Empty) $false
-    [IO.File]::WriteAllText((Join-Path $absent.Runtime 'browser-trust-thumbprint'), $thumbprint, [Text.Encoding]::ASCII)
-    [IO.File]::WriteAllText($absent.PublicManifest, $thumbprint, [Text.Encoding]::ASCII)
+    $thumbprint = Set-RegisteredCa $absent
     $result = Invoke-CleanupFixture $absent
     Assert-CleanupRegression ($result.ExitCode -eq 0) "cleanup with already-absent CA failed: $($result.Stderr)"
     Assert-CleanupRegression (!(Test-Path $absent.Runtime) -and !(Test-Path $absent.PublicManifest)) 'already-absent cleanup left manifests or runtime.'
@@ -170,10 +167,9 @@ try {
     # Inconsistent manifests must fail closed before store mutation or file deletion.
     $mismatch = New-CleanupFixture 'manifest-mismatch'
     $fixtures.Add($mismatch.Root)
-    $thumbprint = Set-RegisteredCa $mismatch ([string]::Empty) $false
-    [IO.File]::WriteAllText((Join-Path $mismatch.Runtime 'browser-trust-thumbprint'), $thumbprint, [Text.Encoding]::ASCII)
+    $thumbprint = Set-RegisteredCa $mismatch
     [IO.File]::WriteAllText($mismatch.PublicManifest, ('A' * 40), [Text.Encoding]::ASCII)
-    [IO.File]::WriteAllText($mismatch.StoreState, $thumbprint, [Text.Encoding]::ASCII)
+    [IO.File]::WriteAllText($mismatch.StoreState, "$thumbprint|CN=Geordi M19 Ephemeral Test CA", [Text.Encoding]::ASCII)
     $result = Invoke-CleanupFixture $mismatch
     Assert-CleanupRegression ($result.ExitCode -ne 0) 'inconsistent manifests were accepted.'
     Assert-CleanupRegression ((Test-Path $mismatch.Runtime) -and (Test-Path $mismatch.PublicManifest)) 'inconsistent-manifest failure deleted local material.'
@@ -184,11 +180,11 @@ try {
     # A thumbprint that does not identify ca.cer must fail closed.
     $wrongCa = New-CleanupFixture 'wrong-ca'
     $fixtures.Add($wrongCa.Root)
-    $actualThumbprint = Set-RegisteredCa $wrongCa ([string]::Empty) $false
+    $actualThumbprint = Set-RegisteredCa $wrongCa
     $differentThumbprint = ('B' * 40)
     [IO.File]::WriteAllText((Join-Path $wrongCa.Runtime 'browser-trust-thumbprint'), $differentThumbprint, [Text.Encoding]::ASCII)
     [IO.File]::WriteAllText($wrongCa.PublicManifest, $differentThumbprint, [Text.Encoding]::ASCII)
-    [IO.File]::WriteAllText($wrongCa.StoreState, $differentThumbprint, [Text.Encoding]::ASCII)
+    [IO.File]::WriteAllText($wrongCa.StoreState, "$differentThumbprint|CN=Geordi M19 Ephemeral Test CA", [Text.Encoding]::ASCII)
     $result = Invoke-CleanupFixture $wrongCa
     Assert-CleanupRegression ($result.ExitCode -ne 0) 'manifest thumbprint different from ca.cer was accepted.'
     Assert-CleanupRegression ((Test-Path $wrongCa.Runtime) -and (Test-Path $wrongCa.PublicManifest)) 'wrong-CA failure deleted local material.'
@@ -200,7 +196,7 @@ try {
     $fixtures.Add($orphan.Root)
     $orphanThumbprint = 'C' * 40
     [IO.File]::WriteAllText($orphan.PublicManifest, $orphanThumbprint, [Text.Encoding]::ASCII)
-    [IO.File]::WriteAllText($orphan.StoreState, $orphanThumbprint, [Text.Encoding]::ASCII)
+    [IO.File]::WriteAllText($orphan.StoreState, "$orphanThumbprint|CN=Geordi M19 Ephemeral Test CA", [Text.Encoding]::ASCII)
     $result = Invoke-CleanupFixture $orphan
     Assert-CleanupRegression ($result.ExitCode -eq 0) "orphan manifest recovery failed: $($result.Stderr)"
     Assert-CleanupRegression (!(Test-Path $orphan.PublicManifest) -and !(Test-Path $orphan.StoreState)) 'orphan manifest recovery did not complete cleanup.'
