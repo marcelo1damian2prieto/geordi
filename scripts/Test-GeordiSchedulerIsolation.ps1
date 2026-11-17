@@ -151,8 +151,10 @@ function Test-M14PartialAcquisitionRegression {
                 -GetInventory { [pscustomobject]@{ Containers=@(); Volumes=@($priorVolumes) } }
         } -Cleanup { $resetEvents.Add('teardown') }
     } catch { $resetFailure = $_ }
-    Assert-SchedulerIsolation ($resetFailure.Exception.Message -ceq 'synthetic M14 partial reset failure') 'partial reset failure was not preserved'
-    Assert-SchedulerIsolation (!$ownership.ResetCompleted -and !$ownership.ResetVolumesAbsent) 'partial reset marked fixture ownership complete'
+    Assert-SchedulerIsolation ($resetFailure.Exception.Message -match "failed at stage 'remove-baseline-containers'.*synthetic M14 partial reset failure") 'partial reset failure stage/detail was not reported'
+    Assert-SchedulerIsolation ($ownership.ResetStarted -and $ownership.ResetFailureStage -ceq 'remove-baseline-containers' -and
+        $ownership.ResetFailureMessage -ceq 'synthetic M14 partial reset failure') 'partial reset state was not retained for safe recovery'
+    Assert-SchedulerIsolation (!$ownership.ResetCompleted -and !$ownership.ResetVolumesAbsent -and !$ownership.ResetContainersAbsent) 'partial reset marked fixture ownership complete'
     Assert-SchedulerIsolation (($resetEvents -join '|') -ceq 'capture|remove-container:prior-backend-id') 'partial reset invoked an ineligible removal or teardown operation'
 
     $validVolumeMap = Assert-GeordiM14ResetVolumeOwnership -RenderedVolumes $renderedVolumes -ExistingVolumes $priorVolumes
