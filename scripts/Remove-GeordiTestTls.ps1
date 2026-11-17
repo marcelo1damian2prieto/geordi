@@ -38,7 +38,15 @@ if (!$runtimeExists -and !$publicManifestExists) {
 if (!(Test-Path -LiteralPath $runtimeParent -PathType Container)) {
     throw 'M19 runtime parent directory is missing; refusing cleanup.'
 }
+$runtimeParentItem = Get-Item -LiteralPath $runtimeParent -Force
+if (($runtimeParentItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+    throw 'Refusing to remove M19 runtime material through a redirected .runtime parent.'
+}
 $resolvedRuntimeParent = (Resolve-Path -LiteralPath $runtimeParent).Path
+$expectedRuntimeParent = [IO.Path]::GetFullPath((Join-Path $repositoryRoot '.runtime'))
+if (![string]::Equals($resolvedRuntimeParent, $expectedRuntimeParent, [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Refusing to remove M19 runtime material outside the repository .runtime directory.'
+}
 
 if ($runtimeExists) {
     $runtimeItem = Get-Item -LiteralPath $runtimeDirectory -Force
