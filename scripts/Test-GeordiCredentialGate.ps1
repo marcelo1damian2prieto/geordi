@@ -168,7 +168,9 @@ try {
     Assert-PrivateGateFails { & $requiredGate -ManifestPath $malformedPath } 'malformed manifest' $secret
     Write-Output 'gate_case=malformed_manifest result=FAIL_CLOSED'
 
-    $broken = $manifest.Clone(); $broken.controls = $manifest.controls.Clone(); $broken.controls.browser = 'missing-control'
+    $broken = ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $manifest -Depth 24 -Compress) -AsHashtable
+    $broken.controls.browser = 'missing-control'
+    $broken.attempts[$attemptId].channels.controls = $broken.controls
     $brokenPath = Join-Path $root 'missing-positive.json'
     [IO.File]::WriteAllText($brokenPath, (ConvertTo-Json $broken -Depth 8), [Text.UTF8Encoding]::new($false))
     Assert-PrivateGateFails { & $requiredGate -ManifestPath $brokenPath } 'missing positive control' $secret
@@ -209,18 +211,23 @@ try {
     [IO.File]::WriteAllText($manifestPath, (ConvertTo-Json -InputObject $manifest -Depth 12), [Text.UTF8Encoding]::new($false))
     Write-Output 'gate_case=unrelated_metric_label_leak result=FAIL_CLOSED diagnostic=sanitized'
 
-    $missingTempo = $manifest.Clone(); $missingTempo.captures = $manifest.captures.Clone()
+    $missingTempo = ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $manifest -Depth 24 -Compress) -AsHashtable
     $missingTempo.captures.tempo = @()
+    $missingTempo.attempts[$attemptId].channels.captures = $missingTempo.captures
     $missingTempoPath = Join-Path $root 'missing-tempo.json'
     [IO.File]::WriteAllText($missingTempoPath, (ConvertTo-Json $missingTempo -Depth 8), [Text.UTF8Encoding]::new($false))
     Assert-PrivateGateFails { & $requiredGate -ManifestPath $missingTempoPath } 'Tempo unavailable' $secret
 
-    $missingLoki = $manifest.Clone(); $missingLoki.additionalSources = @($manifest.additionalSources | Where-Object channel -ne 'loki')
+    $missingLoki = ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $manifest -Depth 24 -Compress) -AsHashtable
+    $missingLoki.additionalSources = @($missingLoki.additionalSources | Where-Object channel -ne 'loki')
+    $missingLoki.attempts[$attemptId].additionalSources = @($missingLoki.additionalSources)
     $missingLokiPath = Join-Path $root 'missing-loki.json'
     [IO.File]::WriteAllText($missingLokiPath, (ConvertTo-Json $missingLoki -Depth 8), [Text.UTF8Encoding]::new($false))
     Assert-PrivateGateFails { & $requiredGate -ManifestPath $missingLokiPath } 'Loki unavailable' $secret
 
-    $missingVictoria = $manifest.Clone(); $missingVictoria.additionalSources = @($manifest.additionalSources | Where-Object channel -ne 'victoriametrics')
+    $missingVictoria = ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $manifest -Depth 24 -Compress) -AsHashtable
+    $missingVictoria.additionalSources = @($missingVictoria.additionalSources | Where-Object channel -ne 'victoriametrics')
+    $missingVictoria.attempts[$attemptId].additionalSources = @($missingVictoria.additionalSources)
     $missingVictoriaPath = Join-Path $root 'missing-victoriametrics.json'
     [IO.File]::WriteAllText($missingVictoriaPath, (ConvertTo-Json $missingVictoria -Depth 8), [Text.UTF8Encoding]::new($false))
     Assert-PrivateGateFails { & $requiredGate -ManifestPath $missingVictoriaPath } 'VictoriaMetrics unavailable' $secret
