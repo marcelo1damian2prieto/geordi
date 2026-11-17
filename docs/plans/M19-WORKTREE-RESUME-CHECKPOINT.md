@@ -201,3 +201,13 @@ Do not add M10 seven-case replacement, fixture-transfer 18-gate/A–S, M11→M12
 ### Execution status and milestone
 
 This was a static repository review and documentation update only. No test, parser, Docker command, Compose command, runtime operation, cleanup, capture mutation, CI activation, TLS/certificate operation or protected-volume operation was executed in this step. Prior focused PASS results remain historical evidence; the complete reconstructed sequence remains NOT RUN. M19 remains NOT READY — REMEDIATION REQUIRED.
+
+ 
+## Addendum — M12 overlap Collector Compose validation separation — 2026-11-16
+
+The D2 branch now separates the overlap Collector Compose validation into:
+- `-SelfTest`: injected executor contract plus synthetic configuration invariants and synthetic caller/workflow regressions; intended to be Docker-independent.
+- `-ComposeIntegration`: explicit real Docker CLI `config --format json` rendering for normal and replacement/isolation configurations, followed by the same isolation assertions.
+- `-Case`: existing focused synthetic caller/failure cases.
+
+The selectors `-SelfTest` and `-ComposeIntegration` are mutually exclusive. No test, parser, Docker, Compose, lifecycle, runtime, cleanup, TLS, capture or protected-volume operation was executed during implementation. The new implementation still requires static review. Do not infer a PASS result from the code change. Full accepted regression sequence remains NOT RUN; M19 remains **NOT READY — REMEDIATION REQUIRED**.
