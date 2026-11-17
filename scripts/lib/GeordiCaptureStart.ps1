@@ -95,6 +95,9 @@ function Invoke-GeordiBoundedLogFollowerStart {
         throw
     } finally {
         $clock.Stop()
+        if ($launcher) {
+            $launcher.Dispose()
+        }
         if ($cleanupVerified) {
             foreach ($path in @($workerOutput,$workerError)) {
                 if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue }
