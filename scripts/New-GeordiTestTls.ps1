@@ -187,8 +187,27 @@ $leaf = [Security.Cryptography.X509Certificates.X509Certificate2]::CreateFromPem
         } catch { $trustCleanupConfirmed = $false }
     }
     if ($trustCleanupConfirmed) {
-        Remove-Item -LiteralPath $runtimeDirectory -Recurse -Force -ErrorAction SilentlyContinue
-        if (Test-Path -LiteralPath $publicThumbprintPath) { Remove-Item -LiteralPath $publicThumbprintPath -Force -ErrorAction SilentlyContinue }
+        $tlsOwnedNames = @(
+            'auth-cert.pem', 'auth-key.pem', 'auth-localhost-cert.pem', 'auth-localhost-key.pem',
+            'auth.p12', 'auth.password', 'browser-trust-thumbprint', 'ca.cer', 'ca.pem',
+            'client-secret', 'control-secret', 'geordi-cert.pem', 'geordi-key.pem',
+            'geordi.p12', 'geordi.password', 'truststore.p12', 'truststore.password'
+        )
+        foreach ($tlsName in $tlsOwnedNames) {
+            $tlsPath = Join-Path $runtimeDirectory $tlsName
+            if (Test-Path -LiteralPath $tlsPath -PathType Leaf) {
+                Remove-Item -LiteralPath $tlsPath -Force -ErrorAction SilentlyContinue
+            }
+        }
+        if (Test-Path -LiteralPath $publicThumbprintPath) {
+            Remove-Item -LiteralPath $publicThumbprintPath -Force -ErrorAction SilentlyContinue
+        }
+        if (Test-Path -LiteralPath $runtimeDirectory -PathType Container) {
+            $remainingItems = @(Get-ChildItem -LiteralPath $runtimeDirectory -Force)
+            if ($remainingItems.Count -eq 0) {
+                Remove-Item -LiteralPath $runtimeDirectory -Force -ErrorAction SilentlyContinue
+            }
+        }
         throw $originalError
     }
     $privateFiles = @('auth-key.pem','geordi-key.pem','auth-localhost-key.pem','auth.p12','geordi.p12',
