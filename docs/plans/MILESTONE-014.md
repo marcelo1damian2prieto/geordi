@@ -116,6 +116,18 @@ material. Regeneration and trust-store cleanup must continue through the existin
 pair is validated because Compose mounts it into Nginx; `geordi.p12` is not validated
 because no runtime consumer is configured.
 
+The cleanup lifecycle validates that `.runtime/m19/browser-trust-thumbprint`,
+`.runtime/m19-ca-thumbprint.txt`, and `ca.cer` identify the same run-owned CA before
+touching LocalMachine Root. It probes the store read-only first, performs a bounded
+removal only when that exact thumbprint is present, and verifies absence afterward.
+A matching store entry must also have the expected CA subject and issuer. Cleanup
+removes both thumbprint manifests and the runtime directory; an orphaned public
+manifest can be safely finalized after an interrupted cleanup. Reparse-point guards
+protect the repository `.runtime` parent, M19 runtime directory, manifests, and CA
+certificate. `scripts/Test-GeordiTestTlsCleanupRegression.ps1` exercises these cases
+against an isolated mock trust store and temporary repository, without modifying the
+developer's actual Windows certificate store or `.runtime/m19`.
+
 ### Authoritative closure evidence
 
 The authoritative GitLab pipeline checked out implementation commit
