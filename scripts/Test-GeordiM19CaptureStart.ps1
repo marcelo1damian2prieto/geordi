@@ -13,6 +13,8 @@ $commandProcessorPath = (Get-Command cmd.exe -ErrorAction Stop).Source
 $workerPath = Join-Path $PSScriptRoot 'lib/Start-GeordiLogFollowerWorker.ps1'
 $healthyPath = Join-Path $root 'healthy.ps1'
 $healthyStdoutPath = Join-Path $root 'healthy.stdout'
+$healthyStderrPath = Join-Path $root 'healthy.stderr'
+$healthyChildPidPath = Join-Path $root 'healthy.child.pid'
 $expectedSince = '2026-11-17T08:18:36.7258700+00:00'
 $exitsPath = Join-Path $root 'exits.ps1'
 $hangPath = Join-Path $root 'hang.ps1'
@@ -20,12 +22,16 @@ $childPidPath = Join-Path $root 'hang.child.pid'
 $healthyRecord = Join-Path $root 'healthy.process.json'
 $exitRecord = Join-Path $root 'exit.process.json'
 try {
-    $healthyScript = @'
-param([string] $Since)
-Write-Output "follower-since=$Since"
+    $escapedPowerShellPath = $powerShellPath.Replace("'","''")
+    $escapedHealthyChildPidPath = $healthyChildPidPath.Replace("'","''")
+    $healthyScript = @"
+param([string] `$Since)
+`$child = Start-Process -FilePath '$escapedPowerShellPath' -ArgumentList @('-NoLogo','-NoProfile','-Command','Start-Sleep -Seconds 30') -WindowStyle Hidden -PassThru
+[IO.File]::WriteAllText('$escapedHealthyChildPidPath',[string]`$child.Id)
+Write-Output "follower-since=`$Since"
 Write-Output 'follower-ready'
-Start-Sleep -Seconds 15
-'@
+Start-Sleep -Seconds 30
+"@
     [IO.File]::WriteAllText($healthyPath,$healthyScript,[Text.UTF8Encoding]::new($false))
     [IO.File]::WriteAllText($exitsPath,'exit 0',[Text.UTF8Encoding]::new($false))
     $hangWorker = @"
@@ -38,7 +44,7 @@ Start-Sleep -Seconds 30
     $healthy = Invoke-GeordiBoundedLogFollowerStart -PowerShellPath $powerShellPath -WorkerPath $workerPath `
         -DockerPath $powerShellPath -DockerArguments @('-NoLogo','-NoProfile','-File',$healthyPath,$expectedSince) `
         -WorkingDirectory $root -StandardOutputPath $healthyStdoutPath `
-        -StandardErrorPath (Join-Path $root 'healthy.stderr') -ProcessRecordPath $healthyRecord -TimeoutSeconds 5
+        -StandardErrorPath $healthyStderrPath -ProcessRecordPath $healthyRecord -TimeoutSeconds 5
     if (-not (Test-Path -LiteralPath $healthyRecord) -or [int]$healthy.id -le 0) {
         throw 'Healthy follower startup did not produce bounded process identity evidence.'
     }
@@ -52,7 +58,15 @@ Start-Sleep -Seconds 30
         Start-Sleep -Milliseconds 25
     } while ($healthyClock.Elapsed.TotalSeconds -lt 2)
     $healthyClock.Stop()
+    if (-not (Test-Path -LiteralPath $healthyChildPidPath -PathType Leaf)) {
+        throw 'Healthy follower did not create its descendant-process evidence.'
+    }
+    $healthyChildId = [int][IO.File]::ReadAllText($healthyChildPidPath)
     Stop-GeordiCaptureProcessTree -ProcessId ([int]$healthy.id)
+    if (Get-Process -Id $healthyChildId -ErrorAction SilentlyContinue) {
+        throw 'Stopping the healthy follower left its descendant process running.'
+    }
+    Wait-GeordiCaptureFilesReleased -Path @($healthyStdoutPath,$healthyStderrPath) -TimeoutSeconds 5
     if ($healthyOutput -cnotmatch [regex]::Escape("follower-since=$expectedSince")) {
         throw 'ISO-8601 follower argument was not preserved as its original string.'
     }
@@ -101,5 +115,14 @@ Start-Sleep -Seconds 30
             (Split-Path $resolvedRoot -Leaf) -notmatch '^geordi-m19-capture-start-test-[0-9a-f]{32}$') {
         throw 'Unsafe capture-start self-test cleanup path.'
     }
-    Remove-Item -LiteralPath $resolvedRoot -Recurse -Force
+    if (Test-Path -LiteralPath $healthyRecord -PathType Leaf) {
+        try {
+            $remainingRecord = (Read-GeordiCaptureStartFile -Path $healthyRecord) | ConvertFrom-Json
+            Stop-GeordiCaptureProcessTree -ProcessId ([int]$remainingRecord.id) -TimeoutSeconds 5
+        } catch {
+            throw "Self-test cleanup could not stop the healthy follower: $($_.Exception.Message)"
+        }
+    }
+    Wait-GeordiCaptureFilesReleased -Path @($healthyStdoutPath,$healthyStderrPath) -TimeoutSeconds 5
+    Remove-Item -LiteralPath $resolvedRoot -Recurse -Force -ErrorAction Stop
 }
