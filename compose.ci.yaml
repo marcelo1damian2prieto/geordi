@@ -1,5 +1,6 @@
 # CI-only identity settings. The public Google discovery/JWKS endpoints are used
 # only to validate startup; the ephemeral client secret is not a real credential.
+# The frontend uses the same ephemeral TLS ingress contract as the M19 smoke scripts.
 services:
   backend:
     environment:
@@ -8,5 +9,21 @@ services:
       GEORDI_SECURITY_BROWSER_CLIENT_ID: geordi-browser-ci
       GEORDI_SECURITY_BROWSER_CLIENT_SECRET_FILE: /run/secrets/geordi_oidc_client_secret
       GEORDI_SECURITY_PUBLIC_BASE_URL: https://geordi.localhost
+      GEORDI_PUBLIC_BASE_URL: https://geordi.localhost:8443
     volumes:
       - ${GEORDI_CI_OIDC_SECRET_FILE:?GEORDI_CI_OIDC_SECRET_FILE must point to an ephemeral CI secret}:/run/secrets/geordi_oidc_client_secret:ro
+
+  frontend:
+    depends_on: !reset []
+    volumes:
+      - ./frontend/nginx.m19.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./.runtime/m19/geordi-cert.pem:/etc/nginx/tls/geordi-cert.pem:ro
+      - ./.runtime/m19/geordi-key.pem:/etc/nginx/tls/geordi-key.pem:ro
+    ports: !override
+      - "127.0.0.1:8443:443"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 443"]
+      interval: 2s
+      timeout: 2s
+      start_period: 5s
+      retries: 15
