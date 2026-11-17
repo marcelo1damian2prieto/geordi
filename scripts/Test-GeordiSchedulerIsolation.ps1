@@ -407,6 +407,10 @@ try {
     Assert-SchedulerIsolation $rejectEnabled 'rendered scheduling=true was not rejected'
 
     $m14Source = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'verify-alert-history.ps1'))
+    Assert-SchedulerIsolation (-not $m14Source.Contains('docker rm -sf')) `
+        'M14 reset or cleanup contains the invalid Docker rm -sf flag combination'
+    Assert-SchedulerIsolation (([regex]::Matches($m14Source, 'docker rm -f \$Ids')).Count -eq 2) `
+        'M14 reset and cleanup must both force-remove only the exact inventoried container IDs'
     Assert-SchedulerIsolation ($m14Source.Contains('if ($SkipM19Capture) {') -and
         $m14Source.Contains('$script:GeordiPrivateTokenSentinelOverride = { param($Token) }')) `
         'capture-free M14 mode does not disable the authentication helper M19 sentinel fallback'
