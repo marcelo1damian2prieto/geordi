@@ -35,8 +35,8 @@ The order below is a **proposed safe order**, not a claim about the historical o
 2. Confirm worktree state and preserve all existing changes. Do not reset, stash, clean, or rewrite history.
 3. Confirm no Docker/runtime operation is planned and that protected M19 volumes will remain untouched.
 
-**Prior evidence:** branch isolation and scope are documented in the D2 audit/checkpoint.  
-**Rerun:** required immediately before execution because branch/worktree state is local and may have changed.  
+**Prior evidence:** branch isolation and scope are documented in the D2 audit/checkpoint.\
+**Rerun:** required immediately before execution because branch/worktree state is local and may have changed.\
 **Command:** not prescribed here; use read-only Git inspection only.
 
 ### Phase 1 — Parser and shared post-follower microtests
@@ -50,8 +50,8 @@ The order below is a **proposed safe order**, not a claim about the historical o
    - cleanup attempted while primary failure remains authoritative;
    - sealed historical evidence remains immutable.
 
-**Prior evidence:** shared post-follower microtests are recorded PASS in the checkpoint and post-follower ExecPlan.  
-**Rerun:** required as the beginning of the reconstructed fail-fast sequence.  
+**Prior evidence:** shared post-follower microtests are recorded PASS in the checkpoint and post-follower ExecPlan.\
+**Rerun:** required as the beginning of the reconstructed fail-fast sequence.\
 **Exact command:** **UNKNOWN** — the available records describe the assertions but do not preserve the test file path or invocation. Identify the authoritative test entry point before approval/execution; do not invent one.
 
 ### Phase 2 — Focused caller regressions
@@ -112,8 +112,8 @@ if ($errors.Count -gt 0) {
 
 Run `git diff --check` and inspect the diff against `m19` to confirm this remains limited to the D2 harness and documentation. Verify that production scripts, `.gitlab-ci.yml`, Compose files, TLS/certificates, captures, and protected-volume definitions have not been changed by this workstream.
 
-**Prior evidence:** D2 scope and changed-file inventory were recorded as harness plus documentation.  
-**Rerun:** required.  
+**Prior evidence:** D2 scope and changed-file inventory were recorded as harness plus documentation.\
+**Rerun:** required.\
 **Exact command:** `git diff --check` is known; the full comparison command should be selected from the current branch state and remain read-only.
 
 ### Phase 5 — Independent read-only review
@@ -128,8 +128,8 @@ Only after Phases 1–4 pass, obtain a fresh independent review of:
 
 The review must report findings by severity and explicitly state whether the focused reconstructed set is clean. A previous review of a different gate sequence is not a substitute.
 
-**Prior evidence:** earlier focused reviews exist for separate slices, but no fresh review of the corrected D2 state after the complete reconstructed set is recorded.  
-**Rerun:** required after the sequence passes.  
+**Prior evidence:** earlier focused reviews exist for separate slices, but no fresh review of the corrected D2 state after the complete reconstructed set is recorded.\
+**Rerun:** required after the sequence passes.\
 **Command:** review procedure is not a repository test command.
 
 ## 4. Known prior evidence ledger
