@@ -162,9 +162,11 @@ try {
     [IO.File]::WriteAllText($normal.StoreState, "$thumbprint|CN=Geordi M19 Ephemeral Test CA", [Text.Encoding]::ASCII)
     $sentinel = Join-Path $normal.RuntimeParent 'outside-sentinel.txt'
     [IO.File]::WriteAllText($sentinel, 'must remain', [Text.Encoding]::ASCII)
+    $policySentinel = Join-Path $normal.Runtime 'alert-policies.yaml'
+    [IO.File]::WriteAllText($policySentinel, 'policy: preserve-me', [Text.Encoding]::ASCII)
     $result = Invoke-CleanupFixture $normal
     Assert-CleanupRegression ($result.ExitCode -eq 0) "normal cleanup failed: $($result.Stderr)"
-    Assert-CleanupRegression (!(Test-Path $normal.Runtime)) 'normal cleanup left .runtime/m19 behind.'
+    Assert-CleanupRegression ((Test-Path $normal.Runtime) -and (Test-Path $policySentinel)) 'normal cleanup deleted or failed to preserve non-TLS M19 runtime files.'
     Assert-CleanupRegression (!(Test-Path $normal.PublicManifest)) 'normal cleanup left the public thumbprint manifest behind.'
     Assert-CleanupRegression (!(Test-Path $normal.StoreState)) 'normal cleanup did not remove the exact installed CA.'
     Assert-CleanupRegression (Test-Path $sentinel) 'normal cleanup deleted a sibling file outside its owned paths.'
@@ -242,7 +244,8 @@ try {
     $localOnlyThumbprint = New-TestCa $localOnly.Runtime
     $result = Invoke-CleanupFixture $localOnly
     Assert-CleanupRegression ($result.ExitCode -eq 0) "local-only cleanup failed: $($result.Stderr)"
-    Assert-CleanupRegression (!(Test-Path $localOnly.Runtime)) 'local-only cleanup left runtime files.'
+    Assert-CleanupRegression ((Test-Path $localOnly.Runtime) -and (Test-Path (Join-Path $localOnly.Runtime 'local-only.txt'))) 'local-only cleanup did not preserve unrelated runtime files.'
+    Assert-CleanupRegression (!(Test-Path (Join-Path $localOnly.Runtime 'ca.cer'))) 'local-only cleanup left its TLS CA certificate.'
     $localOnlyActions = [IO.File]::ReadAllText($localOnly.StoreLog)
     Assert-CleanupRegression ($localOnlyActions -match '(?m)^Test\\|') 'local-only cleanup did not perform a read-only CA trust probe.'
     Assert-CleanupRegression ($localOnlyActions -notmatch '(?m)^Remove\\|') 'local-only cleanup mutated LocalMachine Root although the CA was absent.'
