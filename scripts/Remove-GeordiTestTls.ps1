@@ -11,7 +11,11 @@ $publicThumbprintPath = Join-Path $runtimeParent 'm19-ca-thumbprint.txt'
 $expectedCaSubject = 'CN=Geordi M19 Ephemeral Test CA'
 
 $runtimeExists = Test-Path -LiteralPath $runtimeDirectory
-$publicManifestExists = Test-Path -LiteralPath $publicThumbprintPath -PathType Leaf
+$publicPathExists = Test-Path -LiteralPath $publicThumbprintPath
+if ($publicPathExists -and !(Test-Path -LiteralPath $publicThumbprintPath -PathType Leaf)) {
+    throw 'Public M19 thumbprint manifest path exists but is not a regular file; refusing cleanup.'
+}
+$publicManifestExists = $publicPathExists
 
 if (!$runtimeExists -and !$publicManifestExists) {
     Write-Output 'M19 TLS runtime and public thumbprint manifest are already absent.'
@@ -48,13 +52,21 @@ if ($publicManifestExists) {
 }
 
 $browserManifestPath = if ($runtimeExists) { Join-Path $runtimeDirectory 'browser-trust-thumbprint' } else { $null }
-$browserManifestExists = $runtimeExists -and (Test-Path -LiteralPath $browserManifestPath -PathType Leaf)
+$browserManifestPathExists = $runtimeExists -and (Test-Path -LiteralPath $browserManifestPath)
+if ($browserManifestPathExists -and !(Test-Path -LiteralPath $browserManifestPath -PathType Leaf)) {
+    throw 'Browser trust thumbprint manifest exists but is not a regular file; refusing cleanup.'
+}
+$browserManifestExists = $browserManifestPathExists
 
 if ($runtimeExists -and ($browserManifestExists -ne $publicManifestExists)) {
     throw 'M19 thumbprint manifests are incomplete or inconsistent; refusing cleanup.'
 }
 
 if ($browserManifestExists -and $publicManifestExists) {
+    $browserManifestItem = Get-Item -LiteralPath $browserManifestPath -Force
+    if (($browserManifestItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw 'Refusing to read the browser trust thumbprint manifest through a reparse point.'
+    }
     $browserThumbprint = [IO.File]::ReadAllText($browserManifestPath).Trim()
     $publicThumbprint = [IO.File]::ReadAllText($publicThumbprintPath).Trim()
     if ($browserThumbprint -notmatch '^[A-Fa-f0-9]{40}$' -or $publicThumbprint -notmatch '^[A-Fa-f0-9]{40}$') {
