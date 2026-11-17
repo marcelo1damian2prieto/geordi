@@ -11,7 +11,6 @@ param(
     [string] $CollectorMetricsUrl = "http://127.0.0.1:8888/metrics",
     [string] $VictoriaMetricsBaseUrl = "http://127.0.0.1:8428",
     [switch] $SelfTest
-)
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
@@ -31,7 +30,6 @@ function Wait-ForHttp200 {
         [Parameter(Mandatory)][string] $Name,
         [Parameter(Mandatory)][string] $Uri,
         [Parameter(Mandatory)][datetime] $Deadline
-    )
 
     while ((Get-Date) -lt $Deadline) {
         try {
@@ -50,7 +48,6 @@ function Get-CounterTotal {
     param(
         [Parameter(Mandatory)][string] $Metrics,
         [Parameter(Mandatory)][string] $Name
-    )
 
     $sum = 0.0
     $matched = $false
@@ -231,7 +228,6 @@ function Assert-NoIncrease {
         [Parameter(Mandatory)][string] $Name,
         [Parameter(Mandatory)][double] $Before,
         [Parameter(Mandatory)][double] $After
-    )
 
     if ($After -ne $Before) {
         throw "$Name increased from $Before to $After."
@@ -326,7 +322,6 @@ catch {
     Write-Error "OpenTelemetry smoke verification failed: $($_.Exception.Message)"
     exit 1
 }
-)
         if (!$versionMatch.Success -or [string]::IsNullOrWhiteSpace($versionMatch.Groups['version'].Value)) {
             throw 'Running backend build-info.properties does not contain a valid build.version.'
         }
@@ -339,106 +334,6 @@ catch {
         if (Test-Path -LiteralPath $tempDirectory) {
             Remove-Item -LiteralPath $tempDirectory -Recurse -Force
         }
-    }
-}
-
-function Get-SeriesAttribute {
-    param([Parameter(Mandatory)][object] $Series, [Parameter(Mandatory)][string] $Name)
-    foreach ($candidate in @($Name, ($Name -replace '\.', '_'))) {
-        if ($Series -is [System.Collections.IDictionary] -and $Series.Contains($candidate)) {
-            return [string]$Series[$candidate]
-        }
-        $property = $Series.PSObject.Properties[$candidate]
-        if ($null -ne $property) { return [string]$property.Value }
-    }
-    return $null
-}
-
-function Get-JvmMetricSelector {
-    return '{__name__=~"jvm[.].*"}'
-}
-
-function Get-BackendJvmIdentitySelector {
-    param([Parameter(Mandatory)][string] $Version)
-    $escapedVersion = $Version.Replace('\\','\\\\').Replace('"','\\"')
-    return (Get-JvmMetricSelector).TrimEnd('}') + ',"service.name"="geordi-backend","service.namespace"="geordi","service.version"="' +
-        $escapedVersion + '","geordi.telemetry.origin"="platform","geordi.platform.component"="backend","deployment.environment.name"="development","service.instance.id"!=""}'
-}
-
-function Test-BackendJvmIdentity {
-    param([Parameter(Mandatory)][object[]] $Series, [Parameter(Mandatory)][string] $Version)
-    foreach ($item in $Series) {
-        $name = Get-SeriesAttribute $item '__name__'
-        if ($name -notmatch '^jvm\.') { continue }
-        $expected = [ordered]@{
-            'service.name' = 'geordi-backend'
-            'service.namespace' = 'geordi'
-            'service.version' = $Version
-            'geordi.telemetry.origin' = 'platform'
-            'geordi.platform.component' = 'backend'
-            'deployment.environment.name' = 'development'
-        }
-        $matchesIdentity = $true
-        foreach ($attribute in $expected.GetEnumerator()) {
-            if ((Get-SeriesAttribute $item $attribute.Key) -cne [string]$attribute.Value) {
-                $matchesIdentity = $false
-                break
-            }
-        }
-        if ($matchesIdentity -and -not [string]::IsNullOrWhiteSpace((Get-SeriesAttribute $item 'service.instance.id'))) {
-            return $true
-        }
-    }
-    return $false
-}
-
-if ($SelfTest) {
-    $validIdentity = @(@{
-        '__name__'='jvm.memory.used'; service_name='geordi-backend'; service_namespace='geordi'
-        service_version='test-version'; geordi_telemetry_origin='platform'; geordi_platform_component='backend'
-        deployment_environment_name='development'; service_instance_id='instance-test'
-    })
-    if (-not (Test-BackendJvmIdentity -Series $validIdentity -Version 'test-version')) {
-        throw 'Persisted backend identity positive self-test failed.'
-    }
-    $missingInstance = @($validIdentity[0].Clone())
-    $missingInstance[0].Remove('service_instance_id')
-    if (Test-BackendJvmIdentity -Series $missingInstance -Version 'test-version') {
-        throw 'Persisted backend identity accepted a missing service instance ID.'
-    }
-    if (Test-BackendJvmIdentity -Series $validIdentity -Version 'wrong-version') {
-        throw 'Persisted backend identity accepted a service version mismatch.'
-    }
-    $jvmSelector = Get-JvmMetricSelector
-    if ($jvmSelector -cne '{__name__=~"jvm[.].*"}' -or $jvmSelector.Contains('\') -or
-            'jvm.memory.used' -notmatch '^jvm[.].*' -or 'jvmmemory.used' -match '^jvm[.].*') {
-        throw 'JVM selector syntax or literal-prefix semantics self-test failed.'
-    }
-    $identitySelector = Get-BackendJvmIdentitySelector -Version 'test-version'
-    foreach ($requiredPredicate in @('"service.name"="geordi-backend"','"service.namespace"="geordi"',
-            '"service.version"="test-version"','"geordi.telemetry.origin"="platform"',
-            '"geordi.platform.component"="backend"','"deployment.environment.name"="development"',
-            '"service.instance.id"!=""')) {
-        if (!$identitySelector.Contains($requiredPredicate)) { throw 'JVM identity selector omitted a required predicate.' }
-    }
-    if ($identitySelector.Contains('\\')) { throw 'JVM identity selector contains ambiguous backslash escaping.' }
-    $encodedSelector = [Uri]::EscapeDataString($jvmSelector)
-    if ([Uri]::UnescapeDataString($encodedSelector) -cne $jvmSelector -or $encodedSelector.Contains('%255C')) {
-        throw 'JVM selector URI encoding changed or double-escaped the expression.'
-    }
-    Write-Output 'otel_persisted_identity_self_test=PASS cases=7 selector=jvm[.].* literal_prefix=PASS no_double_escape=PASS predicates=PASS'
-    return
-}
-
-function Assert-NoIncrease {
-    param(
-        [Parameter(Mandatory)][string] $Name,
-        [Parameter(Mandatory)][double] $Before,
-        [Parameter(Mandatory)][double] $After
-    )
-
-    if ($After -ne $Before) {
-        throw "$Name increased from $Before to $After."
     }
 }
 
