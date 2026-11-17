@@ -276,11 +276,12 @@ function Test-GeordiPublishableArtifactContent {
                     $entryCount++
                     if ($entryCount -gt $script:GeordiArtifactMaximumArchiveEntries) { throw 'scan_limit_exceeded' }
                     $name = ([string]$archiveEntry.FullName).Replace('\','/')
-                    if ([string]::IsNullOrWhiteSpace($name) -or $name.StartsWith('/') -or
+                    $unixEntryType = (([long]$archiveEntry.ExternalAttributes -shr 16) -band 0xF000)
+                    if ([string]::IsNullOrWhiteSpace($name) -or $name.Contains([char]0) -or $name.StartsWith('/') -or
                         $name -match '^[A-Za-z]:' -or $name -match '(^|/)\.\.?(/|$)' -or
-                        ($archiveEntry.ExternalAttributes -band 0xA0000000) -eq 0xA0000000 -or
-                        $name -match $script:GeordiArtifactForbiddenEntryPattern) {
+                        $unixEntryType -eq 0xA000 -or $name -match $script:GeordiArtifactForbiddenEntryPattern) {
                         throw 'forbidden_material_detected'
+                    }
                     }
                 }
             } catch {
