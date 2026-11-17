@@ -97,9 +97,8 @@ function Get-CollectorLogs {
 }
 
 function Get-PlatformVersion {
-    # /api/platform is intentionally protected by observability:read. The CI
-    # smoke uses external OIDC discovery and has no local regression-token
-    # fixture, so read the same BuildProperties version from the running JAR.
+    # /api/platform is protected by observability:read. Read the version from
+    # the running artifact rather than bypassing authorization in the smoke.
     $tempDirectory = Join-Path ([IO.Path]::GetTempPath()) ("geordi-otel-" + [guid]::NewGuid().ToString('N'))
     $jarPath = Join-Path $tempDirectory 'application.jar'
     $archive = $null
@@ -110,7 +109,7 @@ function Get-PlatformVersion {
         New-Item -ItemType Directory -Path $tempDirectory -ErrorAction Stop | Out-Null
         $copyOutput = & docker compose cp "backend:/app/application.jar" $jarPath 2>&1
         if ($LASTEXITCODE -ne 0 -or !(Test-Path -LiteralPath $jarPath -PathType Leaf)) {
-            throw "Could not copy the running backend JAR for build metadata inspection: $($copyOutput -join [Environment]::NewLine)"
+            throw "Could not copy the running backend JAR: $($copyOutput -join [Environment]::NewLine)"
         }
 
         Add-Type -AssemblyName System.IO.Compression
@@ -118,12 +117,26 @@ function Get-PlatformVersion {
         $archive = [IO.Compression.ZipArchive]::new($jarStream, [IO.Compression.ZipArchiveMode]::Read, $false)
         $entry = $archive.GetEntry('BOOT-INF/classes/META-INF/build-info.properties')
         if ($null -eq $entry) {
-            throw 'Running backend JAR does not contain BOOT-INF/classes/META-INF/build-info.properties.'
+            throw 'Running backend JAR does not contain build-info.properties.'
         }
         $entryStream = $entry.Open()
         $reader = [IO.StreamReader]::new($entryStream)
         $properties = $reader.ReadToEnd()
-        $versionMatch = [regex]::Match($properties, '(?m)^build[.]version=(?<version>[^\r\n]+)
+        $versionMatch = [regex]::Match($properties, '(?m)^build[.]version=(?<version>[^\r\n]+)$')
+        if (!$versionMatch.Success -or [string]::IsNullOrWhiteSpace($versionMatch.Groups['version'].Value)) {
+            throw 'Running backend build-info.properties does not contain a valid build.version.'
+        }
+        return $versionMatch.Groups['version'].Value.Trim()
+    } finally {
+        if ($reader) { $reader.Dispose() }
+        if ($entryStream) { $entryStream.Dispose() }
+        if ($archive) { $archive.Dispose() }
+        if ($jarStream) { $jarStream.Dispose() }
+        if (Test-Path -LiteralPath $tempDirectory) {
+            Remove-Item -LiteralPath $tempDirectory -Recurse -Force
+        }
+    }
+}
 
 function Get-SeriesAttribute {
     param([Parameter(Mandatory)][object] $Series, [Parameter(Mandatory)][string] $Name)
