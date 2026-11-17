@@ -2930,3 +2930,12 @@ The repository documents PowerShell 7 as the Windows integration runner and the 
 No M19 Begin/Finalize, `New-GeordiCredentialEvidence.ps1` action mode, Docker lifecycle, cleanup, TLS/certificate operation, `.runtime/m19` inspection, private capture inspection or protected-volume operation was performed as part of this implementation. The existing safe-diagnostics step in SelfTest may query Docker container status; it does not perform a lifecycle action.
 
 **M19 remains `M19 NOT READY — REMEDIATION REQUIRED`.** This implementation and its synthetic tests are not runtime credential-leak evidence, artifact acceptance evidence or milestone closure.
+
+
+## 2026-11-17 — Publishable test-report diagnostic filtering
+
+Local read-only enumeration of the existing artifact roots found two `.dumpstream` files beneath `backend/target/surefire-reports`. The recursive artifact inventory would have included these test-runner diagnostics alongside XML/TXT test reports.
+
+The owner authorized a scoped policy correction. The publishable-artifact module now excludes `.dump` and `.dumpstream` files (case-insensitive) only beneath Surefire and Failsafe report roots. XML/TXT reports remain included; no exclusion applies to other roots. The synthetic SelfTest adds positive report-inclusion assertions, negative diagnostic-exclusion assertions, and a scope-boundary assertion for a `.dumpstream` file under `frontend/dist`.
+
+This is a source-level implementation checkpoint only. Parser, SelfTest, independent artifact scan, CI and independent review remain pending for this correction. No local artifact, M19 runtime, `.runtime/m19`, private capture, TLS material, Docker resource or protected volume was modified or inspected. Overall status remains **M19 NOT READY — REMEDIATION REQUIRED**.

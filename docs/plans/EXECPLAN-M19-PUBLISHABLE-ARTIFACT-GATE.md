@@ -206,6 +206,10 @@ Independent mode remains independent of a runtime manifest, but it must still ap
 
 Retain the existing inspection limits and archive safety rules from the current implementation. Do not silently increase bounds or change recursion semantics during extraction. Any limit change requires evidence and a separate owner decision.
 
+### 5.5 Test-runner diagnostic exclusion
+
+The recursive `surefire-reports` and `failsafe-reports` roots exclude files whose names end in `.dump` or `.dumpstream` (case-insensitive). These are test-runner diagnostic artifacts, not publishable test reports. The exclusion is deliberately scoped to those two report roots; it does not apply to `frontend/dist`, standalone artifacts, or other inventory roots. XML and TXT test reports remain included. Reparse-point rejection still applies to every entry encountered while traversing either report root, including entries that would otherwise match an exclusion.
+
 ## 6. Public script contracts
 
 | Script | Planned change | Contract to preserve |
@@ -260,6 +264,7 @@ Use selective, contract-focused tests. Do not introduce a broad TDD rewrite.
 
 - Real-root inventory with the existing expected artifact layout.
 - Synthetic-root inventory with equivalent relative layout and policy.
+- Surefire/Failsafe XML and TXT reports remain included while `.dump` and `.dumpstream` diagnostics are excluded only within those report roots.
 - Matching inventory and hashes.
 - Valid JAR/ZIP with allowed entries.
 - Independent scan without runtime manifest.
@@ -268,6 +273,7 @@ Use selective, contract-focused tests. Do not introduce a broad TDD rewrite.
 ### Negative and boundary cases
 
 - Missing required artifact.
+- Surefire/Failsafe `.dump` and `.dumpstream` files are excluded; report XML/TXT inclusion and exclusion scope are asserted.
 - Unexpected or duplicate inventory path.
 - Absolute path, traversal and root escape.
 - Reparse point at root/intermediate/artifact location.
@@ -303,6 +309,7 @@ No build or runtime M19 operation is part of this plan.
 | IMP-T03 | Build synthetic artifact tree in Credential Gate SelfTest. | **IMPLEMENTED** — SelfTest creates reports, properties, valid synthetic JARs and frontend output under its own temporary root. |
 | IMP-T04 | Repair complete Required Gate fixtures. | **IMPLEMENTED IN SOURCE** — one completed accepted attempt, all six PASS phases, channel binding and valid segmented Tempo fixture are generated. Runtime proof remains pending. |
 | IMP-T05 | Integrate the three scripts and bounded cleanup. | **PARTIAL** — artifact validator is shared by production wrapper and SelfTest; Required Gate intentionally remains the private-evidence gate so artifact and credential scans stay independent. |
+| IMP-T06 | Exclude test-runner diagnostic files from report roots. | **IMPLEMENTED IN SOURCE** — `.dump` and `.dumpstream` are excluded case-insensitively from Surefire/Failsafe report roots only; SelfTest asserts report inclusion, diagnostic exclusion and scope boundary. |
 | VERIFY-T01 | Focused positive/negative/boundary verification. | **PENDING EXECUTION** — SelfTest now covers required artifact absence, malformed ZIP, forbidden archive path, traversal, reparse point (when host permits symlink creation), digest mutation and inventory mismatch. |
 | VERIFY-T02 | Compatibility and regression verification. | **PENDING** — PowerShell 7 parser and local SelfTest execution required. |
 | VERIFY-T03 | Independent review and diff verification. | **PENDING** — no independent review or runtime verification claimed yet. |
@@ -359,3 +366,12 @@ The private-evidence gate remains independent from the publishable-artifact gate
 **Verification limitation:** changes were written through the connected GitHub repository integration. No PowerShell parser, SelfTest, build, or CI job has been executed in this session. All implementation items above are source-level completion only until the user runs the prescribed verification and results are reviewed. Do not interpret this checkpoint as PASS evidence.
 
 The synthetic artifact fixture uses only the SelfTest's unique temporary directory and is removed by its existing guarded `finally` block. It does not create repository build outputs or access `.runtime/m19`, the runtime pointer, private captures or TLS material. The existing `Write-GeordiSafeDiagnostics.ps1` call may query Docker container status, as it did before this refactor; no Docker lifecycle or protected-volume operation is part of this change.
+
+
+## 14. Test-report diagnostic filtering checkpoint — 2026-11-17
+
+The owner authorized a narrowly scoped inventory-policy correction after local enumeration showed two Surefire `.dumpstream` files in the recursive report root. The module now excludes filenames ending in `.dump` or `.dumpstream` (case-insensitive) only beneath `backend/target/surefire-reports` and `backend/target/failsafe-reports`. XML/TXT test reports remain part of the inventory. Other roots are unchanged.
+
+The synthetic Credential Gate SelfTest now creates Surefire and Failsafe XML/TXT reports plus `.dump`/`.dumpstream` fixtures. It asserts that reports are retained, diagnostics are omitted, and a `.dumpstream` fixture under `frontend/dist` remains included to prove the exclusion is not global.
+
+This checkpoint records source changes only. PowerShell parser, SelfTest, independent scan, CI and independent review have not yet been executed for this correction. M19 remains **NOT READY — REMEDIATION REQUIRED**.

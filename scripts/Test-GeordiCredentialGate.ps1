@@ -71,6 +71,7 @@ try {
     $artifactRoot = Join-Path $root 'publishable-artifacts'
     $artifactDirectories = @(
         'backend/target/surefire-reports',
+        'backend/target/failsafe-reports',
         'backend/target',
         'frontend/dist'
     )
@@ -78,6 +79,13 @@ try {
         [void][IO.Directory]::CreateDirectory((Join-Path $artifactRoot $relativeDirectory))
     }
     [IO.File]::WriteAllText((Join-Path $artifactRoot 'backend/target/surefire-reports/TEST-geordi.xml'), '<testsuite tests="1" failures="0"/>')
+    [IO.File]::WriteAllText((Join-Path $artifactRoot 'backend/target/surefire-reports/geordi-surefire-report.txt'), 'synthetic Surefire report')
+    [IO.File]::WriteAllText((Join-Path $artifactRoot 'backend/target/surefire-reports/surefire.dump'), 'synthetic Surefire dump')
+    [IO.File]::WriteAllText((Join-Path $artifactRoot 'backend/target/surefire-reports/surefire.dumpstream'), 'synthetic Surefire dumpstream')
+    [IO.File]::WriteAllText((Join-Path $artifactRoot 'backend/target/failsafe-reports/TEST-geordi-failsafe.xml'), '<testsuite tests="1" failures="0"/>')
+    [IO.File]::WriteAllText((Join-Path $artifactRoot 'backend/target/failsafe-reports/geordi-failsafe-report.txt'), 'synthetic Failsafe report')
+    [IO.File]::WriteAllText((Join-Path $artifactRoot 'backend/target/failsafe-reports/failsafe.dump'), 'synthetic Failsafe dump')
+    [IO.File]::WriteAllText((Join-Path $artifactRoot 'backend/target/failsafe-reports/failsafe.dumpstream'), 'synthetic Failsafe dumpstream')
     [IO.File]::WriteAllText((Join-Path $artifactRoot 'backend/target/pmd.xml'), '<pmd/>')
     [IO.File]::WriteAllText((Join-Path $artifactRoot 'backend/target/spotbugsXml.xml'), '<BugCollection/>')
     [IO.File]::WriteAllText((Join-Path $artifactRoot 'backend/target/verified-artifact.properties'), 'verified=true')
@@ -92,11 +100,38 @@ try {
         } finally { $archive.Dispose() }
     }
     [IO.File]::WriteAllText((Join-Path $artifactRoot 'frontend/dist/index.html'), '<!doctype html><title>synthetic artifact</title>')
+    [IO.File]::WriteAllText((Join-Path $artifactRoot 'frontend/dist/diagnostic.dumpstream'), 'scope-boundary fixture; not a test-report root')
 
     $artifactModule = Join-Path $PSScriptRoot 'lib/GeordiPublishableArtifacts.psm1'
     Import-Module $artifactModule -Force -ErrorAction Stop
     try {
         $artifactInventory = Get-GeordiPublishableArtifactInventory -RootPath $artifactRoot -Mode SelfTest
+        $artifactPaths = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+        foreach ($artifactEntry in @($artifactInventory.files)) { [void]$artifactPaths.Add([string]$artifactEntry.path) }
+        $expectedReportPaths = @(
+            'backend/target/surefire-reports/TEST-geordi.xml',
+            'backend/target/surefire-reports/geordi-surefire-report.txt',
+            'backend/target/failsafe-reports/TEST-geordi-failsafe.xml',
+            'backend/target/failsafe-reports/geordi-failsafe-report.txt'
+        )
+        foreach ($expectedPath in $expectedReportPaths) {
+            if (!$artifactPaths.Contains($expectedPath)) { throw 'Expected test report was excluded from the artifact inventory.' }
+        }
+        Write-Output 'gate_case=artifact_test_reports_included result=PASS'
+        $excludedDiagnosticPaths = @(
+            'backend/target/surefire-reports/surefire.dump',
+            'backend/target/surefire-reports/surefire.dumpstream',
+            'backend/target/failsafe-reports/failsafe.dump',
+            'backend/target/failsafe-reports/failsafe.dumpstream'
+        )
+        foreach ($excludedPath in $excludedDiagnosticPaths) {
+            if ($artifactPaths.Contains($excludedPath)) { throw 'Test-runner diagnostic file entered the artifact inventory.' }
+        }
+        Write-Output 'gate_case=artifact_test_diagnostics_excluded result=PASS'
+        if (!$artifactPaths.Contains('frontend/dist/diagnostic.dumpstream')) {
+            throw 'Test-report diagnostic exclusion escaped its report-root scope.'
+        }
+        Write-Output 'gate_case=artifact_diagnostic_exclusion_scoped result=PASS'
         $artifactInventory = Test-GeordiPublishableArtifactInventory -RootPath $artifactRoot -ExpectedInventory $artifactInventory -Mode SelfTest
         $artifactInventory = Test-GeordiPublishableArtifactContent -RootPath $artifactRoot -Inventory $artifactInventory -Mode SelfTest
     } finally {

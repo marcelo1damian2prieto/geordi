@@ -50,7 +50,11 @@ function Assert-GeordiArtifactPathChain {
 }
 
 function Get-GeordiArtifactFilesUnderDirectory {
-    param([Parameter(Mandatory)][string] $Root,[Parameter(Mandatory)][string] $DirectoryPath)
+    param(
+        [Parameter(Mandatory)][string] $Root,
+        [Parameter(Mandatory)][string] $DirectoryPath,
+        [switch] $ExcludeDiagnosticFiles
+    )
 
     $files = [Collections.Generic.List[string]]::new()
     $pending = [Collections.Generic.Stack[string]]::new()
@@ -67,6 +71,11 @@ function Get-GeordiArtifactFilesUnderDirectory {
             if (($attributes -band [IO.FileAttributes]::Directory) -ne 0) {
                 $pending.Push($entryPath)
             } else {
+                if ($ExcludeDiagnosticFiles -and
+                    ($entryPath.EndsWith('.dump',[StringComparison]::OrdinalIgnoreCase) -or
+                     $entryPath.EndsWith('.dumpstream',[StringComparison]::OrdinalIgnoreCase))) {
+                    continue
+                }
                 [void](Get-GeordiArtifactRelativePath -Root $Root -FullPath $entryPath)
                 $files.Add([IO.Path]::GetFullPath($entryPath))
             }
@@ -133,7 +142,7 @@ function Get-GeordiPublishableArtifactInventory {
     try {
         $root = Resolve-GeordiArtifactRoot -RootPath $RootPath
         $definitions = @(
-            @{ path='backend/target/surefire-reports'; required=$true; directory=$true },
+            @{ path='backend/target/surefire-reports'; required=$true; directory=$true; excludeDiagnosticFiles=$true },
             @{ path='backend/target/pmd.xml'; required=$true; directory=$false },
             @{ path='backend/target/spotbugsXml.xml'; required=$true; directory=$false },
             @{ path='backend/target/geordi-backend-0.1.0-SNAPSHOT.jar'; required=$true; directory=$false },
@@ -142,7 +151,7 @@ function Get-GeordiPublishableArtifactInventory {
             @{ path='backend/.ci-artifact/security-telemetry.jar'; required=$false; directory=$false },
             @{ path='backend/target/verified-artifact.properties'; required=$true; directory=$false },
             @{ path='frontend/dist'; required=$true; directory=$true },
-            @{ path='backend/target/failsafe-reports'; required=$false; directory=$true }
+            @{ path='backend/target/failsafe-reports'; required=$false; directory=$true; excludeDiagnosticFiles=$true }
         )
         $allFiles = [Collections.Generic.List[string]]::new()
         $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
@@ -162,7 +171,8 @@ function Get-GeordiPublishableArtifactInventory {
                 throw 'inventory_invalid'
             }
             $found = if ($definition.directory) {
-                @(Get-GeordiArtifactFilesUnderDirectory -Root $root -DirectoryPath $candidate)
+                @(Get-GeordiArtifactFilesUnderDirectory -Root $root -DirectoryPath $candidate `
+                    -ExcludeDiagnosticFiles:([bool]$definition.excludeDiagnosticFiles))
             } else {
                 @($candidate)
             }
