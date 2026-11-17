@@ -32,10 +32,28 @@ try {
         captureMetadata=@{}; additionalSources=@() }
     foreach ($channel in $channels) {
         $control = 'control-' + $channel + '-' + [guid]::NewGuid().ToString('N')
+        $manifest.controls[$channel] = $control
+        if ($channel -ceq 'tempo') { continue }
         $file = Join-Path $root ($channel + '.capture')
         [IO.File]::WriteAllText($file, $control)
-        $manifest.controls[$channel] = $control
         $manifest.captures[$channel] = @($file)
+    }
+
+    $tempoDirectory = Join-Path $root 'tempo-segments'
+    $tempoWriter = [GeordiTempoSegmentWriter]::new($tempoDirectory,33554432L,167772160L,256,67108864L)
+    try {
+        $tempoBytes = [Text.Encoding]::UTF8.GetBytes('{"resource":{"service.name":"' + $manifest.controls.tempo + '"}}')
+        $tempoWriter.BeginRecord(1L)
+        $tempoWriter.WriteRecordBytes($tempoBytes,$tempoBytes.Length)
+        $tempoWriter.CompleteRecord()
+        $tempoMetadata = ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $tempoWriter.Complete() -Depth 20 -Compress) -AsHashtable
+        $tempoMetadata.runId = [string]$manifest.runId
+        $tempoMetadata.captureStartedUtc = [string]$manifest.captureStartedUtc
+        $tempoMetadata.captureCompletedUtc = [DateTimeOffset]::UtcNow.ToString('o')
+        $manifest.captureMetadata.tempo = $tempoMetadata
+        $manifest.captures.tempo = @($tempoMetadata.segments | ForEach-Object { [string]$_.path })
+    } finally {
+        $tempoWriter.Dispose()
     }
     foreach ($channel in @('backend','otel','collector')) {
         $capturePath=[string]$manifest.captures[$channel][0]
@@ -106,6 +124,28 @@ try {
     $initialVictoriaFixture = [string](@($manifest.additionalSources | Where-Object channel -eq 'victoriametrics')[0].captures[0])
     $manifest.persistedMetricEvidenceBytes = [long](Get-Item -LiteralPath $initialVictoriaFixture).Length
     $manifest.completedUtc = [DateTimeOffset]::UtcNow.ToString('o')
+
+    $attemptId = [guid]::NewGuid().ToString('N')
+    $attemptPhases = @{}
+    foreach ($phase in @('tempo-search','tempo-detail','loki','victoriametrics','artifact-scan','manifest')) {
+        $attemptPhases[$phase] = @{ status='PASS'; recordedUtc=$manifest.completedUtc; details=@{} }
+    }
+    $manifest.acceptedAttemptId = $attemptId
+    $manifest.attempts = @{
+        $attemptId = @{
+            attemptId=$attemptId
+            status='completed'
+            completedUtc=$manifest.completedUtc
+            root=(Join-Path (Join-Path $root 'finalize-attempts') $attemptId)
+            phases=$attemptPhases
+            channels=@{
+                controls=$manifest.controls
+                captures=$manifest.captures
+                captureMetadata=$manifest.captureMetadata
+            }
+            additionalSources=@($manifest.additionalSources)
+        }
+    }
     $manifestPath = Join-Path $root 'manifest.json'
     [IO.File]::WriteAllText($manifestPath, (ConvertTo-Json $manifest -Depth 8), [Text.UTF8Encoding]::new($false))
 
@@ -188,12 +228,12 @@ try {
     $badInventory.fileCount++
     [IO.File]::WriteAllText($inventoryPath, (ConvertTo-Json $badInventory -Compress))
     $artifactScanner=Join-Path $PSScriptRoot 'Test-GeordiPublishableArtifacts.ps1'
-    Assert-PrivateGateFails { & $artifactScanner -ManifestPath $manifestPath } 'artifact scan unavailable' $secret
+    Assert-PrivateGateFails { & $artifactScanner -ManifestPath $manifestPath -RootPath $artifactRoot } 'artifact scan unavailable' $secret
     $badInventory.fileCount--
     [IO.File]::WriteAllText($inventoryPath, (ConvertTo-Json $badInventory -Compress))
     Write-Output 'gate_case=artifact_inventory_unavailable result=FAIL_CLOSED'
 
-    $independentArtifactOutput=@(& $artifactScanner -Independent)
+    $independentArtifactOutput=@(& $artifactScanner -Independent -RootPath $artifactRoot)
     if ($independentArtifactOutput.Count -ne 1 -or $independentArtifactOutput[0] -notmatch 'result=PASS') {
         throw 'Independent publishable artifact scan failed.'
     }
