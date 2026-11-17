@@ -378,3 +378,257 @@ The checkpointed PASS results for Layers A, B1–B4 and C remain prior focused e
 ### 10.7 Recommendation
 
 Retain the test logic and reorganize its interpretation and execution. Do not run every suite to discover intent: the code and this layered map already establish the intended purpose. The only unresolved execution-design decision is whether the owner wants to permit the real Docker CLI config-render dependency in B4 or defer that one caller regression. Owner approval remains required before any test is run.
+
+---
+
+## 11. Finalized reconstruction — proposed accepted regression set — 2026-11-16
+
+> **RECONSTRUCTED — NOT HISTORICAL.**
+>
+> This addendum completes the proposed inventory, exact entry points, execution order, status ledger, and exclusions using the currently available repository plans, test files, D2 audit, and owner-supplied B+C execution output. It does not recover or claim the original accepted set or its original order. It is submitted for owner review; it is not execution authorization.
+
+### 11.1 Decision on scope
+
+For this reconstruction, the accepted regression set means the focused proof of the shared `AfterFollowerValidated` change and the four owner-authorized callers, plus the adjacent capture-generation/authentication contracts and read-only scope review.
+
+The reconstructed set has these layers:
+
+- **A — direct shared seam:** five explicit microtest cases.
+- **B1–B4 — caller/workflow compatibility:** one aggregate SelfTest for each authorized consumer.
+- **C — capture-generation/authentication boundary:** parser, `AuthContract`, and `Boundaries`.
+- **D — scope/review:** read-only diff checks and a fresh independent read-only review.
+
+The D2-09 refactor split B4 into two complementary validations. B4a (`-SelfTest`) uses an injected Compose executor and synthetic configuration fixtures; B4b (`-ComposeIntegration`) renders the actual Compose configuration with the Docker CLI and runs the same isolation assertions. Both are retained because together they preserve the old B4 coverage without making the synthetic suite depend on Docker. B4b is a real external CLI invocation but config-render-only; it is not Docker lifecycle.
+
+This is the narrowest complete reconstruction supported by the post-follower ExecPlan and its four authorized callers. It does not sweep every M10/M11/M12 test or every formal gate into one oversized suite.
+
+### 11.2 Final proposed order and exact commands
+
+All commands are from the repository root, in PowerShell 7. Each script invocation must be followed immediately by an exit-code check. Stop on the first parser error, nonzero exit, unexpected side effect, or scope mismatch. Do not continue to later phases after a failure.
+
+#### P0 — Read-only preconditions
+
+Confirm:
+- current branch is `d2/audit-boundaries-fix`, not `m19`;
+- the worktree state is understood and preserved;
+- all listed paths exist at the reviewed branch revision;
+- no runtime, Docker lifecycle, TLS/certificate, capture mutation, cleanup, protected-volume, CI activation, M13, Gate 5 promotion, candidate promotion, or M19 acceptance action is planned.
+
+Use read-only Git inspection only. Do not reset, stash, clean, checkout, commit, or push as part of this phase.
+
+**Status:** branch isolation and the seven-path D2 scope were previously recorded. Reconfirm locally immediately before any future run.
+
+#### P1 — PowerShell parser
+
+Parse the exact scripts and libraries that define the reconstructed tests and changed D2 harness:
+
+```powershell
+$files = @(
+    "scripts/lib/GeordiCaptureGenerations.ps1",
+    "scripts/lib/GeordiM12OverlapCollector.ps1",
+    "scripts/Test-GeordiPostFollowerReadiness.ps1",
+    "scripts/Test-GeordiM11BackendGenerations.ps1",
+    "scripts/Test-GeordiM12BackendGenerations.ps1",
+    "scripts/Test-GeordiM12OverlapBackendVmGenerations.ps1",
+    "scripts/Test-GeordiM12OverlapCollector.ps1",
+    "scripts/Test-GeordiCaptureGenerations.ps1"
+)
+
+foreach ($file in $files) {
+    $tokens = $null
+    $errors = $null
+    [System.Management.Automation.Language.Parser]::ParseFile(
+        (Resolve-Path $file),
+        [ref]$tokens,
+        [ref]$errors
+    ) | Out-Null
+
+    if ($errors.Count -gt 0) {
+        $errors | Format-List
+        throw "Parser FAILED: $file"
+    }
+
+    Write-Host "Parser PASS: $file"
+}
+```
+
+This parser inventory is a reproducible reconstruction of the directly involved test/helper surface. It is not claimed as the historical parser command list.
+
+#### P2 — A: direct shared-seam microtests
+
+Authoritative entry point: `scripts/Test-GeordiPostFollowerReadiness.ps1`.
+
+```powershell
+$cases = @(
+    'CallbackAbsent',
+    'Ordering',
+    'WrongFollower',
+    'ReadinessFailure',
+    'CleanupFailure'
+)
+
+foreach ($case in $cases) {
+    pwsh -NoProfile -File scripts/Test-GeordiPostFollowerReadiness.ps1 -Case $case
+    if ($LASTEXITCODE -ne 0) {
+        throw "PostFollowerReadiness/$case failed: $LASTEXITCODE"
+    }
+}
+```
+
+Coverage: callback-absent compatibility; validated identity/publication before callback and handoff completion; wrong-follower rejection before readiness; truthful incomplete state; cleanup attempt and primary-failure precedence; sealed historical evidence immutability.
+
+#### P3 — B1–B3: synthetic caller/workflow regressions
+
+Run separately in this order:
+
+**B1 — M11 backend**
+```powershell
+pwsh -NoProfile -File scripts/Test-GeordiM11BackendGenerations.ps1 -SelfTest
+if ($LASTEXITCODE -ne 0) { throw "M11 backend SelfTest failed: $LASTEXITCODE" }
+```
+
+Coverage: three synthetic M11 backend boundaries, failure matrix, dedicated fixture-volume removal safety, and production wiring.
+
+**B2 — M12 main backend**
+```powershell
+pwsh -NoProfile -File scripts/Test-GeordiM12BackendGenerations.ps1 -Case SelfTest
+if ($LASTEXITCODE -ne 0) { throw "M12 backend SelfTest failed: $LASTEXITCODE" }
+```
+
+Coverage: reset-evidence publication/reuse/integrity/races, backend positive chain and failure cases, volume/command scope, metric phases, recovery ordering, and transferred-path wiring.
+
+**B3 — M12 overlap backend**
+```powershell
+pwsh -NoProfile -File scripts/Test-GeordiM12OverlapBackendVmGenerations.ps1 -Case SelfTest
+if ($LASTEXITCODE -ne 0) { throw "M12 overlap backend SelfTest failed: $LASTEXITCODE" }
+```
+
+Coverage: command scope, entry state, volume ownership, persisted VM evidence, backend positive handoffs, 12 fault cases at each of two boundaries, full overlap sequence, and cross-service failure.
+
+These are caller/workflow compatibility regressions, not pure callback unit tests. Their wider evidence/volume/recovery checks are retained because they protect the four authorized integrations.
+
+#### P4 — C: capture-generation/authentication boundary
+
+Run in this order, with immediate exit-code checks:
+
+```powershell
+pwsh -NoProfile -File scripts/Test-GeordiCaptureGenerations.ps1 -Case AuthContract
+if ($LASTEXITCODE -ne 0) { throw "AuthContract failed: $LASTEXITCODE" }
+
+pwsh -NoProfile -File scripts/Test-GeordiCaptureGenerations.ps1 -Case Boundaries
+if ($LASTEXITCODE -ne 0) { throw "Boundaries failed: $LASTEXITCODE" }
+```
+
+Coverage:
+- `AuthContract`: authentication initialization/import path, trusted authenticated request helper, Bearer construction, protected lifecycle request, and six negative controls.
+- `Boundaries`: synthetic M9–M14 generation-boundary model, including the corrected M12 Collector generation and fail-closed cases.
+
+The prior failed Boundaries attempt is retained as historical. The post-D2 corrected Boundaries result is the current focused result; the complete reconstructed sequence still requires a fresh run from P0.
+
+#### P5 — B4a: M12 overlap Collector synthetic caller regression
+
+```powershell
+pwsh -NoProfile -File scripts/Test-GeordiM12OverlapCollector.ps1 -SelfTest
+if ($LASTEXITCODE -ne 0) { throw "M12 overlap Collector SelfTest failed: $LASTEXITCODE" }
+```
+
+Coverage: injected Compose executor contract; synthetic normal/isolated configuration fixtures; seven restart edges versus zero; normalized configuration equivalence; protected M19 mount configuration; eight negative propagation mutations; command scope; sequential Collector handoffs; startup ordering; wrapper failures; wrong-follower boundaries; and second-handoff failure matrix.
+
+**Execution classification:** after D2-09, this selector uses the injected executor and synthetic configuration fixtures. It is Docker-independent in the reviewed implementation and does not invoke the real Compose renderer.
+
+#### P6 — B4b: real Compose configuration-render integration
+
+```powershell
+pwsh -NoProfile -File scripts/Test-GeordiM12OverlapCollector.ps1 -ComposeIntegration
+if ($LASTEXITCODE -ne 0) { throw "M12 overlap ComposeIntegration failed: $LASTEXITCODE" }
+```
+
+Coverage: real normal and combined replacement/isolation Compose renders, seven-to-zero restart propagation, normalized configuration equivalence, protected M19 mount configuration, and the eight negative propagation mutations.
+
+**Narrow permission boundary:** this invokes the Docker CLI only for `docker compose ... config --format json`. It must not invoke `up`, `down`, `restart`, `rm`, `prune`, build, volume mutation, or any runtime lifecycle action. The owner separately authorized and executed this config-render-only operation on 2026-11-16. Any future rerun as part of the full reconstructed sequence requires its own explicit approval; the previous authorization is not blanket permission for later executions.
+
+#### P7 — D: read-only scope and diff validation
+
+Run and inspect:
+
+```powershell
+git status --short --branch
+git diff --check
+git diff --check m19...HEAD
+git diff --name-only m19...HEAD
+```
+
+The expected committed branch-diff paths at the last verified D2 scope review are exactly:
+
+1. `docs/plans/EXECPLAN-M19-POST-FOLLOWER-READINESS.md`
+2. `docs/plans/M19-ACCEPTED-REGRESSION-RECONSTRUCTION.md`
+3. `docs/plans/M19-D2-TEST-INFRASTRUCTURE-AUDIT.md`
+4. `docs/plans/M19-WORKTREE-RESUME-CHECKPOINT.md`
+5. `scripts/Test-GeordiCaptureGenerations.ps1`
+6. `scripts/Test-GeordiM12OverlapCollector.ps1`
+7. `scripts/lib/GeordiM12OverlapCollector.ps1`
+
+Reconfirm the current list rather than assuming it remains unchanged. No application source, CI configuration, Compose YAML, TLS/certificates, runtime captures, or protected-volume definitions may appear. The worktree status must be reviewed separately from the committed branch comparison.
+
+#### P8 — Fresh independent read-only review
+
+Only after P1–P7 pass, obtain a fresh independent review of the exact resulting D2 state. It must cover:
+- shared callback ordering and exact follower binding;
+- failure-state truthfulness, cleanup attempt, and primary-error precedence;
+- immutability of previously sealed generation/handoff history;
+- M11, M12 backend, overlap backend and overlap Collector caller compatibility;
+- normal/isolated Compose equivalence and protected M19 mount configuration;
+- CI nonactivation and branch/file scope;
+- the complete reconstructed execution log and any deviations.
+
+The review must report findings by severity and explicitly disposition BLOCKER/HIGH/MEDIUM/LOW. No previous review of a different branch state or gate sequence substitutes for this review.
+
+### 11.3 Evidence ledger — previous focused results versus full-set status
+
+| Item | Previous/current evidence | Status for a complete reconstructed run |
+|---|---|---|
+| P0 branch/worktree preconditions | Prior branch isolation/scope recorded | Reconfirm |
+| P1 parser, all eight paths in one pass | D2 pair parsed PASS in the owner run; CaptureGenerations parser PASS is recorded historically; no evidence of all eight parsed together | Rerun complete list |
+| P2 five shared-seam cases | Prior focused PASS recorded | Rerun individually |
+| P3 B1 M11 caller | Prior focused PASS recorded | Rerun |
+| P3 B2 M12 backend caller | Prior focused PASS recorded | Rerun |
+| P3 B3 M12 overlap backend caller | Prior focused PASS recorded, including 12-case matrices at both boundaries | Rerun |
+| P4 AuthContract | Prior PASS; six negative controls rejected | Rerun |
+| P4 Boundaries | Corrected D2 run PASS; owner confirmed exit code 0 and both PASS markers | Rerun in the complete sequence |
+| P5 B4a Collector SelfTest | Owner-supplied output on 2026-11-16: PASS; synthetic executor/fixtures; runtime NOT_RUN; CI unchanged | Rerun in the complete sequence |
+| P6 B4b ComposeIntegration | Owner-supplied output on 2026-11-16: PASS; config render only; lifecycle NOT_INVOKED | Rerun only with fresh narrow approval |
+| P7 diff/scope | Prior branch-scope reviews and earlier diff checks exist | Rerun against current branch/worktree |
+| P8 independent review after complete sequence | No qualifying fresh review recorded | Pending |
+| Entire reconstructed sequence P0–P8 | Never completed end-to-end | **NOT RUN** |
+
+The B4a and B4b results are current focused execution evidence after D2-09, but they do not retroactively make the full set green. Likewise, individual earlier PASS results are not a substitute for a fail-fast run from P0.
+
+### 11.4 Explicit exclusions and non-merging rules
+
+Do not append the following to this focused reconstructed set:
+
+- **M10 seven-case replacement suite:** M10 was not migrated to the shared callback seam. Keep its compatibility suite separate unless a concrete shared-helper regression risk is identified and the owner approves inclusion.
+- **M11→M12 fixture-transfer 18 focused gates / A–S matrix:** separate capability proof.
+- **M11→M12 remediation 19-gate sequence:** separate formal remediation proof.
+- **Formal M12 overlap 26-gate sequence:** separate later validation, conditional on a green approved reconstructed set and clean P8 review.
+- **M13, Gate 5 promotion/acceptance, runtime smoke, Docker lifecycle, TLS/certificate operations, real capture mutation, cleanup, protected-volume operations, CI activation, candidate promotion, and M19 acceptance:** excluded and not authorized.
+
+Do not infer the accepted regression inventory from a PowerShell `ValidateSet`, merge independently scoped ExecPlans, or treat a prior PASS in one plan as proof that the item belonged to the historical accepted set.
+
+### 11.5 Acceptance criteria for this reconstruction
+
+The reconstructed set is considered green only when:
+1. the owner approves this reconstructed scope and order;
+2. P0–P7 pass in order, fail-fast, with immediate exit-code checks;
+3. B4b is executed only under separate narrow approval and reports config-render-only/lifecycle-not-invoked;
+4. the final diff/worktree scope matches the approved boundary;
+5. P8 finds no unresolved BLOCKER or HIGH findings, with MEDIUM/LOW findings explicitly dispositioned;
+6. no excluded operation occurs.
+
+A green reconstructed set is a focused post-follower readiness result only. It is not M19 acceptance and does not itself authorize the formal overlap 26-gate sequence.
+
+### 11.6 Owner-review disposition
+
+The historical sequence remains unrecoverable from the currently inspected repository history and checked-in plans. The proposed membership and order above are now fully specified and evidence-mapped as **RECONSTRUCTED — NOT HISTORICAL**.
+
+**Current decision requested:** approve or amend the reconstructed P0–P8 sequence before any full-sequence execution. This documentation update does not run tests or authorize the rerun of B4b.
