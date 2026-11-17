@@ -20,7 +20,9 @@ function New-M12OverlapComposeFixture([string] $RepositoryRoot,[switch] $Collect
     foreach($name in @('demo','burn-demo','demo-downstream','m12-burn-demo')){$services[$name].depends_on=[ordered]@{'otel-collector'=[ordered]@{condition='service_healthy';restart=$true}}}
     $services.backend.volumes=@('m19-alert-lifecycle-data:/var/lib/geordi/alerts')
     $services.victoriametrics.volumes=@('m19-victoriametrics-data:/victoria-metrics-data')
-    $services.'otel-collector'.volumes=@('./otel/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro')
+    $services.'otel-collector'.volumes=@(
+        [ordered]@{type='bind';source='./otel/otel-collector-config.yaml';target='/etc/otelcol/config.yaml';read_only=$true}
+    )
     if($CollectorReplacementOverlay){foreach($name in @('backend','demo','burn-demo','demo-downstream','m12-burn-demo')){$services[$name].depends_on['otel-collector'].restart=$false}}
     if($IsolationOverlay){foreach($edge in (Get-GeordiM12OverlapIsolationEdges)){$services[$edge.service].depends_on[$edge.dependency].restart=$false}}
     return [ordered]@{services=$services;volumes=[ordered]@{'m19-alert-lifecycle-data'=[ordered]@{};'m19-victoriametrics-data'=[ordered]@{}};networks=[ordered]@{default=[ordered]@{}}}
