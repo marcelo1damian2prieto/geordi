@@ -142,7 +142,7 @@ function Invoke-GeordiBoundedLogFollowerStart {
             throw 'Capture follower process failed its bounded startup check.'
         }
         $recordText = Read-GeordiCaptureStartFile -Path $ProcessRecordPath
-        $record = $recordText | ConvertFrom-Json
+        $record = $recordText | ConvertFrom-Json -DateKind String -ErrorAction Stop
         if ([int]$record.id -le 0 -or [string]::IsNullOrWhiteSpace([string]$record.name) -or
                 [string]::IsNullOrWhiteSpace([string]$record.startUtc)) {
             throw 'Capture follower process identity record is malformed.'
