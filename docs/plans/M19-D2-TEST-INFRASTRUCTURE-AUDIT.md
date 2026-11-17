@@ -155,3 +155,40 @@ The worktree resume checkpoint additionally records these focused results before
 - The D2 audit branch still changes only this audit document and `scripts/Test-GeordiCaptureGenerations.ps1` relative to `m19`.
 - The full accepted regression set, fresh independent shared-readiness review, and formal overlap 26-gate sequence remain pending in the required order.
 - M19 remains **NOT READY — REMEDIATION REQUIRED**. No CI activation, runtime/Docker lifecycle, TLS/certificate operation, capture mutation, cleanup, protected-volume operation, M13 implementation, or candidate promotion is authorized by this correction.
+
+
+## D2-07 — Overlap Collector SelfTest has a real Docker CLI config-render dependency
+
+**Severity:** Medium — test-environment classification and reproducibility.
+
+Static inspection of scripts/lib/GeordiM12OverlapCollector.ps1 found that Get-GeordiM12OverlapComposeConfiguration executes docker compose ... config --format json. Test-M12OverlapComposeIsolation and the overlap Collector failure harness use this renderer. Consequently, scripts/Test-GeordiM12OverlapCollector.ps1 -SelfTest is not wholly offline, despite using synthetic lifecycle adapters for replacement, identity, follower, readiness and cleanup.
+
+The command renders effective Compose configuration. In the reviewed path it does not start, stop, recreate or remove containers, delete volumes, or activate CI. This finding is not evidence of a Docker lifecycle operation. It does mean that Docker CLI/Compose availability and its configuration/environment are prerequisites and must be disclosed before running the suite.
+
+The current test script does not expose a dedicated selector for only the Compose isolation/rendering check. Its focused Case selectors cover wrapper/failure subsets and may invoke the same renderer. Do not label a focused Case as Docker-free without inspecting that exact path.
+
+**Disposition:** keep the Collector regression as a separate config-aware caller gate. Require explicit owner approval to permit the Docker CLI config-render operation, or defer it and record the coverage gap. Do not add Docker lifecycle permission.
+
+## D2-08 — Caller regression suites are broader than the shared callback contract
+
+**Severity:** Medium — test-plan clarity, not an identified production defect.
+
+The direct shared contract is isolated in scripts/Test-GeordiPostFollowerReadiness.ps1 with five cases: CallbackAbsent, Ordering, WrongFollower, ReadinessFailure and CleanupFailure. The M11, M12 backend, M12 overlap backend and M12 overlap Collector suites are caller/workflow regressions. They also cover domain-specific evidence, recovery, volume ownership, command scope, Compose isolation and production wiring.
+
+This is a defensible layered regression strategy because the shared seam is integrated into four authorized consumers. The clarity problem arose when those aggregates were presented as if they were homogeneous callback tests or as one wholly offline set.
+
+**Disposition:** classify evidence by layer: shared seam; M11 caller; M12 backend caller; M12 overlap backend caller; M12 overlap Collector caller; capture-generation/authentication boundaries; static scope and independent review. Keep M10, fixture-transfer 18-gate/A–S, M11→M12 19-gate remediation and formal overlap 26-gate validation separate.
+
+## Revised validation disposition — 2026-11-16
+
+The proposed order is now:
+1. Read-only branch/worktree and scope preconditions.
+2. Parser checks and the five direct shared-seam cases, individually and fail-fast.
+3. Strictly synthetic caller regressions: M11, M12 backend, M12 overlap backend.
+4. Capture-generation AuthContract, then Boundaries.
+5. Separately approved M12 overlap Collector SelfTest, acknowledging its Docker CLI config-render dependency but no Docker lifecycle operation.
+6. Read-only scope review and fresh independent review.
+
+No test was executed during this static review. Temporary-root cleanup in the inspected harnesses targets generated test roots/files. The reviewed synthetic caller paths use injected adapters for process, volume and replacement behavior; no Docker lifecycle operation, protected-volume operation, real capture mutation, CI activation, TLS operation or runtime action was found in those paths.
+
+The complete reconstructed sequence remains NOT RUN. Prior focused PASS records are unchanged and are not promoted to a full-suite result. M19 remains NOT READY — REMEDIATION REQUIRED.
