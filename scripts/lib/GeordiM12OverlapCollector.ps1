@@ -20,12 +20,24 @@ function Get-GeordiM12OverlapComposeArguments {
 function Get-GeordiM12OverlapComposeConfiguration {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string] $RepositoryRoot,
-        [switch] $CollectorReplacementOverlay,[switch] $IsolationOverlay)
+        [switch] $CollectorReplacementOverlay,[switch] $IsolationOverlay,
+        [scriptblock] $InvokeCompose)
     $arguments=Get-GeordiM12OverlapComposeArguments -RepositoryRoot $RepositoryRoot `
         -CollectorReplacementOverlay:$CollectorReplacementOverlay -IsolationOverlay:$IsolationOverlay
-    $output=& docker compose @arguments config --format json 2>$null
-    if($LASTEXITCODE -ne 0){throw 'M12 overlap Compose configuration rendering failed.'}
-    try{return (($output -join "`n")|ConvertFrom-Json -AsHashtable -ErrorAction Stop)}
+    if($InvokeCompose){
+        $result=& $InvokeCompose $arguments
+    }else{
+        $output=& docker compose @arguments config --format json 2>$null
+        $result=[pscustomobject]@{ExitCode=$LASTEXITCODE;Output=@($output)}
+    }
+    if(!$result -or $null -eq $result.PSObject.Properties['ExitCode'] -or [int]$result.ExitCode -ne 0){
+        throw 'M12 overlap Compose configuration rendering failed.'
+    }
+    $lines=@($result.Output)
+    if(!$lines.Count -or [string]::IsNullOrWhiteSpace(($lines -join "`n"))){
+        throw 'M12 overlap Compose configuration was not valid JSON.'
+    }
+    try{return (($lines -join "`n")|ConvertFrom-Json -AsHashtable -ErrorAction Stop)}
     catch{throw 'M12 overlap Compose configuration was not valid JSON.'}
 }
 
