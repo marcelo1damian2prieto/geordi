@@ -33,6 +33,22 @@ function Get-GeordiArtifactRelativePath {
     return $relative
 }
 
+function Assert-GeordiArtifactPathChain {
+    param([Parameter(Mandatory)][string] $Root,[Parameter(Mandatory)][string] $FullPath)
+
+    $relative = Get-GeordiArtifactRelativePath -Root $Root -FullPath $FullPath
+    $current = $Root
+    foreach ($segment in @($relative.Split('/'))) {
+        $current = Join-Path $current $segment
+        if (Test-Path -LiteralPath $current) {
+            $item = Get-Item -LiteralPath $current -Force
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw 'root_path_rejected'
+            }
+        }
+    }
+}
+
 function Get-GeordiArtifactFilesUnderDirectory {
     param([Parameter(Mandatory)][string] $Root,[Parameter(Mandatory)][string] $DirectoryPath)
 
@@ -130,6 +146,7 @@ function Get-GeordiPublishableArtifactInventory {
         foreach ($definition in $definitions) {
             $candidate = [IO.Path]::GetFullPath((Join-Path $root ([string]$definition.path)))
             [void](Get-GeordiArtifactRelativePath -Root $root -FullPath $candidate)
+            Assert-GeordiArtifactPathChain -Root $root -FullPath $candidate
             if (!(Test-Path -LiteralPath $candidate)) {
                 if ($definition.required) { throw 'artifact_missing' }
                 continue
