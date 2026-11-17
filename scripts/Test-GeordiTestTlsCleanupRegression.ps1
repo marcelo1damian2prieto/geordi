@@ -48,6 +48,24 @@ function New-CleanupFixture([string] $Name) {
     Copy-Item -LiteralPath $sourceScript -Destination (Join-Path $scripts 'Remove-GeordiTestTls.ps1')
 
     $mockModule = @'
+function Test-GeordiTlsStoreThumbprint {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string] $ExpectedThumbprint,
+        [Parameter(Mandatory)][string] $ExpectedSubject
+    )
+    [IO.File]::AppendAllText($env:GEORDI_TLS_TEST_STORE_LOG, "Test|$ExpectedThumbprint|$ExpectedSubject" + [Environment]::NewLine)
+    $statePath = $env:GEORDI_TLS_TEST_STORE_STATE
+    $stored = if (Test-Path -LiteralPath $statePath) { [IO.File]::ReadAllText($statePath).Trim() } else { $null }
+    $storedParts = if ($stored) { $stored -split '\\|', 2 } else { @() }
+    if ($storedParts.Count -gt 0 -and $storedParts[0] -eq $ExpectedThumbprint) {
+        if ($storedParts.Count -ne 2 -or $storedParts[1] -ne $ExpectedSubject) {
+            throw 'Mock LocalMachine Root subject does not match the expected ephemeral CA.'
+        }
+        return $true
+    }
+    return $false
+}
 function Invoke-GeordiTlsStoreActionBounded {
     [CmdletBinding()]
     param(
@@ -64,7 +82,7 @@ function Invoke-GeordiTlsStoreActionBounded {
     [IO.File]::AppendAllText($env:GEORDI_TLS_TEST_STORE_LOG, $entry)
     $statePath = $env:GEORDI_TLS_TEST_STORE_STATE
     $stored = if (Test-Path -LiteralPath $statePath) { [IO.File]::ReadAllText($statePath).Trim() } else { $null }
-    $storedParts = if ($stored) { $stored -split '\\|', 2 } else { @() }
+    $storedParts = if ($stored) { $stored -split '\|', 2 } else { @() }
     switch ($Action) {
         'Remove' {
             if ($storedParts.Count -gt 0 -and $storedParts[0] -eq $ExpectedThumbprint) {
@@ -81,7 +99,7 @@ function Invoke-GeordiTlsStoreActionBounded {
         }
     }
 }
-Export-ModuleMember -Function Invoke-GeordiTlsStoreActionBounded
+Export-ModuleMember -Function Invoke-GeordiTlsStoreActionBounded, Test-GeordiTlsStoreThumbprint
 '@
     [IO.File]::WriteAllText((Join-Path $library 'GeordiTlsTrust.psm1'), $mockModule, [Text.Encoding]::UTF8)
 
@@ -162,6 +180,8 @@ try {
     $result = Invoke-CleanupFixture $absent
     Assert-CleanupRegression ($result.ExitCode -eq 0) "cleanup with already-absent CA failed: $($result.Stderr)"
     Assert-CleanupRegression (!(Test-Path $absent.Runtime) -and !(Test-Path $absent.PublicManifest)) 'already-absent cleanup left manifests or runtime.'
+    $absentActions = [IO.File]::ReadAllText($absent.StoreLog)
+    Assert-CleanupRegression ($absentActions -notmatch '(?m)^Remove\\|') 'cleanup attempted store mutation although the CA was already absent.'
     Write-Output 'm19_tls_cleanup_ca_already_absent=PASS'
 
     # Inconsistent manifests must fail closed before store mutation or file deletion.
