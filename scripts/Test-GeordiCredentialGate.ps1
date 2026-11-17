@@ -176,6 +176,28 @@ try {
     Assert-PrivateGateFails { & $requiredGate -ManifestPath $brokenPath } 'missing positive control' $secret
     Write-Output 'gate_case=missing_positive_control result=FAIL_CLOSED'
 
+    $missingAttempt = ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $manifest -Depth 24 -Compress) -AsHashtable
+    [void]$missingAttempt.Remove('acceptedAttemptId')
+    $missingAttemptPath = Join-Path $root 'missing-accepted-attempt.json'
+    [IO.File]::WriteAllText($missingAttemptPath, (ConvertTo-Json $missingAttempt -Depth 12), [Text.UTF8Encoding]::new($false))
+    Assert-PrivateGateFails { & $requiredGate -ManifestPath $missingAttemptPath } 'accepted attempt missing' $secret
+    Write-Output 'gate_case=accepted_attempt_missing result=FAIL_CLOSED'
+
+    $failedPhase = ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $manifest -Depth 24 -Compress) -AsHashtable
+    $failedPhase.attempts[$attemptId].phases['tempo-search'].status = 'FAIL'
+    $failedPhasePath = Join-Path $root 'failed-phase.json'
+    [IO.File]::WriteAllText($failedPhasePath, (ConvertTo-Json $failedPhase -Depth 12), [Text.UTF8Encoding]::new($false))
+    Assert-PrivateGateFails { & $requiredGate -ManifestPath $failedPhasePath } 'accepted attempt phase failed' $secret
+    Write-Output 'gate_case=accepted_attempt_phase_failure result=FAIL_CLOSED'
+
+    $malformedTempo = ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $manifest -Depth 24 -Compress) -AsHashtable
+    $malformedTempo.captureMetadata.tempo.version = 1
+    $malformedTempo.attempts[$attemptId].channels.captureMetadata = $malformedTempo.captureMetadata
+    $malformedTempoPath = Join-Path $root 'malformed-tempo-metadata.json'
+    [IO.File]::WriteAllText($malformedTempoPath, (ConvertTo-Json $malformedTempo -Depth 12), [Text.UTF8Encoding]::new($false))
+    Assert-PrivateGateFails { & $requiredGate -ManifestPath $malformedTempoPath } 'malformed Tempo metadata' $secret
+    Write-Output 'gate_case=malformed_tempo_metadata result=FAIL_CLOSED'
+
     [IO.File]::AppendAllText($manifest.captures.backend[0], [Uri]::EscapeDataString($secret))
     $backendFixture = [string]$manifest.captures.backend[0]
     $backendFixtureLength = (Get-Item -LiteralPath $backendFixture).Length
