@@ -15,6 +15,7 @@ $healthyPath = Join-Path $root 'healthy.ps1'
 $healthyStdoutPath = Join-Path $root 'healthy.stdout'
 $healthyStderrPath = Join-Path $root 'healthy.stderr'
 $healthyChildPidPath = Join-Path $root 'healthy.child.pid'
+$healthyReadyPath = Join-Path $root 'healthy.ready'
 $expectedSince = '2026-11-17T08:18:36.7258700+00:00'
 $exitsPath = Join-Path $root 'exits.ps1'
 $hangPath = Join-Path $root 'hang.ps1'
@@ -24,10 +25,12 @@ $exitRecord = Join-Path $root 'exit.process.json'
 try {
     $escapedPowerShellPath = $powerShellPath.Replace("'","''")
     $escapedHealthyChildPidPath = $healthyChildPidPath.Replace("'","''")
+    $escapedHealthyReadyPath = $healthyReadyPath.Replace("'","''")
     $healthyScript = @"
 param([string] `$Since)
 `$child = Start-Process -FilePath '$escapedPowerShellPath' -ArgumentList @('-NoLogo','-NoProfile','-Command','Start-Sleep -Seconds 30') -WindowStyle Hidden -PassThru
 [IO.File]::WriteAllText('$escapedHealthyChildPidPath',[string]`$child.Id)
+[IO.File]::WriteAllText('$escapedHealthyReadyPath',[string]`$Since)
 Write-Output "follower-since=`$Since"
 Write-Output 'follower-ready'
 Start-Sleep -Seconds 30
@@ -49,15 +52,14 @@ Start-Sleep -Seconds 30
         throw 'Healthy follower startup did not produce bounded process identity evidence.'
     }
     $healthyClock = [Diagnostics.Stopwatch]::StartNew()
-    $healthyOutput = ''
     do {
-        if (Test-Path -LiteralPath $healthyStdoutPath) {
-            $healthyOutput = [IO.File]::ReadAllText($healthyStdoutPath)
-        }
-        if ($healthyOutput -cmatch [regex]::Escape("follower-since=$expectedSince")) { break }
+        if (Test-Path -LiteralPath $healthyReadyPath -PathType Leaf) { break }
         Start-Sleep -Milliseconds 25
     } while ($healthyClock.Elapsed.TotalSeconds -lt 2)
     $healthyClock.Stop()
+    if (-not (Test-Path -LiteralPath $healthyReadyPath -PathType Leaf)) {
+        throw 'Healthy follower did not publish its readiness marker within the bound.'
+    }
     if (-not (Test-Path -LiteralPath $healthyChildPidPath -PathType Leaf)) {
         throw 'Healthy follower did not create its descendant-process evidence.'
     }
@@ -67,6 +69,7 @@ Start-Sleep -Seconds 30
         throw 'Stopping the healthy follower left its descendant process running.'
     }
     Wait-GeordiCaptureFilesReleased -Path @($healthyStdoutPath,$healthyStderrPath) -TimeoutSeconds 5
+    $healthyOutput = [IO.File]::ReadAllText($healthyStdoutPath)
     if ($healthyOutput -cnotmatch [regex]::Escape("follower-since=$expectedSince")) {
         throw 'ISO-8601 follower argument was not preserved as its original string.'
     }
