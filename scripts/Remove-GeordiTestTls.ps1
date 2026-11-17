@@ -9,6 +9,25 @@ $runtimeParent = Join-Path $repositoryRoot '.runtime'
 $runtimeDirectory = Join-Path $runtimeParent 'm19'
 $publicThumbprintPath = Join-Path $runtimeParent 'm19-ca-thumbprint.txt'
 $expectedCaSubject = 'CN=Geordi M19 Ephemeral Test CA'
+$tlsOwnedFiles = @(
+    'auth-cert.pem',
+    'auth-key.pem',
+    'auth-localhost-cert.pem',
+    'auth-localhost-key.pem',
+    'auth.p12',
+    'auth.password',
+    'browser-trust-thumbprint',
+    'ca.cer',
+    'ca.pem',
+    'client-secret',
+    'control-secret',
+    'geordi-cert.pem',
+    'geordi-key.pem',
+    'geordi.p12',
+    'geordi.password',
+    'truststore.p12',
+    'truststore.password'
+)
 
 function Remove-ExactM19LocalMachineRoot([string] $Thumbprint, [string] $Subject) {
     $installed = Test-GeordiTlsStoreThumbprint -ExpectedThumbprint $Thumbprint -ExpectedSubject $Subject
@@ -23,12 +42,20 @@ function Remove-ExactM19LocalMachineRoot([string] $Thumbprint, [string] $Subject
     }
 }
 
-$runtimeExists = Test-Path -LiteralPath $runtimeDirectory
-$publicPathExists = Test-Path -LiteralPath $publicThumbprintPath
-if ($publicPathExists -and !(Test-Path -LiteralPath $publicThumbprintPath -PathType Leaf)) {
-    throw 'Public M19 thumbprint manifest path exists but is not a regular file; refusing cleanup.'
+function Assert-RegularNonReparseFile([string] $Path, [string] $Description) {
+    if (!(Test-Path -LiteralPath $Path)) { return $false }
+    if (!(Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "$Description exists but is not a regular file; refusing cleanup."
+    }
+    $item = Get-Item -LiteralPath $Path -Force
+    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "Refusing to access $Description through a reparse point."
+    }
+    return $true
 }
-$publicManifestExists = $publicPathExists
+
+$runtimeExists = Test-Path -LiteralPath $runtimeDirectory
+$publicManifestExists = Assert-RegularNonReparseFile $publicThumbprintPath 'Public M19 thumbprint manifest'
 
 if (!$runtimeExists -and !$publicManifestExists) {
     Write-Output 'M19 TLS runtime and public thumbprint manifest are already absent.'
@@ -60,37 +87,21 @@ if ($runtimeExists) {
     }
 }
 
-if ($publicManifestExists) {
-    $manifestItem = Get-Item -LiteralPath $publicThumbprintPath -Force
-    if (($manifestItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-        throw 'Refusing to remove the public M19 thumbprint manifest through a reparse point.'
-    }
-    $resolvedManifest = (Resolve-Path -LiteralPath $publicThumbprintPath).Path
-    $expectedManifest = [IO.Path]::GetFullPath((Join-Path $resolvedRuntimeParent 'm19-ca-thumbprint.txt'))
-    if (![string]::Equals($resolvedManifest, $expectedManifest, [StringComparison]::OrdinalIgnoreCase)) {
-        throw 'Refusing to remove a public M19 thumbprint manifest outside the repository runtime directory.'
-    }
-}
-
 $browserManifestPath = if ($runtimeExists) { Join-Path $runtimeDirectory 'browser-trust-thumbprint' } else { $null }
-$browserManifestPathExists = $runtimeExists -and (Test-Path -LiteralPath $browserManifestPath)
-if ($browserManifestPathExists -and !(Test-Path -LiteralPath $browserManifestPath -PathType Leaf)) {
-    throw 'Browser trust thumbprint manifest exists but is not a regular file; refusing cleanup.'
+$browserManifestExists = $false
+if ($runtimeExists) {
+    $browserManifestExists = Assert-RegularNonReparseFile $browserManifestPath 'Browser trust thumbprint manifest'
 }
-$browserManifestExists = $browserManifestPathExists
 
 if ($runtimeExists -and ($browserManifestExists -ne $publicManifestExists)) {
     throw 'M19 thumbprint manifests are incomplete or inconsistent; refusing cleanup.'
 }
 
 if ($browserManifestExists -and $publicManifestExists) {
-    $browserManifestItem = Get-Item -LiteralPath $browserManifestPath -Force
-    if (($browserManifestItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-        throw 'Refusing to read the browser trust thumbprint manifest through a reparse point.'
-    }
     $browserThumbprint = [IO.File]::ReadAllText($browserManifestPath).Trim()
     $publicThumbprint = [IO.File]::ReadAllText($publicThumbprintPath).Trim()
-    if ($browserThumbprint -notmatch '^[A-Fa-f0-9]{40}$' -or $publicThumbprint -notmatch '^[A-Fa-f0-9]{40}$') {
+    if ($browserThumbprint -notmatch '^[A-Fa-f0-9]{40}$' -or
+        $publicThumbprint -notmatch '^[A-Fa-f0-9]{40}$') {
         throw 'Invalid M19 CA thumbprint manifest; refusing cleanup.'
     }
     if (![string]::Equals($browserThumbprint, $publicThumbprint, [StringComparison]::OrdinalIgnoreCase)) {
@@ -98,76 +109,63 @@ if ($browserManifestExists -and $publicManifestExists) {
     }
 
     $caPath = Join-Path $runtimeDirectory 'ca.cer'
-    if (!(Test-Path -LiteralPath $caPath -PathType Leaf)) {
+    if (!(Assert-RegularNonReparseFile $caPath 'Recorded ephemeral CA certificate')) {
         throw 'Recorded ephemeral CA certificate is missing; refusing store cleanup.'
-    }
-    $caItem = Get-Item -LiteralPath $caPath -Force
-    if (($caItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-        throw 'Refusing to validate a CA certificate through a reparse point.'
     }
 
     $ca = [Security.Cryptography.X509Certificates.X509Certificate2]::new($caPath)
     try {
-        if ($ca.Thumbprint -ine $browserThumbprint -or $ca.Subject -cne $expectedCaSubject -or $ca.Issuer -cne $expectedCaSubject -or $ca.HasPrivateKey) {
+        if ($ca.Thumbprint -ine $browserThumbprint -or
+            $ca.Subject -cne $expectedCaSubject -or
+            $ca.Issuer -cne $expectedCaSubject -or
+            $ca.HasPrivateKey) {
             throw 'Recorded CA identity does not match the expected public ephemeral CA.'
         }
-        $basicConstraintsExtension = $ca.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.19' } | Select-Object -First 1
+        $basicConstraintsExtension = $ca.Extensions |
+            Where-Object { $_.Oid.Value -eq '2.5.29.19' } |
+            Select-Object -First 1
         if ($null -eq $basicConstraintsExtension) {
             throw 'Recorded CA certificate has no Basic Constraints extension.'
         }
-        $basicConstraints = [Security.Cryptography.X509Certificates.X509BasicConstraintsExtension]::new($basicConstraintsExtension, $basicConstraintsExtension.Critical)
+        $basicConstraints = [Security.Cryptography.X509Certificates.X509BasicConstraintsExtension]::new(
+            $basicConstraintsExtension, $basicConstraintsExtension.Critical)
         if (!$basicConstraints.CertificateAuthority) {
             throw 'Recorded certificate is not a CA; refusing store cleanup.'
         }
 
-        # Read-only probe avoids requiring elevation when the exact CA is already absent.
         Remove-ExactM19LocalMachineRoot $browserThumbprint $expectedCaSubject
     } finally {
         $ca.Dispose()
     }
 }
 elseif (!$runtimeExists -and $publicManifestExists) {
-    # Recovery if a prior cleanup removed .runtime/m19 but stopped before deleting the public manifest.
+    # Recovery after a prior cleanup removed .runtime/m19 but stopped before deleting the public manifest.
     $publicThumbprint = [IO.File]::ReadAllText($publicThumbprintPath).Trim()
-    if ($publicThumbprint -notmatch '^[A-Fa-f0-9]{40}
-    Remove-Item -LiteralPath $resolvedRuntimeDirectory -Recurse -Force
-    if (Test-Path -LiteralPath $resolvedRuntimeDirectory) {
-        throw 'M19 TLS runtime files remain after cleanup.'
-    }
-}
-
-if ($publicManifestExists) {
-    Remove-Item -LiteralPath $publicThumbprintPath -Force
-    if (Test-Path -LiteralPath $publicThumbprintPath) {
-        throw 'Public M19 CA thumbprint manifest remains after cleanup.'
-    }
-}
-
-Write-Output 'M19 TLS runtime cleanup completed; any run-owned CA found in LocalMachine Root was removed and verified absent.'
-) {
+    if ($publicThumbprint -notmatch '^[A-Fa-f0-9]{40}$') {
         throw 'Invalid orphaned public M19 thumbprint manifest; refusing cleanup.'
     }
     Remove-ExactM19LocalMachineRoot $publicThumbprint $expectedCaSubject
 }
 elseif ($runtimeExists -and !$browserManifestExists -and !$publicManifestExists) {
-    # Local-only generation normally has no trust manifests. Still inspect ca.cer
-    # read-only so a lost manifest cannot leave a run-owned CA trusted in Windows.
+    # Local-only generation normally has no trust manifests. Inspect ca.cer read-only
+    # so a lost manifest cannot leave a run-owned CA trusted in Windows.
     $caPath = Join-Path $runtimeDirectory 'ca.cer'
-    if (Test-Path -LiteralPath $caPath -PathType Leaf) {
-        $caItem = Get-Item -LiteralPath $caPath -Force
-        if (($caItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-            throw 'Refusing to inspect a local-only CA certificate through a reparse point.'
-        }
+    if (Assert-RegularNonReparseFile $caPath 'Local-only CA certificate') {
         $ca = [Security.Cryptography.X509Certificates.X509Certificate2]::new($caPath)
         try {
-            if ($ca.Subject -cne $expectedCaSubject -or $ca.Issuer -cne $expectedCaSubject -or $ca.HasPrivateKey) {
+            if ($ca.Subject -cne $expectedCaSubject -or
+                $ca.Issuer -cne $expectedCaSubject -or
+                $ca.HasPrivateKey) {
                 throw 'Local-only CA certificate identity is not the expected public ephemeral CA.'
             }
-            $basicConstraintsExtension = $ca.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.19' } | Select-Object -First 1
+            $basicConstraintsExtension = $ca.Extensions |
+                Where-Object { $_.Oid.Value -eq '2.5.29.19' } |
+                Select-Object -First 1
             if ($null -eq $basicConstraintsExtension) {
                 throw 'Local-only CA certificate has no Basic Constraints extension.'
             }
-            $basicConstraints = [Security.Cryptography.X509Certificates.X509BasicConstraintsExtension]::new($basicConstraintsExtension, $basicConstraintsExtension.Critical)
+            $basicConstraints = [Security.Cryptography.X509Certificates.X509BasicConstraintsExtension]::new(
+                $basicConstraintsExtension, $basicConstraintsExtension.Critical)
             if (!$basicConstraints.CertificateAuthority) {
                 throw 'Local-only certificate is not a CA; refusing store cleanup.'
             }
@@ -178,10 +176,25 @@ elseif ($runtimeExists -and !$browserManifestExists -and !$publicManifestExists)
     }
 }
 
+# Delete only files owned by the TLS generator. Preserve M18/M19 policy and
+# evidence files (for example alert-policies.yaml, slos.yaml and M18 IDs).
 if ($runtimeExists) {
-    Remove-Item -LiteralPath $resolvedRuntimeDirectory -Recurse -Force
-    if (Test-Path -LiteralPath $resolvedRuntimeDirectory) {
-        throw 'M19 TLS runtime files remain after cleanup.'
+    foreach ($fileName in $tlsOwnedFiles) {
+        $path = Join-Path $runtimeDirectory $fileName
+        if (Assert-RegularNonReparseFile $path "M19 TLS artifact '$fileName'") {
+            Remove-Item -LiteralPath $path -Force
+            if (Test-Path -LiteralPath $path) {
+                throw "M19 TLS artifact '$fileName' remains after cleanup."
+            }
+        }
+    }
+
+    $remainingItems = @(Get-ChildItem -LiteralPath $runtimeDirectory -Force)
+    if ($remainingItems.Count -eq 0) {
+        Remove-Item -LiteralPath $runtimeDirectory -Force
+    } else {
+        $remainingNames = ($remainingItems | Select-Object -ExpandProperty Name) -join ', '
+        Write-Output "Preserved non-TLS M19 runtime files: $remainingNames"
     }
 }
 
@@ -192,8 +205,4 @@ if ($publicManifestExists) {
     }
 }
 
-if ($publicManifestExists -or $browserManifestExists) {
-    Write-Output 'Ephemeral M19 TLS material and thumbprint manifests were removed; recorded CA thumbprint is absent from LocalMachine Root.'
-} else {
-    Write-Output 'Local-only M19 TLS material was removed; no LocalMachine Root mutation was required.'
-}
+Write-Output 'M19 TLS cleanup completed; only TLS-owned files and trust manifests were removed.'
