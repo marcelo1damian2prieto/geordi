@@ -196,7 +196,7 @@ try {
     $result = Invoke-CleanupFixture $mismatch
     Assert-CleanupRegression ($result.ExitCode -ne 0) 'inconsistent manifests were accepted.'
     Assert-CleanupRegression ((Test-Path $mismatch.Runtime) -and (Test-Path $mismatch.PublicManifest)) 'inconsistent-manifest failure deleted local material.'
-    Assert-CleanupRegression ([IO.File]::ReadAllText($mismatch.StoreState).Trim() -eq $thumbprint) 'inconsistent-manifest failure changed mock store state.'
+    Assert-CleanupRegression ([IO.File]::ReadAllText($mismatch.StoreState).Trim() -eq "$thumbprint|CN=Geordi M19 Ephemeral Test CA") 'inconsistent-manifest failure changed mock store state.'
     Assert-CleanupRegression (!(Test-Path $mismatch.StoreLog)) 'inconsistent-manifest failure attempted a store operation.'
     Write-Output 'm19_tls_cleanup_manifest_mismatch=FAIL_CLOSED'
 
