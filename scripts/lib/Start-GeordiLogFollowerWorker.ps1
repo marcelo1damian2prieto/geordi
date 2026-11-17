@@ -32,45 +32,47 @@ try {
     if ($process) {
         try {
             $process.Refresh()
-            if (-not $process.HasExited) {
-                # Snapshot the known descendants, then kill through the already
-                # opened Process handle so a reused PID cannot redirect taskkill.
-                $snapshot = @(Get-CimInstance -ClassName Win32_Process -Property ProcessId,ParentProcessId,CreationDate -ErrorAction Stop)
-                $rootSnapshot = @($snapshot | Where-Object { [int]$_.ProcessId -eq $process.Id })
-                if ($rootSnapshot.Count -ne 1) { throw 'Worker could not identify its child process in the process snapshot.' }
-                $treeIds = @([int]$process.Id)
-                $changed = $true
-                while ($changed) {
-                    $changed = $false
-                    foreach ($candidate in $snapshot) {
-                        $candidateId = [int]$candidate.ProcessId
-                        if (($treeIds -contains [int]$candidate.ParentProcessId) -and ($treeIds -notcontains $candidateId)) {
-                            $treeIds += $candidateId
-                            $changed = $true
-                        }
+            # Keep the root ID in the ancestry walk even if the root exited:
+            # if CIM cannot distinguish its original instance, fail closed.
+            $snapshot = @(Get-CimInstance -ClassName Win32_Process -Property ProcessId,ParentProcessId,CreationDate -ErrorAction Stop)
+            $rootSnapshot = @($snapshot | Where-Object { [int]$_.ProcessId -eq $process.Id })
+            if ($rootSnapshot.Count -ne 1) { throw 'Worker could not prove its child process identity during cleanup.' }
+            $treeIds = @([int]$process.Id)
+            $changed = $true
+            while ($changed) {
+                $changed = $false
+                foreach ($candidate in $snapshot) {
+                    $candidateId = [int]$candidate.ProcessId
+                    if (($treeIds -contains [int]$candidate.ParentProcessId) -and ($treeIds -notcontains $candidateId)) {
+                        $treeIds += $candidateId
+                        $changed = $true
                     }
                 }
-                $tracked = @($snapshot | Where-Object { $treeIds -contains [int]$_.ProcessId } |
-                    ForEach-Object { [pscustomobject]@{ Id=[int]$_.ProcessId; CreationDate=[string]$_.CreationDate } })
+            }
+            $tracked = @($snapshot | Where-Object { $treeIds -contains [int]$_.ProcessId } |
+                ForEach-Object { [pscustomobject]@{ Id=[int]$_.ProcessId; CreationDate=[string]$_.CreationDate } })
+            if (-not $process.HasExited) {
+                # Kill through the already opened Process handle so a reused
+                # PID cannot redirect a later PID-only taskkill command.
                 $process.Kill($true)
                 [void]$process.WaitForExit(5000)
-                $clock = [Diagnostics.Stopwatch]::StartNew()
-                try {
-                    do {
-                        $current = @(Get-CimInstance -ClassName Win32_Process -Property ProcessId,CreationDate -ErrorAction Stop)
-                        $remaining = @(
-                            foreach ($entry in $tracked) {
-                                if (@($current | Where-Object {
-                                    [int]$_.ProcessId -eq $entry.Id -and [string]$_.CreationDate -ceq $entry.CreationDate
-                                }).Count -gt 0) { $entry }
-                            }
-                        )
-                        if ($remaining.Count -eq 0) { break }
-                        if ($clock.Elapsed.TotalSeconds -ge 5) { $cleanupConfirmed = $false; break }
-                        Start-Sleep -Milliseconds 25
-                    } while ($true)
-                } finally { $clock.Stop() }
             }
+            $clock = [Diagnostics.Stopwatch]::StartNew()
+            try {
+                do {
+                    $current = @(Get-CimInstance -ClassName Win32_Process -Property ProcessId,CreationDate -ErrorAction Stop)
+                    $remaining = @(
+                        foreach ($entry in $tracked) {
+                            if (@($current | Where-Object {
+                                [int]$_.ProcessId -eq $entry.Id -and [string]$_.CreationDate -ceq $entry.CreationDate
+                            }).Count -gt 0) { $entry }
+                        }
+                    )
+                    if ($remaining.Count -eq 0) { break }
+                    if ($clock.Elapsed.TotalSeconds -ge 5) { $cleanupConfirmed = $false; break }
+                    Start-Sleep -Milliseconds 25
+                } while ($true)
+            } finally { $clock.Stop() }
         } catch {
             $cleanupConfirmed = $false
         }
