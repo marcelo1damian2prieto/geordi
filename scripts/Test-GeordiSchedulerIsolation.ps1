@@ -407,7 +407,7 @@ try {
     Assert-SchedulerIsolation $rejectEnabled 'rendered scheduling=true was not rejected'
 
     $m14Source = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'verify-alert-history.ps1'))
-    Assert-SchedulerIsolation ($m14Source.Contains("if (\$SkipM19Capture) {") -and
+    Assert-SchedulerIsolation ($m14Source.Contains('if ($SkipM19Capture) {') -and
         $m14Source.Contains('$script:GeordiPrivateTokenSentinelOverride = { param($Token) }')) `
         'capture-free M14 mode does not disable the authentication helper M19 sentinel fallback'
     Assert-SchedulerIsolation ($m14Source.Contains('if ($SkipM19Capture) { return }') -and
