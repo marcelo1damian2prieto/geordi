@@ -225,7 +225,7 @@ function Test-GeordiPublishableArtifactInventory {
             if ([string]::IsNullOrWhiteSpace($path) -or $path.StartsWith('/') -or $path.Contains([char]92) -or
                 $path.Contains([char]0) -or $path -match '(^|/)\.\.?(/|$)' -or $path -match '//' -or
                 $path.EndsWith('/') -or $path -match '^[A-Za-z]:' -or
-                [string]$entry.sha256 -notmatch '^[0-9a-f]{64}
+                [string]$entry.sha256 -notmatch '^[0-9a-f]{64}$' -or !$expectedPaths.Add($path)) {
                 throw 'inventory_invalid'
             }
         }
