@@ -188,7 +188,8 @@ try {
     $mismatch = New-CleanupFixture 'manifest-mismatch'
     $fixtures.Add($mismatch.Root)
     $thumbprint = Set-RegisteredCa $mismatch
-    [IO.File]::WriteAllText($mismatch.PublicManifest, ('A' * 40), [Text.Encoding]::ASCII)
+    $mismatchThumbprint = if ($thumbprint -eq ('A' * 40)) { 'B' * 40 } else { 'A' * 40 }
+    [IO.File]::WriteAllText($mismatch.PublicManifest, $mismatchThumbprint, [Text.Encoding]::ASCII)
     [IO.File]::WriteAllText($mismatch.StoreState, "$thumbprint|CN=Geordi M19 Ephemeral Test CA", [Text.Encoding]::ASCII)
     $result = Invoke-CleanupFixture $mismatch
     Assert-CleanupRegression ($result.ExitCode -ne 0) 'inconsistent manifests were accepted.'
@@ -201,7 +202,7 @@ try {
     $wrongCa = New-CleanupFixture 'wrong-ca'
     $fixtures.Add($wrongCa.Root)
     $actualThumbprint = Set-RegisteredCa $wrongCa
-    $differentThumbprint = ('B' * 40)
+    $differentThumbprint = if ($actualThumbprint -eq ('B' * 40)) { 'A' * 40 } else { 'B' * 40 }
     [IO.File]::WriteAllText((Join-Path $wrongCa.Runtime 'browser-trust-thumbprint'), $differentThumbprint, [Text.Encoding]::ASCII)
     [IO.File]::WriteAllText($wrongCa.PublicManifest, $differentThumbprint, [Text.Encoding]::ASCII)
     [IO.File]::WriteAllText($wrongCa.StoreState, "$differentThumbprint|CN=Geordi M19 Ephemeral Test CA", [Text.Encoding]::ASCII)
