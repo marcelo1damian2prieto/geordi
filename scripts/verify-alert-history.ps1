@@ -37,6 +37,11 @@ $script:M14PendingCaptureHandoffs = @{}
 $script:M14CaptureRoot = $null
 $script:DiagnosticSentinelSource = $null
 $script:DiagnosticInvocationId = $null
+if ($SkipM19Capture) {
+    # Prevent the authentication helper's default token sentinel from reading
+    # .runtime/m19-capture-root.txt or writing to any M19 evidence sink.
+    $script:GeordiPrivateTokenSentinelOverride = { param($Token) }
+}
 
 function Write-HistoryDuration([string] $Category, [Diagnostics.Stopwatch] $Clock, [string] $Result = 'PASS') {
     $Clock.Stop()
