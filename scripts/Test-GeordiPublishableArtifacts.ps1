@@ -35,8 +35,12 @@ try {
         $inventoryFile = [IO.Path]::GetFullPath([string]$inventoryFiles[0])
         $manifestRoot = [IO.Path]::GetFullPath([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($ManifestPath))).TrimEnd([IO.Path]::DirectorySeparatorChar,[IO.Path]::AltDirectorySeparatorChar)
         $manifestRootPrefix = $manifestRoot + [IO.Path]::DirectorySeparatorChar
+        $manifestRootItem = Get-Item -LiteralPath $manifestRoot -Force
+        $manifestItem = Get-Item -LiteralPath ([IO.Path]::GetFullPath($ManifestPath)) -Force
         $inventoryItem = Get-Item -LiteralPath $inventoryFile -Force
-        if (!$inventoryFile.StartsWith($manifestRootPrefix,[StringComparison]::OrdinalIgnoreCase) -or
+        if (($manifestRootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+            ($manifestItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+            !$inventoryFile.StartsWith($manifestRootPrefix,[StringComparison]::OrdinalIgnoreCase) -or
             ($inventoryItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
             throw 'Artifact inventory path invalid.'
         }
