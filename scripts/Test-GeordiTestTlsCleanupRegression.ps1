@@ -247,8 +247,8 @@ try {
     Assert-CleanupRegression ((Test-Path $localOnly.Runtime) -and (Test-Path (Join-Path $localOnly.Runtime 'local-only.txt'))) 'local-only cleanup did not preserve unrelated runtime files.'
     Assert-CleanupRegression (!(Test-Path (Join-Path $localOnly.Runtime 'ca.cer'))) 'local-only cleanup left its TLS CA certificate.'
     $localOnlyActions = [IO.File]::ReadAllText($localOnly.StoreLog)
-    Assert-CleanupRegression ($localOnlyActions -match '(?m)^Test\\|') 'local-only cleanup did not perform a read-only CA trust probe.'
-    Assert-CleanupRegression ($localOnlyActions -notmatch '(?m)^Remove\\|') 'local-only cleanup mutated LocalMachine Root although the CA was absent.'
+    Assert-CleanupRegression ($localOnlyActions -match '(?m)^Test\|') 'local-only cleanup did not perform a read-only CA trust probe.'
+    Assert-CleanupRegression ($localOnlyActions -notmatch '(?m)^Remove\|') 'local-only cleanup mutated LocalMachine Root although the CA was absent.'
     Write-Output 'm19_tls_cleanup_local_only=PASS'
 
     # If trust manifests are missing but the CA remains installed, ca.cer still
