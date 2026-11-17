@@ -388,6 +388,11 @@ function Reset-M14Fixture([string] $Root, [object] $Ownership) {
     $inventory = Get-GeordiM14DockerResourceInventory
     $plan = Get-GeordiM14MutationPlan -Configuration $rendered
     Assert-GeordiM14MutationPreflight -Plan $plan -ServiceInventory $inventory.Containers -RepositoryRoot $Root
+    $Ownership.BaselineStoppedContainers = @(
+        $inventory.Containers |
+            Where-Object { $_.Project -ceq 'geordi' -and $_.Service -in $plan.RequiredExisting -and -not $_.Running } |
+            ForEach-Object { [pscustomobject]@{ Id=[string]$_.Id; Service=[string]$_.Service; WorkingDirectory=[string]$_.WorkingDirectory } }
+    )
     $script:M14MutationPlan = $plan
     if ($script:M14CaptureRoot) {
         $script:M14PendingCaptureHandoffs = Begin-GeordiCaptureHandoffs -CaptureRoot $script:M14CaptureRoot `
@@ -412,23 +417,40 @@ function Reset-M14Fixture([string] $Root, [object] $Ownership) {
         } -GetInventory { Get-GeordiM14DockerResourceInventory }
 }
 
-function Remove-M14OwnedFixtureResources([object] $Ownership) {
-    if ($script:M14CaptureRoot) {
-        $manifest = Get-GeordiCaptureGenerationManifest $script:M14CaptureRoot
-        foreach ($service in @('backend','otel-collector')) {
-            $active = @($manifest.captureGenerations[$service] | Where-Object { [string]$_.terminalStatus -ceq 'capturing' })
-            if ($active.Count -eq 1) {
-                $script:M14PendingCaptureHandoffs[$service] = Begin-GeordiCaptureHandoff -CaptureRoot $script:M14CaptureRoot `
-                    -Service $service -Reason 'm14-fixture-cleanup'
-            }
+function Restore-GeordiM14PreexistingContainerStates([object] $Ownership) {
+    $baseline = @($Ownership.BaselineStoppedContainers)
+    if ($baseline.Count -eq 0) { return }
+
+    $inventory = Get-GeordiM14DockerResourceInventory
+    foreach ($entry in $baseline) {
+        $matches = @($inventory.Containers | Where-Object { $_.Id -ceq $entry.Id })
+        if ($matches.Count -ne 1 -or $matches[0].Project -cne 'geordi' -or
+            $matches[0].Service -cne $entry.Service -or
+            [IO.Path]::GetFullPath([string]$matches[0].WorkingDirectory) -cne [IO.Path]::GetFullPath([string]$entry.WorkingDirectory)) {
+            throw "M14 cannot restore pre-existing state for '$($entry.Service)': container identity or ownership changed."
+        }
+        if ($matches[0].Running) {
+            & docker stop ([string]$entry.Id) | Out-Host
+            if ($LASTEXITCODE -ne 0) { throw "M14 could not restore the initially stopped '$($entry.Service)' container." }
         }
     }
-    Invoke-GeordiM14OwnedResourceCleanup -Ownership $Ownership -GetInventory { Get-GeordiM14DockerResourceInventory } `
-        -CaptureGeneration {
+}
+
+function Remove-M14OwnedFixtureResources([object] $Ownership) {
+    try {
+        if ($script:M14CaptureRoot -and -not $SkipM19Capture) {
+            $manifest = Get-GeordiCaptureGenerationManifest $script:M14CaptureRoot
+            foreach ($service in @('backend','otel-collector')) {
+                $active = @($manifest.captureGenerations[$service] | Where-Object { [string]$_.terminalStatus -ceq 'capturing' })
+                if ($active.Count -eq 1) {
+                    $script:M14PendingCaptureHandoffs[$service] = Begin-GeordiCaptureHandoff -CaptureRoot $script:M14CaptureRoot -Service $service -Reason 'm14-fixture-cleanup'
+                }
+            }
+        }
+        Invoke-GeordiM14OwnedResourceCleanup -Ownership $Ownership -GetInventory { Get-GeordiM14DockerResourceInventory } -CaptureGeneration {
             param([string[]] $Services)
             if (-not $SkipM19Capture) {
-                & (Join-Path $PSScriptRoot 'Capture-GeordiM19Generation.ps1') `
-                    -Phase m14-final -Services $Services
+                & (Join-Path $PSScriptRoot 'Capture-GeordiM19Generation.ps1') -Phase m14-final -Services $Services
             }
         } -RemoveContainerIds {
             param([string[]] $Ids)
@@ -439,6 +461,9 @@ function Remove-M14OwnedFixtureResources([object] $Ownership) {
             & docker volume rm $Name | Out-Null
             if ($LASTEXITCODE -ne 0) { throw "Could not remove owned M14 fixture volume '$Name'." }
         }
+    } finally {
+        Restore-GeordiM14PreexistingContainerStates -Ownership $Ownership
+    }
 }
 
 function Start-GeordiM14ExistingServices([string] $Root, [string[]] $Services) {
