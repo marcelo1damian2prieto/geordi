@@ -310,7 +310,8 @@ function Invoke-GeordiM14FixtureReset {
         $Ownership.ResetFailureMessage = $null
     } catch {
         $Ownership.ResetFailureMessage = [string]$_.Exception.Message
-        throw
+        $stage = [string]$Ownership.ResetFailureStage
+        throw "M14 fixture reset failed at stage '$stage'. No fixture startup was attempted; rerun only after reviewing the exact failure. Detail: $($Ownership.ResetFailureMessage)"
     }
 }
 
