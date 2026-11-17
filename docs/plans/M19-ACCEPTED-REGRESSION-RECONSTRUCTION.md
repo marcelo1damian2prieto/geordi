@@ -273,3 +273,108 @@ Do **not** run every discovered test merely to infer what Codex intended. The te
 The aggregate caller tests are broader than the seam, but they are bounded, named, and mapped to the four authorized callers in the ExecPlan. Their inclusion is defensible as regression coverage. Tests for M10, fixture-transfer gate sets, the 19-gate remediation, and 26-gate overlap sequence should remain separate.
 
 **Execution status:** no tests were run while recovering these entry points. Owner approval for the reconstructed execution sequence is still required.
+
+
+---
+
+## 10. Addendum — test architecture, execution boundaries, and revised sequence — 2026-11-16
+
+This addendum supersedes the description of the integrated set as wholly offline/config-only in Addenda 9.2 and 9.4. It does not change historical PASS records, establish historical accepted-set membership, or authorize execution.
+
+### 10.1 Reconstructed intent of the implementation
+
+The shared change moves readiness from the StartFollower callback to the shared AfterFollowerValidated seam. The intended invariant is:
+
+1. replacement completes and the new container identity is resolved;
+2. the follower starts;
+3. the returned process identity and persisted process record are checked against the exact container/service/project;
+4. the validated follower binding is published in the generation manifest;
+5. readiness runs;
+6. only then is the handoff completed.
+
+A readiness failure leaves the new generation/handoff incomplete, attempts follower cleanup, preserves the primary failure, and does not rewrite sealed historical evidence. Omitting the optional callback preserves legacy behavior.
+
+The tests therefore form a layered regression strategy, not one homogeneous test suite.
+
+### 10.2 Test layers and incremental evidence
+
+| Layer | Authoritative entry point | Purpose | Incremental evidence |
+|---|---|---|---|
+| A — shared contract | Test-GeordiPostFollowerReadiness.ps1, five cases | Prove callback ordering, exact binding, failure semantics, cleanup precedence, callback-absent compatibility | Establishes the shared seam itself |
+| B1 — M11 consumer | Test-GeordiM11BackendGenerations.ps1 -SelfTest | Three synthetic M11 boundaries, failure matrix, dedicated fixture-volume removal safety, production wiring | Proves M11 wrapper integration and M11-specific invariants |
+| B2 — M12 backend consumer | Test-GeordiM12BackendGenerations.ps1 -Case SelfTest | Backend handoffs plus reset-evidence publication/reuse/integrity/races, metric phases, recovery, volume/command scope, transferred-path wiring | Proves M12 integration and its adjacent evidence contracts; broader than callback coverage |
+| B3 — M12 overlap backend consumer | Test-GeordiM12OverlapBackendVmGenerations.ps1 -Case SelfTest | Entry state, VM evidence, volume ownership, backend handoffs, 12 fault cases at each of two boundaries, full sequence and cross-service failure | Proves overlap backend workflow integration |
+| B4 — M12 overlap Collector consumer | Test-GeordiM12OverlapCollector.ps1 -SelfTest | Source map, CI nonactivation, Compose restart-propagation isolation, command scope, sequential handoffs, failure and wrong-follower matrices | Proves Collector workflow integration, but has a real Docker CLI config-render dependency |
+| C — capture-generation contract | Test-GeordiCaptureGenerations.ps1 -Case AuthContract and -Case Boundaries, plus parser | Authentication contract and synthetic M9–M14 generation-boundary model | Proves adjacent capture-generation/authentication boundaries, not the callback alone |
+| D — static scope/review | Read-only diff, source review, independent review | Ensure no prohibited implementation, CI, Compose, TLS, runtime or protected-volume changes | Establishes change scope and review quality |
+
+Do not describe layers B1–B4 as pure callback unit tests. They are caller/workflow regression suites. Their broader checks are defensible only as protection of the four authorized consumers and must be reported separately from Layer A.
+
+### 10.3 Execution-side-effect classification
+
+The static review found the following:
+
+- Layer A creates synthetic capture roots and uses injected follower/process/cleanup callbacks. Its cleanup removes only its generated temporary root.
+- Layer B1 uses synthetic identities and injected process/volume inspection/removal adapters. Its volume-removal assertions exercise the allowlist and fail-closed logic without invoking a real Docker volume removal.
+- Layer B2 writes synthetic manifests, snapshots and ledgers under unique temporary roots. Its replacement, readiness, process and volume behavior is injected; command-scope tests inspect argument arrays rather than invoking Compose lifecycle commands.
+- Layer B3 uses synthetic identities, metric exporters and injected volume adapters. Its command-scope tests inspect generated argument arrays. The reviewed self-test does not execute Docker lifecycle operations.
+- Layer B4 is not wholly offline. Get-GeordiM12OverlapComposeConfiguration invokes the real Docker CLI as: docker compose ... config --format json. This renders effective configuration; it does not start, stop, recreate, remove containers, delete volumes, or activate CI. The remainder of the lifecycle harness injects synthetic replacement, identity, follower, readiness and cleanup callbacks.
+- Layer C uses parser/AST/source checks and synthetic generation fixtures; no runtime lifecycle operation was identified in the reviewed cases.
+- Temporary Remove-Item calls in these test harnesses target generated temporary roots or files within those roots. No reviewed test path targets protected M19 volumes or real capture roots.
+
+**Important boundary:** Docker Compose config is a real external CLI invocation even though it is not a runtime lifecycle operation. Layer B4 therefore requires Docker CLI/Compose availability and should not be labelled fully offline. No test execution is authorized by this finding.
+
+### 10.4 Revised proposed execution sequence
+
+This is a new proposed order, not a recovered historical order.
+
+**Gate 0 — read-only preconditions**
+- Confirm branch and worktree state; preserve all existing changes.
+- Confirm the exact scripts and libraries match the reviewed D2 revision.
+- Inspect the diff and prohibit production, CI, Compose, TLS, runtime, capture and protected-volume changes.
+- No tests yet.
+
+**Gate 1 — parser and direct shared contract**
+- Parse the affected test and library scripts.
+- Run the five Layer A cases individually, fail-fast.
+- This is the narrowest and most diagnostic proof of the change.
+
+**Gate 2 — strictly synthetic caller regressions**
+- Run B1 M11.
+- Run B2 M12 backend.
+- Run B3 M12 overlap backend.
+- Report each as caller/workflow regression, not as callback unit testing.
+- Stop on the first nonzero exit code.
+
+**Gate 3 — capture-generation/authentication boundaries**
+- Run AuthContract, then Boundaries, with immediate exit-code checks.
+- Preserve the known prior PASS evidence as historical; any rerun must be reported separately.
+
+**Gate 4 — Docker-CLI config-dependent Collector regression**
+- B4 SelfTest is a separate approval item because it invokes Docker Compose config rendering.
+- It does not perform Docker lifecycle operations, but it is not a strictly offline test.
+- The current script has no selector that runs only Compose isolation/rendering independently of the whole SelfTest. Its focused Case selectors cover subsets of the failure harness, and some invoke the same render callback. Do not claim a focused case is Docker-free without tracing that exact path.
+- Before approval, decide whether to run the aggregate SelfTest with Docker CLI config rendering permitted, or defer B4 and record the resulting coverage gap. Do not edit the test harness merely to split it without a separately approved design change.
+
+**Gate 5 — static scope and independent review**
+- Run read-only diff/scope checks.
+- Obtain a fresh independent review of the corrected D2 state.
+- Only after the preceding approved gates pass and the review is clean may the owner consider the separate formal overlap 26-gate sequence.
+
+### 10.5 Explicit exclusions
+
+Do not add these to the post-follower regression sequence:
+
+- M10 seven-case replacement suite: M10 was not migrated to the callback seam. Keep it as a separate compatibility guard if a concrete shared-helper risk is identified.
+- M11→M12 fixture-transfer 18 focused gates / A–S matrix: separate capability validation.
+- M11→M12 remediation 19-gate sequence: separate formal remediation.
+- Formal M12 overlap 26-gate sequence: later conditional validation, not part of the focused callback proof.
+- Runtime/Docker lifecycle, TLS/certificates, real capture mutation, cleanup, protected-volume operations, CI activation, M13, Gate 5 promotion, candidate promotion and M19 acceptance: excluded and unauthorized.
+
+### 10.6 Prior evidence versus new execution
+
+The checkpointed PASS results for Layers A, B1–B4 and C remain prior focused evidence. This static review did not rerun them. The complete reconstructed sequence has not been executed end-to-end after the D2 correction. No result in this addendum changes that status.
+
+### 10.7 Recommendation
+
+Retain the test logic and reorganize its interpretation and execution. Do not run every suite to discover intent: the code and this layered map already establish the intended purpose. The only unresolved execution-design decision is whether the owner wants to permit the real Docker CLI config-render dependency in B4 or defer that one caller regression. Owner approval remains required before any test is run.
