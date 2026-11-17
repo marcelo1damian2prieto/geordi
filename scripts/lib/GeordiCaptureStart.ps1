@@ -15,14 +15,89 @@ function Read-GeordiCaptureStartFile {
 }
 
 function Stop-GeordiCaptureProcessTree {
-    param([Parameter(Mandatory)][int] $ProcessId)
-    $taskkillPath = Join-Path $env:SystemRoot 'System32/taskkill.exe'
-    & $taskkillPath /PID $ProcessId /T /F *> $null
-    $taskkillExitCode = $LASTEXITCODE
-    Wait-Process -Id $ProcessId -Timeout 5 -ErrorAction SilentlyContinue
-    if ((Get-Process -Id $ProcessId -ErrorAction SilentlyContinue) -and $taskkillExitCode -ne 0) {
-        throw 'Capture-start process tree could not be stopped within its bound.'
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][ValidateRange(1,2147483647)][int] $ProcessId,
+        [ValidateRange(1,30)][int] $TimeoutSeconds = 5,
+        [string] $TaskkillPath = (Join-Path $env:SystemRoot 'System32/taskkill.exe')
+    )
+
+    # Snapshot descendants before terminating the root and retain creation
+    # times to avoid treating a quickly reused PID as the original process.
+    $processSnapshot = @(Get-CimInstance -ClassName Win32_Process -Property ProcessId,ParentProcessId,CreationDate -ErrorAction Stop)
+    $treeIds = @($ProcessId)
+    $changed = $true
+    while ($changed) {
+        $changed = $false
+        foreach ($candidate in $processSnapshot) {
+            $candidateId = [int]$candidate.ProcessId
+            if (($treeIds -contains [int]$candidate.ParentProcessId) -and ($treeIds -notcontains $candidateId)) {
+                $treeIds += $candidateId
+                $changed = $true
+            }
+        }
     }
+    $trackedProcesses = @($processSnapshot | Where-Object { $treeIds -contains [int]$_.ProcessId } |
+        ForEach-Object { [pscustomobject]@{ Id=[int]$_.ProcessId; CreationDate=[string]$_.CreationDate } })
+
+    if (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue) {
+        & $TaskkillPath /PID $ProcessId /T /F *> $null
+        $taskkillExitCode = $LASTEXITCODE
+    } else {
+        $taskkillExitCode = 128
+    }
+
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    try {
+        do {
+            $currentProcesses = @(Get-CimInstance -ClassName Win32_Process -Property ProcessId,CreationDate -ErrorAction Stop)
+            $remaining = @($trackedProcesses | Where-Object {
+                $tracked = $_
+                $currentProcesses | Where-Object {
+                    ([int]$_.ProcessId -eq $tracked.Id) -and ([string]$_.CreationDate -ceq $tracked.CreationDate)
+                }
+            })
+            if ($remaining.Count -eq 0) { return }
+            if ($clock.Elapsed.TotalSeconds -ge $TimeoutSeconds) { break }
+            Start-Sleep -Milliseconds 25
+        } while ($true)
+    } finally {
+        $clock.Stop()
+    }
+
+    $remainingIds = @($remaining | ForEach-Object { $_.Id }) -join ','
+    throw "Capture-start process tree could not be confirmed stopped within $TimeoutSeconds seconds (remaining PIDs: $remainingIds; taskkill exit: $taskkillExitCode)."
+}
+
+function Wait-GeordiCaptureFilesReleased {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string[]] $Path,
+        [ValidateRange(1,30)][int] $TimeoutSeconds = 5
+    )
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    try {
+        do {
+            $lockedPaths = [Collections.Generic.List[string]]::new()
+            foreach ($filePath in $Path) {
+                if (-not (Test-Path -LiteralPath $filePath -PathType Leaf)) { continue }
+                try {
+                    $stream = [IO.File]::Open($filePath,[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+                    $stream.Dispose()
+                } catch [IO.IOException] {
+                    $lockedPaths.Add($filePath)
+                } catch [UnauthorizedAccessException] {
+                    $lockedPaths.Add($filePath)
+                }
+            }
+            if ($lockedPaths.Count -eq 0) { return }
+            if ($clock.Elapsed.TotalSeconds -ge $TimeoutSeconds) { break }
+            Start-Sleep -Milliseconds 25
+        } while ($true)
+    } finally {
+        $clock.Stop()
+    }
+    throw "Capture log files remained locked beyond $TimeoutSeconds seconds: $($lockedPaths -join ', ')"
 }
 
 function Invoke-GeordiBoundedLogFollowerStart {
@@ -84,11 +159,19 @@ function Invoke-GeordiBoundedLogFollowerStart {
             try { Stop-GeordiCaptureProcessTree -ProcessId $launcher.Id } catch { $cleanupVerified = $false }
         }
         if ($cleanupVerified) {
-            foreach ($path in @($ProcessRecordPath,$StandardOutputPath,$StandardErrorPath)) {
-                if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue }
+            try {
+                Wait-GeordiCaptureFilesReleased -Path @($StandardOutputPath,$StandardErrorPath) -TimeoutSeconds 5
+                foreach ($path in @($ProcessRecordPath,$StandardOutputPath,$StandardErrorPath)) {
+                    if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force -ErrorAction Stop }
+                }
+            } catch {
+                $cleanupVerified = $false
+                $cleanupFailure = $_.Exception.Message
             }
         }
-        if (-not $cleanupVerified) { throw 'Capture follower startup failed and process cleanup could not be confirmed.' }
+        if (-not $cleanupVerified) {
+            throw "Capture follower startup failed; process/file cleanup could not be confirmed. $cleanupFailure"
+        }
         throw
     } finally {
         $clock.Stop()
