@@ -3,10 +3,10 @@
 **Date:** 2026-11-17 (America/Buenos_Aires)  
 **Branch:** `fix/m19-log-follower-json-dates`  
 **Baseline:** `50cff4143ab315509abfcb55707a96b8dd71411d`  
-**Scope:** documentation and approved design for the publishable-artifact gate refactor.  
-**Status:** **PLAN CLOSED / IMPLEMENTATION NOT AUTHORIZED**.
+**Scope:** approved implementation and verification of the publishable-artifact gate refactor.  
+**Status:** **IMPLEMENTATION IN PROGRESS — VERIFICATION PENDING**.
 
-This plan records the analysis and owner-approved interface direction for decoupling publishable-artifact inspection from physical build outputs. It does not authorize implementation, builds, runtime execution, Docker operations, M19 Begin/Finalize, cleanup, or access to private runtime evidence.
+The owner authorized implementation on 2026-11-17. Code changes are confined to the artifact-inspection module and its public/self-test wrappers. No M19 runtime, Docker, TLS, cleanup, or private-evidence operation is included.
 
 ## 1. Decision and current status
 
@@ -22,7 +22,7 @@ Approved constraints:
 6. Do not add SelfTest-only exceptions to production security validation.
 7. Confirm the supported PowerShell edition/version before implementation.
 
-The PowerShell compatibility prerequisite remains open because the exact output of the local version query has not yet been recorded. Therefore the planning phase is closed, but implementation remains blocked until that evidence is supplied and the implementation compatibility target is fixed.
+The repository's documented CI runner uses PowerShell 7, and existing scripts already depend on PowerShell 7 JSON features such as `ConvertFrom-Json -AsHashtable`. PowerShell 7 is therefore the implementation compatibility target. The user's local edition/version output remains outstanding and is required before claiming local execution compatibility, but does not block authoring against the repository's declared CI target.
 
 ## 2. Baseline and evidence
 
@@ -71,7 +71,7 @@ The correction is to build complete synthetic fixtures. Production validation mu
 
 ## 3. Target architecture
 
-The new module is planned at:
+The new module is implemented at:
 
 ```text
 scripts/lib/GeordiPublishableArtifacts.psm1
@@ -106,7 +106,7 @@ The module will not own:
 
 ## 4. Approved interface direction
 
-The following names and signatures are the approved design direction. They are not implemented PowerShell declarations yet; exact parameter attributes and return types must be finalized against the confirmed PowerShell compatibility target.
+The following functions are implemented and exported by the module. `Mode` is constrained to `Production` or `SelfTest`; both modes apply the same artifact policy and validation rules.
 
 ### 4.1 `Get-GeordiPublishableArtifactInventory`
 
@@ -211,8 +211,8 @@ Retain the existing inspection limits and archive safety rules from the current 
 | Script | Planned change | Contract to preserve |
 |---|---|---|
 | `Test-GeordiCredentialGate.ps1` | Build synthetic publishable artifacts under the SelfTest workspace and call the shared module through the existing gate path. | `-SelfTest`, bounded temporary workspace, negative/positive gate cases and safe cleanup. |
-| `Test-GeordiCredentialGateRequired.ps1` | Integrate the shared artifact validator without bypassing the M19 evidence contract. | `-ManifestPath`, `-SummaryPath`, `-DiagnosticFailure`, manifest/Finalize/private-evidence behavior and sanitized failures. |
-| `Test-GeordiPublishableArtifacts.ps1` | Become a thin public wrapper over the module. | `-ManifestPath`, `-Independent`, existing output contract and fail-closed semantics. |
+| `Test-GeordiCredentialGateRequired.ps1` | Retain the private-evidence/Finalize boundary; it does not invoke the artifact validator, preserving independent gate execution. Its accepted attempt must still record the successful `artifact-scan` phase. | `-ManifestPath`, `-SummaryPath`, `-DiagnosticFailure`, manifest/Finalize/private-evidence behavior and sanitized failures. |
+| `Test-GeordiPublishableArtifacts.ps1` | Thin public wrapper over the module; adds optional `-RootPath` for synthetic roots. | Existing `-ManifestPath`, `-Independent`, output contract and fail-closed semantics are preserved. |
 
 Default SummaryPath behavior must remain explicit because it writes under `backend/target`. SelfTest must always pass a SummaryPath under its own temporary workspace; it must not write to the default path.
 
@@ -298,36 +298,35 @@ No build or runtime M19 operation is part of this plan.
 
 | ID | Task | Acceptance |
 |---|---|---|
-| IMP-T01 | Create `GeordiPublishableArtifacts.psm1` and extract artifact policy/inspection. | Shared module owns enumeration, inventory, path safety, archive and content checks; no reduced controls. |
-| IMP-T02 | Integrate `Test-GeordiPublishableArtifacts.ps1`. | Existing parameters/output remain compatible; manifest and independent modes work through the module. |
-| IMP-T03 | Build synthetic artifact tree in Credential Gate SelfTest. | SelfTest no longer requires real backend/frontend build outputs. |
-| IMP-T04 | Repair complete Required Gate fixtures. | Positive fixture satisfies accepted Finalize, all phases, Tempo segment metadata and persisted evidence. |
-| IMP-T05 | Integrate the three scripts and bounded cleanup. | Same validator/policy used by production and SelfTest; no real runtime path touched by SelfTest. |
-| VERIFY-T01 | Focused positive/negative/boundary verification. | All contract cases pass and failures remain sanitized/fail-closed. |
-| VERIFY-T02 | Compatibility and regression verification. | Supported PowerShell target parses/runs all affected scripts; existing CLI contracts remain intact. |
-| VERIFY-T03 | Independent review and diff verification. | No BLOCKER/HIGH; no unrelated code, runtime, CI or protected evidence changes. |
+| IMP-T01 | Create `GeordiPublishableArtifacts.psm1` and extract artifact policy/inspection. | **IMPLEMENTED** — explicit root, required/optional roots, SHA-256 inventory, reparse checks, ZIP/JAR entry validation, archive entry bound and post-scan hash revalidation. |
+| IMP-T02 | Integrate `Test-GeordiPublishableArtifacts.ps1`. | **IMPLEMENTED** — manifest-backed and independent modes delegate to the module; optional `-RootPath`; existing output line and error sanitization retained. |
+| IMP-T03 | Build synthetic artifact tree in Credential Gate SelfTest. | **IMPLEMENTED** — SelfTest creates reports, properties, valid synthetic JARs and frontend output under its own temporary root. |
+| IMP-T04 | Repair complete Required Gate fixtures. | **IMPLEMENTED IN SOURCE** — one completed accepted attempt, all six PASS phases, channel binding and valid segmented Tempo fixture are generated. Runtime proof remains pending. |
+| IMP-T05 | Integrate the three scripts and bounded cleanup. | **PARTIAL** — artifact validator is shared by production wrapper and SelfTest; Required Gate intentionally remains the private-evidence gate so artifact and credential scans stay independent. |
+| VERIFY-T01 | Focused positive/negative/boundary verification. | **PENDING EXECUTION** — SelfTest now covers required artifact absence, malformed ZIP, forbidden archive path, traversal, reparse point (when host permits symlink creation), digest mutation and inventory mismatch. |
+| VERIFY-T02 | Compatibility and regression verification. | **PENDING** — PowerShell 7 parser and local SelfTest execution required. |
+| VERIFY-T03 | Independent review and diff verification. | **PENDING** — no independent review or runtime verification claimed yet. |
 
-Implementation task IDs are prospective. They do not represent work already started.
+Implementation task IDs and current status are tracked in the table below.
 
 ## 11. Preconditions and explicit exclusions
 
-### Open prerequisite
+### Compatibility confirmation
 
-The owner must provide the output of:
+The repository's documented integration runner is PowerShell 7. The affected scripts already use PowerShell 7-specific `ConvertFrom-Json -AsHashtable`, so the module is authored against that existing baseline. Before local verification, record the local host with:
 
 ```powershell
 $PSVersionTable.PSVersion.ToString()
 $PSVersionTable.PSEdition
 ```
 
-Then the implementation target must be checked against the repository's supported execution environments and CI runners before choosing language/runtime features.
+A local PowerShell 5.1 host is not a supported execution target for these scripts.
 
 ### Explicit exclusions
 
-Until implementation is separately authorized:
+Throughout implementation and verification:
 
-- Do not create the module or modify any script.
-- Do not build backend/frontend artifacts or populate `target`/CI staging directories.
+- Do not build backend/frontend artifacts or populate repository `target`/CI staging directories; the SelfTest must use only its temporary synthetic tree.
 - Do not execute M19 Begin or Finalize.
 - Do not run `New-GeordiCredentialEvidence.ps1` in any action mode.
 - Do not inspect, modify or clean `.runtime/m19`, its pointer, private captures or TLS material.
@@ -340,5 +339,23 @@ Until implementation is separately authorized:
 - **PLAN-T01:** analysis completed from baseline source inspection and owner-provided checkout evidence.
 - **PLAN-T02:** approved by owner, option A, 2026-11-17.
 - **Approved design constraints:** preserve public contracts; extract without weakening; reject reparse points; retain current bounds; complete synthetic fixtures; no SelfTest security exceptions; confirm PowerShell compatibility before implementation.
-- **Implementation authorization:** **NOT GRANTED**.
+- **Implementation authorization:** **GRANTED** by owner on 2026-11-17.
+- **Implementation source changes:** module, artifact wrapper and Credential Gate SelfTest updated; no local PowerShell execution has been recorded.
+- **Current branch HEAD at this checkpoint:** to be recorded after final documentation reconciliation.
 - **M19 milestone status:** unchanged — **M19 NOT READY — REMEDIATION REQUIRED**.
+
+
+## 13. Implementation checkpoint — 2026-11-17
+
+The following implementation changes have been published to the branch:
+
+- Added `scripts/lib/GeordiPublishableArtifacts.psm1` with the three approved exported functions.
+- Refactored `scripts/Test-GeordiPublishableArtifacts.ps1` to use the module for manifest-backed and independent scans. The optional `-RootPath` supports a synthetic root without changing existing invocations.
+- Updated `scripts/Test-GeordiCredentialGate.ps1` to create a synthetic artifact layout and a valid segmented Tempo fixture, and to construct the accepted Finalize-attempt contract required by the Required Gate.
+- Added SelfTest cases for artifact inventory mismatch, digest mutation, forbidden archive paths, traversal, missing required artifacts, malformed ZIPs and reparse-point rejection when symbolic-link creation is supported by the host.
+
+The private-evidence gate remains independent from the publishable-artifact gate. The Required Gate validates the accepted attempt and private evidence; the artifact wrapper performs the artifact scan. The orchestration layer continues to run these gates independently.
+
+**Verification limitation:** changes were written through the connected GitHub repository integration. No PowerShell parser, SelfTest, build, or CI job has been executed in this session. All implementation items above are source-level completion only until the user runs the prescribed verification and results are reviewed. Do not interpret this checkpoint as PASS evidence.
+
+The SelfTest uses only its unique temporary directory and removes that directory in its existing guarded `finally` block. No repository build outputs, `.runtime/m19`, runtime pointer, private captures, TLS material, Docker containers, or protected volumes are touched by the new synthetic artifact fixture.
