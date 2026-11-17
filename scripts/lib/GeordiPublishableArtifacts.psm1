@@ -170,9 +170,11 @@ function Get-GeordiPublishableArtifactInventory {
             if ([bool]$item.PSIsContainer -ne [bool]$definition.directory) {
                 throw 'inventory_invalid'
             }
+            $excludeDiagnosticFiles = $definition.ContainsKey('excludeDiagnosticFiles') -and
+                [bool]$definition['excludeDiagnosticFiles']
             $found = if ($definition.directory) {
                 @(Get-GeordiArtifactFilesUnderDirectory -Root $root -DirectoryPath $candidate `
-                    -ExcludeDiagnosticFiles:([bool]$definition.excludeDiagnosticFiles))
+                    -ExcludeDiagnosticFiles:$excludeDiagnosticFiles)
             } else {
                 @($candidate)
             }

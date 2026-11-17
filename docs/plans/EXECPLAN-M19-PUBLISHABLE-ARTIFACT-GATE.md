@@ -375,3 +375,10 @@ The owner authorized a narrowly scoped inventory-policy correction after local e
 The synthetic Credential Gate SelfTest now creates Surefire and Failsafe XML/TXT reports plus `.dump`/`.dumpstream` fixtures. It asserts that reports are retained, diagnostics are omitted, and a `.dumpstream` fixture under `frontend/dist` remains included to prove the exclusion is not global.
 
 This checkpoint records source changes only. PowerShell parser, SelfTest, independent scan, CI and independent review have not yet been executed for this correction. M19 remains **NOT READY — REMEDIATION REQUIRED**.
+
+
+## 15. StrictMode optional-policy lookup correction — 2026-11-17
+
+The first local SelfTest execution after the report-filtering change returned the sanitized `artifact_validation_failed` error. Source inspection identified an optional-property lookup against artifact-definition Hashtables while `Set-StrictMode -Version Latest` is active. Only Surefire/Failsafe definitions carry `excludeDiagnosticFiles`; accessing that key unconditionally fails for other definitions. The inventory loop now checks `ContainsKey` and defaults the switch to false when the property is absent. The report-root exclusion policy is unchanged.
+
+The correction is source-level only. Parser and SelfTest must be rerun against this commit; no PASS is claimed. M19 remains **NOT READY — REMEDIATION REQUIRED**.

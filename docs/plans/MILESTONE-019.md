@@ -2939,3 +2939,10 @@ Local read-only enumeration of the existing artifact roots found two `.dumpstrea
 The owner authorized a scoped policy correction. The publishable-artifact module now excludes `.dump` and `.dumpstream` files (case-insensitive) only beneath Surefire and Failsafe report roots. XML/TXT reports remain included; no exclusion applies to other roots. The synthetic SelfTest adds positive report-inclusion assertions, negative diagnostic-exclusion assertions, and a scope-boundary assertion for a `.dumpstream` file under `frontend/dist`.
 
 This is a source-level implementation checkpoint only. Parser, SelfTest, independent artifact scan, CI and independent review remain pending for this correction. No local artifact, M19 runtime, `.runtime/m19`, private capture, TLS material, Docker resource or protected volume was modified or inspected. Overall status remains **M19 NOT READY — REMEDIATION REQUIRED**.
+
+
+## 2026-11-17 — SelfTest StrictMode defect correction
+
+The first local run of the updated Credential Gate SelfTest failed with the sanitized `artifact_validation_failed` result. Inspection found that the artifact inventory loop accessed the optional `excludeDiagnosticFiles` Hashtable key for every artifact definition. Under `Set-StrictMode -Version Latest`, definitions without that key caused an exception. The module now checks `ContainsKey` and defaults the exclusion switch to false for all other roots. This preserves the intended Surefire/Failsafe-only scope.
+
+The correction is published as source only. Parser and SelfTest re-execution remain pending. No M19 runtime or protected resource was touched. M19 remains **NOT READY — REMEDIATION REQUIRED**.

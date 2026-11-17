@@ -610,7 +610,7 @@ The publishable-artifact gate analysis and interface plan are owner-approved
 validator and synthetic Credential Gate SelfTest. Surefire/Failsafe report roots exclude
 `.dump` and `.dumpstream` diagnostics without excluding XML/TXT reports or applying the
 rule to other artifact roots. The SelfTest asserts both inclusion and exclusion behavior.
-Source changes are published, but PowerShell parsing, SelfTest execution and independent
-review remain pending. The implementation target is PowerShell 7, matching the
+A StrictMode defect in optional policy lookup was corrected after the first local SelfTest
+run; parser, SelfTest re-execution and independent review remain pending. The implementation target is PowerShell 7, matching the
 documented Windows CI runner; the local PowerShell edition/version remains to be
 confirmed before local verification.
