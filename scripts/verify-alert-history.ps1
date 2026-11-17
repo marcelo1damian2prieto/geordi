@@ -34,6 +34,7 @@ $m17Clock = $null
 $root = $null
 $captureRoot = $null
 $script:M14PendingCaptureHandoffs = @{}
+$script:M14StartupFailure = $false
 $script:M14CaptureRoot = $null
 $script:DiagnosticSentinelSource = $null
 $script:DiagnosticInvocationId = $null
@@ -508,6 +509,58 @@ function Start-GeordiM14ExistingServices([string] $Root, [string[]] $Services) {
     }
 }
 
+
+function Write-M14StartupFailureDiagnostic {
+    try {
+        $inventory = Get-GeordiM14DockerResourceInventory
+        $owned = Get-GeordiM14OwnedResourcePlan -Ownership $fixtureOwnership -ContainerInventory $inventory.Containers -VolumeInventory $inventory.Volumes
+        $backend = @($owned.Containers | Where-Object { $_.Service -ceq 'backend' })
+        if ($backend.Count -ne 1) {
+            Write-Host ("M14_STARTUP_DIAGNOSTIC service=backend result=unavailable owned_backend_containers={0}" -f $backend.Count)
+            return
+        }
+
+        $containerId = [string]$backend[0].Id
+        $stateJson = & docker inspect --format '{{json .State}}' $containerId 2>$null
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($stateJson -join ''))) {
+            Write-Host 'M14_STARTUP_DIAGNOSTIC service=backend result=inspect_unavailable'
+            return
+        }
+        $state = ($stateJson -join [Environment]::NewLine) | ConvertFrom-Json
+        $health = if ($null -ne $state.Health) { [string]$state.Health.Status } else { 'not_configured' }
+        $stateError = Protect-GeordiM14DiagnosticText ([string]$state.Error)
+        Write-Host ("M14_STARTUP_DIAGNOSTIC service=backend container={0} status={1} running={2} exit_code={3} oom_killed={4} health={5} error={6}" -f
+            $containerId.Substring(0,[Math]::Min(12,$containerId.Length)),
+            [string]$state.Status,[bool]$state.Running,[int]$state.ExitCode,[bool]$state.OOMKilled,$health,
+            $(if ([string]::IsNullOrWhiteSpace($stateError)) { 'none' } else { $stateError }))
+
+        foreach ($entry in @($state.Health.Log | Select-Object -Last 5)) {
+            $output = Protect-GeordiM14DiagnosticText ([string]$entry.Output)
+            if ($output.Length -gt 1000) { $output = $output.Substring(0,1000) + ' [TRUNCATED]' }
+            Write-Host ("M14_HEALTHCHECK exit_code={0} start={1} end={2} output={3}" -f
+                [int]$entry.ExitCode,[string]$entry.Start,[string]$entry.End,
+                $(if ([string]::IsNullOrWhiteSpace($output)) { '[empty]' } else { $output }))
+        }
+
+        $logs = @(& docker logs --tail 200 $containerId 2>&1)
+        $logsExitCode = $LASTEXITCODE
+        if ($logsExitCode -ne 0) {
+            Write-Host 'M14_BACKEND_LOGS result=unavailable'
+            return
+        }
+        Write-Host 'M14_BACKEND_LOGS_BEGIN lines=up_to_200 redaction=enabled'
+        foreach ($line in $logs) {
+            $safeLine = Protect-GeordiM14DiagnosticText ([string]$line)
+            if ($safeLine.Length -gt 1000) { $safeLine = $safeLine.Substring(0,1000) + ' [TRUNCATED]' }
+            Write-Host $safeLine
+        }
+        Write-Host 'M14_BACKEND_LOGS_END'
+    } catch {
+        $message = Protect-GeordiM14DiagnosticText ([string]$_.Exception.Message)
+        Write-Host ("M14_STARTUP_DIAGNOSTIC service=backend result=capture_failed detail={0}" -f $message)
+    }
+}
+
 function Start-M14FixtureServices([string] $Root, [object] $Plan) {
     # Start pre-existing prerequisites by inspected container ID; do not let
     # Compose recreate unrelated services or traverse dependency edges.
@@ -628,7 +681,12 @@ try {
     Reset-M14Fixture $root $fixtureOwnership
     $fixtureOwnership.StartupAttempted = $true
     $fixtureOwnership.StartupStartedUtc = [DateTimeOffset]::UtcNow
-    Start-M14FixtureServices $root $script:M14MutationPlan
+    try {
+        Start-M14FixtureServices $root $script:M14MutationPlan
+    } catch {
+        $script:M14StartupFailure = $true
+        throw
+    }
 
     # Run HTTPS transport checks only after frontend, OIDC and backend startup.
     Wait-Until {
@@ -826,6 +884,7 @@ try {
     Write-Host 'PASS: M16 episode acknowledgement creation, replay, restart durability, post-close conflict, and isolation verified.'
     Write-Host 'PASS: M14 isolated normal history, retry/restart stability, routing independence, bounded/privacy-safe API, durable persistence, and history telemetry verified.'
 } catch {
+    if ($script:M14StartupFailure) { Write-M14StartupFailureDiagnostic }
     foreach ($entry in @(
             @{Name='fixture_startup_readiness';Clock=$fixtureClock},
             @{Name='M14_initial_condition_and_episode';Clock=$m14StartClock},
