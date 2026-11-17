@@ -116,6 +116,7 @@ function Get-GeordiArtifactArchiveEntryCount {
         $archive = [IO.Compression.ZipFile]::OpenRead($Path)
         return [long]$archive.Entries.Count
     } catch {
+        if ([string]$_.Exception.Message -eq 'root_path_rejected') { throw }
         throw 'archive_invalid'
     } finally {
         if ($archive) { $archive.Dispose() }
@@ -290,7 +291,7 @@ function Test-GeordiPublishableArtifactContent {
                     }
                 }
             } catch {
-                if ([string]$_.Exception.Message -in @('scan_limit_exceeded','forbidden_material_detected')) { throw }
+                if ([string]$_.Exception.Message -in @('scan_limit_exceeded','forbidden_material_detected','root_path_rejected')) { throw }
                 throw 'archive_invalid'
             } finally {
                 if ($archive) { $archive.Dispose() }
