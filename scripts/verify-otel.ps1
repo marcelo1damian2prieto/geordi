@@ -329,9 +329,10 @@ catch {
             } else {
                 '<no build-info or META-INF entries found>'
             }
-            throw ("The copied running backend JAR ({0} bytes, {1} entries) has no " +
+            $diagnostic = ("The copied running backend JAR ({0} bytes, {1} entries) has no " +
                 "META-INF/build-info.properties entry. Relevant entries: {2}") -f
                 $jarInfo.Length, $archive.Entries.Count, $entrySummary
+            throw $diagnostic
         }
         if ($buildInfoEntries.Count -gt 1) {
             $entryNames = ($buildInfoEntries | ForEach-Object { $_.FullName }) -join ', '
@@ -534,8 +535,9 @@ catch {
 }
 )
         if (!$versionMatch.Success -or [string]::IsNullOrWhiteSpace($versionMatch.Groups['version'].Value)) {
-            throw ("Entry '{0}' exists in the copied running backend JAR but does not contain " +
+            $diagnostic = ("Entry '{0}' exists in the copied running backend JAR but does not contain " +
                 "a non-empty build.version property.") -f $entry.FullName
+            throw $diagnostic
         }
         return $versionMatch.Groups['version'].Value.Trim()
     } catch {
