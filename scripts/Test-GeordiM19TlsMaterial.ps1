@@ -136,6 +136,9 @@ try {
         Stop-TlsMaterialValidation 'ca.pem and ca.cer do not identify the same CA certificate.'
     }
     Assert-CertificateValidity $caPem 'M19 CA certificate'
+    if ($caPem.Subject -cne $caPem.Issuer -or $caPem.HasPrivateKey -or $caDer.HasPrivateKey) {
+        Stop-TlsMaterialValidation 'M19 CA certificate must be self-issued public material without a private key.'
+    }
     $caConstraints = Get-BasicConstraints $caPem 'M19 CA certificate'
     if (!$caConstraints.CertificateAuthority) {
         Stop-TlsMaterialValidation 'M19 CA certificate is not marked as a CA.'
@@ -200,6 +203,7 @@ try {
     if ($trustCollection[0].HasPrivateKey -or $trustCollection[0].Thumbprint -cne $caPem.Thumbprint) {
         Stop-TlsMaterialValidation 'truststore.p12 does not contain only the exact expected M19 CA certificate.'
     }
+    foreach ($trustedCertificate in $trustCollection) { $trustedCertificate.Dispose() }
 
     # Nginx consumes the PEM/key pair directly; geordi.p12 has no runtime consumer.
     try {
