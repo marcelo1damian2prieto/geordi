@@ -429,7 +429,7 @@ function Test-M12OverlapSequentialCollectorHandoffs([string] $RepositoryRoot){
             -WorkingDirectory $RepositoryRoot -HandoffId '' -StartFollower $startFollower
         $initialRecord=Get-GeordiCaptureGenerationRecord (Get-GeordiCaptureGenerationManifest $root) 'otel-collector' $initial
         $initialHash=(Get-FileHash -LiteralPath $initialRecord.capturePath -Algorithm SHA256).Hash
-        $renderConfiguration=${function:Get-GeordiM12OverlapComposeConfiguration}
+        $renderConfiguration=${function:New-M12OverlapComposeFixture}
         $render={
             param([string] $RenderRoot,[bool] $ReplacementOverlay)
             return & $renderConfiguration -RepositoryRoot $RenderRoot -CollectorReplacementOverlay:$ReplacementOverlay
