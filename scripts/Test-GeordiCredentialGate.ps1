@@ -276,6 +276,31 @@ try {
     [IO.File]::WriteAllText($manifestPath, (ConvertTo-Json -InputObject $manifest -Depth 12), [Text.UTF8Encoding]::new($false))
     Write-Output 'gate_case=forbidden_archive_entry result=FAIL_CLOSED'
 
+    $traversalInventory = Get-Content -LiteralPath $inventoryPath -Raw | ConvertFrom-Json
+    $traversalInventory.files[0].path = '../outside-artifact.txt'
+    [IO.File]::WriteAllText($inventoryPath, (ConvertTo-Json -InputObject $traversalInventory -Depth 12 -Compress), [Text.UTF8Encoding]::new($false))
+    Assert-PrivateGateFails { & $artifactScanner -ManifestPath $manifestPath -RootPath $artifactRoot } 'artifact path traversal' $secret
+    [IO.File]::WriteAllText($inventoryPath, (ConvertTo-Json -InputObject $artifactInventory -Depth 12 -Compress), [Text.UTF8Encoding]::new($false))
+    Write-Output 'gate_case=artifact_path_traversal result=FAIL_CLOSED'
+
+    $outsideArtifactDirectory = Join-Path $root 'outside-artifact-target'
+    [void][IO.Directory]::CreateDirectory($outsideArtifactDirectory)
+    $reparsePath = Join-Path $artifactRoot 'frontend/dist/reparse-target'
+    $reparseCreated = $false
+    try {
+        [void][IO.Directory]::CreateSymbolicLink($reparsePath,$outsideArtifactDirectory)
+        $reparseCreated = $true
+    } catch {
+        $reparseCreated = $false
+    }
+    if ($reparseCreated) {
+        Assert-PrivateGateFails { & $artifactScanner -Independent -RootPath $artifactRoot } 'artifact reparse point' $secret
+        Remove-Item -LiteralPath $reparsePath -Force
+        Write-Output 'gate_case=artifact_reparse_point result=FAIL_CLOSED'
+    } else {
+        Write-Output 'gate_case=artifact_reparse_point result=SKIP_UNAVAILABLE'
+    }
+
     $independentArtifactOutput=@(& $artifactScanner -Independent -RootPath $artifactRoot)
     if ($independentArtifactOutput.Count -ne 1 -or $independentArtifactOutput[0] -notmatch 'result=PASS') {
         throw 'Independent publishable artifact scan failed.'
