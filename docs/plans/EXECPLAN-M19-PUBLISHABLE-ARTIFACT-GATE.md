@@ -91,7 +91,7 @@ The module will own:
 - Validating an expected inventory against the current filesystem.
 - Inspecting JAR/ZIP archives and their entries.
 - Rejecting forbidden paths/material and malformed archives.
-- Enforcing current file, archive, entry and expansion limits.
+- Enforcing the archive-entry traversal bound. Archives are inspected through their central-directory entries and are not extracted; private-capture file/expansion bounds remain owned by the credential scanner.
 - Detecting path escape, reparse points and unsafe root resolution.
 - Returning bounded results and sanitized error categories to the calling script.
 
@@ -174,7 +174,7 @@ Required checks:
 - JAR/ZIP readability and structural validity.
 - Archive-entry path validation.
 - Existing forbidden path/material patterns, extracted without broadening or weakening them.
-- Current bounded archive traversal and expansion limits.
+- Bounded archive-entry traversal without extracting or expanding archive contents.
 - Fail-closed behavior for malformed archives, traversal attempts and exceeded limits.
 
 ## 5. Inventory and filesystem contract
@@ -275,7 +275,7 @@ Use selective, contract-focused tests. Do not introduce a broad TDD rewrite.
 - Digest mismatch and mutation during scan.
 - Invalid/truncated archive and invalid entry path.
 - Forbidden path/material in archive.
-- File/archive/entry/expansion bounds at limit and beyond limit.
+- Archive-entry count at and beyond its configured bound; private-capture file/expansion limits remain covered by the existing credential-scanner self-tests.
 - Missing accepted attempt, wrong attempt identity or phase, invalid Tempo metadata.
 - Missing positive control or persisted-source evidence.
 - Sanitized failure output that never contains sentinel values.
@@ -358,4 +358,4 @@ The private-evidence gate remains independent from the publishable-artifact gate
 
 **Verification limitation:** changes were written through the connected GitHub repository integration. No PowerShell parser, SelfTest, build, or CI job has been executed in this session. All implementation items above are source-level completion only until the user runs the prescribed verification and results are reviewed. Do not interpret this checkpoint as PASS evidence.
 
-The SelfTest uses only its unique temporary directory and removes that directory in its existing guarded `finally` block. No repository build outputs, `.runtime/m19`, runtime pointer, private captures, TLS material, Docker containers, or protected volumes are touched by the new synthetic artifact fixture.
+The synthetic artifact fixture uses only the SelfTest's unique temporary directory and is removed by its existing guarded `finally` block. It does not create repository build outputs or access `.runtime/m19`, the runtime pointer, private captures or TLS material. The existing `Write-GeordiSafeDiagnostics.ps1` call may query Docker container status, as it did before this refactor; no Docker lifecycle or protected-volume operation is part of this change.
