@@ -1,0 +1,10 @@
+services:
+  backend:
+    environment:
+      GEORDI_SECURITY_ISSUER: https://accounts.google.com
+      GEORDI_SECURITY_API_AUDIENCE: geordi-api-ci
+      GEORDI_SECURITY_BROWSER_CLIENT_ID: geordi-browser-ci
+      GEORDI_SECURITY_BROWSER_CLIENT_SECRET_FILE: /run/secrets/geordi_oidc_client_secret
+      GEORDI_SECURITY_PUBLIC_BASE_URL: https://geordi.localhost
+    volumes:
+      - ${GEORDI_CI_OIDC_SECRET_FILE:?GEORDI_CI_OIDC_SECRET_FILE must point to an ephemeral CI secret}:/run/secrets/geordi_oidc_client_secret:ro
