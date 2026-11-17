@@ -93,7 +93,7 @@ persistence/domain tests in addition to the isolated normal-lifecycle smoke.
 
 ### Local TLS material preflight
 
-Before the M14 smoke resets or recreates any fixture container, 
+Before the M14 smoke resets or recreates any fixture container,
 `scripts/verify-alert-history.ps1` runs the read-only
 `scripts/Test-GeordiM19TlsMaterial.ps1` preflight after rendering the effective Compose
 configuration. It validates the ephemeral CA PEM/DER identity, CA validity and constraints,
