@@ -137,9 +137,7 @@ function Get-PlatformVersion {
             } else {
                 '<no build-info or META-INF entries found>'
             }
-            $diagnostic = ("The copied running backend JAR ({0} bytes, {1} entries) has no " +
-                "META-INF/build-info.properties entry. Relevant entries: {2}") -f
-                $jarInfo.Length, $archive.Entries.Count, $entrySummary
+            $diagnostic = "The copied running backend JAR ($($jarInfo.Length) bytes, $($archive.Entries.Count) entries) has no META-INF/build-info.properties entry. Relevant entries: $entrySummary"
             throw $diagnostic
         }
         if ($buildInfoEntries.Count -gt 1) {
@@ -153,8 +151,7 @@ function Get-PlatformVersion {
         $properties = $reader.ReadToEnd()
         $versionMatch = [regex]::Match($properties, '(?m)^build[.]version=(?<version>[^\r\n]+)$')
         if (!$versionMatch.Success -or [string]::IsNullOrWhiteSpace($versionMatch.Groups['version'].Value)) {
-            $diagnostic = ("Entry '{0}' exists in the copied running backend JAR but does not contain " +
-                "a non-empty build.version property.") -f $entry.FullName
+            $diagnostic = "Entry '$($entry.FullName)' exists in the copied running backend JAR but does not contain a non-empty build.version property."
             throw $diagnostic
         }
         return $versionMatch.Groups['version'].Value.Trim()
