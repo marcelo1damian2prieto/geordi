@@ -35,11 +35,15 @@ function New-TestCa([bool] $Expired = $false) {
             [Security.Cryptography.X509Certificates.X509SubjectKeyIdentifierExtension]::new($request.PublicKey, $false))
         $now = [DateTimeOffset]::UtcNow
         if ($Expired) {
-            return $request.CreateSelfSigned($now.AddDays(-3), $now.AddDays(-1))
+            $certificate = $request.CreateSelfSigned($now.AddDays(-3), $now.AddDays(-1))
+        } else {
+            $certificate = $request.CreateSelfSigned($now.AddMinutes(-5), $now.AddDays(2))
         }
-        return $request.CreateSelfSigned($now.AddMinutes(-5), $now.AddDays(2))
-    } finally {
+        # Keep the issuer key alive until all leaf certificates have been signed.
+        return [pscustomobject]@{ Certificate = $certificate; Key = $key }
+    } catch {
         $key.Dispose()
+        throw
     }
 }
 
@@ -96,7 +100,8 @@ function Write-TestLeaf(
 }
 
 function New-ValidTlsFixture([string] $Directory) {
-    $ca = New-TestCa
+    $caMaterial = New-TestCa
+    $ca = $caMaterial.Certificate
     try {
         [IO.File]::WriteAllText((Join-Path $Directory 'ca.pem'), $ca.ExportCertificatePem(), [Text.Encoding]::ASCII)
         [IO.File]::WriteAllBytes(
@@ -121,6 +126,7 @@ function New-ValidTlsFixture([string] $Directory) {
         }
     } finally {
         $ca.Dispose()
+        $caMaterial.Key.Dispose()
     }
 }
 
@@ -135,7 +141,8 @@ function Assert-TlsFixtureRejected([string] $Path, [string] $Label) {
 }
 
 function Set-ReplacementCa([string] $Path, [bool] $Expired) {
-    $replacement = New-TestCa -Expired:$Expired
+    $replacementMaterial = New-TestCa -Expired:$Expired
+    $replacement = $replacementMaterial.Certificate
     try {
         [IO.File]::WriteAllText((Join-Path $Path 'ca.pem'), $replacement.ExportCertificatePem(), [Text.Encoding]::ASCII)
         [IO.File]::WriteAllBytes(
@@ -143,6 +150,7 @@ function Set-ReplacementCa([string] $Path, [bool] $Expired) {
             $replacement.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert))
     } finally {
         $replacement.Dispose()
+        $replacementMaterial.Key.Dispose()
     }
 }
 
