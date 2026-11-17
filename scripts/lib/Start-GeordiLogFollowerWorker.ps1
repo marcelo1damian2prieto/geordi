@@ -6,7 +6,7 @@ Set-StrictMode -Version Latest
 $process = $null
 try {
     $payloadJson = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($PayloadBase64))
-    $payload = $payloadJson | ConvertFrom-Json
+    $payload = $payloadJson | ConvertFrom-Json -DateKind String
     $process = Start-Process -FilePath ([string]$payload.dockerPath) -ArgumentList @($payload.dockerArguments) `
         -WorkingDirectory ([string]$payload.workingDirectory) -RedirectStandardOutput ([string]$payload.standardOutputPath) `
         -RedirectStandardError ([string]$payload.standardErrorPath) -WindowStyle Hidden -PassThru
