@@ -97,20 +97,20 @@ function Protect-GeordiM14DiagnosticText {
         '(?is)-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----',
         '[REDACTED PRIVATE KEY]')
     $safe = [regex]::Replace($safe,
-        '(?i)(?:^|\\s)(?:set-cookie|cookie)\\s*:\\s*[^\\r\\n]*',
+        '(?i)(?:^|\s)(?:set-cookie|cookie)\s*:\s*[^\r\n]*',
         ' [REDACTED COOKIE HEADER]')
     $safe = [regex]::Replace($safe,
-        '(?i)(["'']?(?:authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|webhook[_-]?token|password|passwd|secret|credential|api[_-]?key|claim[_-]?token)["'']?\\s*[:=]\\s*["'']?)[^\\s,"'';}]+',
+        '(?i)(["'']?(?:authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|webhook[_-]?token|password|passwd|secret|credential|api[_-]?key|claim[_-]?token)["'']?\s*[:=]\s*["'']?)[^\s,"'';}]+',
         '$1[REDACTED]')
     $safe = [regex]::Replace($safe,
-        '(?i)([?&](?:code|state|nonce|token|access_token|refresh_token|client_secret)=)[^&\\s]+',
+        '(?i)([?&](?:code|state|nonce|token|access_token|refresh_token|client_secret)=)[^&\s]+',
         '$1[REDACTED]')
     $safe = [regex]::Replace($safe,
-        '\\bBearer\\s+[A-Za-z0-9._~+/-]+=*',
+        '\bBearer\s+[A-Za-z0-9._~+/-]+=*',
         'Bearer [REDACTED]',
         [Text.RegularExpressions.RegexOptions]::IgnoreCase)
     $safe = [regex]::Replace($safe,
-        '\\beyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\b',
+        '\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b',
         '[REDACTED JWT]')
     return $safe
 }
