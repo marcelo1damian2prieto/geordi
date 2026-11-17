@@ -671,6 +671,11 @@ try {
     $env:COMPOSE_FILE = (Join-Path $root 'compose.yaml') + [IO.Path]::PathSeparator + (Join-Path $root 'compose.m19.yaml') + [IO.Path]::PathSeparator + (Join-Path $root 'compose.m14.yaml')
     $env:GEORDI_SCHEDULING_ALERT_ENABLED = 'false'
     $null = Get-GeordiM14RenderedComposeConfiguration -RepositoryRoot $root
+
+    # Validate every TLS artifact consumed by the M19 stack before any M14
+    # fixture reset, container mutation, or diagnostic evidence allocation.
+    & (Join-Path $PSScriptRoot 'Test-GeordiM19TlsMaterial.ps1')
+
     if (-not $SkipM19Capture -and $captureRoot) {
         $script:DiagnosticInvocationId = [guid]::NewGuid().ToString('N')
         $script:DiagnosticSentinelSource = New-GeordiDiagnosticSentinelSource -CaptureRoot $captureRoot -DiagnosticInvocationId $script:DiagnosticInvocationId
