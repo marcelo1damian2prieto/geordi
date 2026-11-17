@@ -26,6 +26,7 @@ import java.util.concurrent.TimeoutException;
 
 /** Certificate-validating HTTPS JSON transport with redirect, deadline, and streaming size bounds. */
 public final class BoundedHttpsJsonClient {
+    private static final System.Logger LOGGER = System.getLogger(BoundedHttpsJsonClient.class.getName());
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(2);
     private static final Duration OPERATION_TIMEOUT = Duration.ofSeconds(5);
     private static final ObjectMapper JSON = new ObjectMapper(JsonFactory.builder()
@@ -77,6 +78,7 @@ public final class BoundedHttpsJsonClient {
             context.init(null, managers.getTrustManagers(), null);
             return context;
         } catch (Exception failure) {
+            logFailure("Configured TLS trust store initialization", failure);
             throw new IllegalStateException("Could not initialize the configured test trust store");
         } finally {
             if (password != null) java.util.Arrays.fill(password, '\0');
@@ -87,6 +89,7 @@ public final class BoundedHttpsJsonClient {
         try {
             return javax.net.ssl.SSLContext.getDefault();
         } catch (java.security.NoSuchAlgorithmException failure) {
+            logFailure("Default TLS context initialization", failure);
             throw new IllegalStateException("Default TLS context is unavailable");
         }
     }
@@ -98,6 +101,7 @@ public final class BoundedHttpsJsonClient {
         } catch (SecurityFailure failure) {
             throw failure;
         } catch (Exception failure) {
+            logFailure("HTTPS GET", failure);
             throw unavailable();
         }
     }
@@ -118,6 +122,7 @@ public final class BoundedHttpsJsonClient {
         } catch (SecurityFailure failure) {
             throw failure;
         } catch (Exception failure) {
+            logFailure("HTTPS form POST", failure);
             throw unavailable();
         }
     }
@@ -154,6 +159,23 @@ public final class BoundedHttpsJsonClient {
 
     private static SecurityFailure unavailable() {
         return new SecurityFailure(SecurityFailure.Kind.DEPENDENCY_UNAVAILABLE);
+    }
+
+    /**
+     * Logs only exception type names. Exception messages and stack traces are intentionally omitted because
+     * transport failures may contain endpoint details or other data that should not cross the security boundary.
+     */
+    private static void logFailure(String operation, Throwable failure) {
+        StringBuilder types = new StringBuilder();
+        Throwable current = failure;
+        int depth = 0;
+        while (current != null && depth < 5) {
+            if (depth > 0) types.append(" -> ");
+            types.append(current.getClass().getName());
+            current = current.getCause();
+            depth++;
+        }
+        LOGGER.log(System.Logger.Level.WARNING, "{0} failed; exception chain: {1}", operation, types);
     }
 
     private static final class BoundedBodySubscriber implements HttpResponse.BodySubscriber<byte[]> {
