@@ -7,21 +7,25 @@ $process = $null
 try {
     $payloadJson = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($PayloadBase64))
     $payload = $payloadJson | ConvertFrom-Json -DateKind String
+    if ($null -ne $payload.targetMetadata) {
+        foreach ($key in @('containerId','service','project','createdUtc')) {
+            if ([string]::IsNullOrWhiteSpace([string]$payload.targetMetadata.$key)) { throw 'Capture target identity was incomplete.' }
+        }
+    }
     $process = Start-Process -FilePath ([string]$payload.dockerPath) -ArgumentList @($payload.dockerArguments) -WorkingDirectory ([string]$payload.workingDirectory) -RedirectStandardOutput ([string]$payload.standardOutputPath) -RedirectStandardError ([string]$payload.standardErrorPath) -WindowStyle Hidden -PassThru
     # Persist identity immediately so the parent can clean up if readiness fails.
     $record = @{ id=$process.Id;name=$process.ProcessName;startUtc=$process.StartTime.ToUniversalTime().ToString('o') }
+    if ($null -ne $payload.targetMetadata) {
+        foreach ($key in @('containerId','service','project','createdUtc')) {
+            $record[$key]=[string]$payload.targetMetadata.$key
+        }
+    }
     $temporaryRecord = ([string]$payload.processRecordPath) + '.tmp'
     [IO.File]::WriteAllText($temporaryRecord,(ConvertTo-Json -InputObject $record -Compress),[Text.UTF8Encoding]::new($false))
     [IO.File]::Move($temporaryRecord,[string]$payload.processRecordPath)
     Start-Sleep -Milliseconds 250
     $process.Refresh()
     if ($process.HasExited) { exit 21 }
-    if ($null -ne $payload.targetMetadata) {
-        foreach ($key in @('containerId','service','project','createdUtc')) {
-            if ([string]::IsNullOrWhiteSpace([string]$payload.targetMetadata.$key)) { throw 'Capture target identity was incomplete.' }
-            $record[$key]=[string]$payload.targetMetadata.$key
-        }
-    }
     exit 0
 } catch {
     $cleanupConfirmed = $true
