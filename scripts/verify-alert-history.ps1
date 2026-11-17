@@ -4,8 +4,14 @@ param(
     [string] $BackendBaseUrl = 'https://geordi.localhost:8443',
     [string] $FrontendBaseUrl = 'https://geordi.localhost:8443',
     [string] $BurnDemoBaseUrl = 'http://127.0.0.1:8083',
-    [string] $VictoriaMetricsBaseUrl = 'http://127.0.0.1:8428'
+    [string] $VictoriaMetricsBaseUrl = 'http://127.0.0.1:8428',
+    [switch] $M14Only,
+    [switch] $SkipM19Capture
 )
+
+if ($SkipM19Capture -and -not $M14Only) {
+    throw '-SkipM19Capture requires -M14Only. No fixture operation was started.'
+}
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -28,6 +34,7 @@ $m17Clock = $null
 $root = $null
 $captureRoot = $null
 $script:M14PendingCaptureHandoffs = @{}
+$script:M14CaptureRoot = $null
 $script:DiagnosticSentinelSource = $null
 $script:DiagnosticInvocationId = $null
 
@@ -37,6 +44,7 @@ function Write-HistoryDuration([string] $Category, [Diagnostics.Stopwatch] $Cloc
 }
 
 function Add-M19PrivateSentinel([string] $Value, [string] $Class = 'browser-cookie') {
+	if ($SkipM19Capture) { return }
     if ([string]::IsNullOrWhiteSpace($Value)) { return }
     if ($script:DiagnosticSentinelSource) {
         Add-GeordiDiagnosticSentinel -Source $script:DiagnosticSentinelSource -Class $Class -Value $Value
@@ -389,7 +397,10 @@ function Reset-M14Fixture([string] $Root, [object] $Ownership) {
         -ExistingContainers $inventory.Containers -ExistingVolumes $inventory.Volumes `
         -CaptureGeneration {
             param([string[]] $Services)
-            & (Join-Path $PSScriptRoot 'Capture-GeordiM19Generation.ps1') -Phase m14-reset -Services $Services
+            if (-not $SkipM19Capture) {
+                & (Join-Path $PSScriptRoot 'Capture-GeordiM19Generation.ps1') `
+                    -Phase m14-reset -Services $Services
+            }
         } -RemoveContainerIds {
             param([string[]] $Ids)
             & docker rm -sf $Ids | Out-Host
@@ -415,7 +426,10 @@ function Remove-M14OwnedFixtureResources([object] $Ownership) {
     Invoke-GeordiM14OwnedResourceCleanup -Ownership $Ownership -GetInventory { Get-GeordiM14DockerResourceInventory } `
         -CaptureGeneration {
             param([string[]] $Services)
-            & (Join-Path $PSScriptRoot 'Capture-GeordiM19Generation.ps1') -Phase m14-final -Services $Services
+            if (-not $SkipM19Capture) {
+                & (Join-Path $PSScriptRoot 'Capture-GeordiM19Generation.ps1') `
+                    -Phase m14-final -Services $Services
+            }
         } -RemoveContainerIds {
             param([string[]] $Ids)
             & docker rm -sf $Ids | Out-Host
@@ -509,20 +523,22 @@ try {
         [Environment]::SetEnvironmentVariable($key, [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32)), 'Process')
     }
     $script:HistorySecrets = @{ TokenA = $env:GEORDI_M13_WEBHOOK_TOKEN_A; TokenB = $env:GEORDI_M13_WEBHOOK_TOKEN_B }
-    $capturePointer = Join-Path $root '.runtime/m19-capture-root.txt'
-    if (Test-Path -LiteralPath $capturePointer -PathType Leaf) {
-        $captureRoot = [IO.Path]::GetFullPath([IO.File]::ReadAllText($capturePointer).Trim())
-        $script:M14CaptureRoot = $captureRoot
-        $expectedTemp = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd([IO.Path]::DirectorySeparatorChar)
-        if ([IO.Path]::GetDirectoryName($captureRoot) -cne $expectedTemp -or
-                (Split-Path $captureRoot -Leaf) -notmatch '^geordi-m19-capture-[A-Za-z0-9-]+-[0-9a-f]{32}$') {
-            throw 'Private evidence path failed validation before fixture credential registration.'
+    if (-not $SkipM19Capture) {
+        $capturePointer = Join-Path $root '.runtime/m19-capture-root.txt'
+        if (Test-Path -LiteralPath $capturePointer -PathType Leaf) {
+            $captureRoot = [IO.Path]::GetFullPath([IO.File]::ReadAllText($capturePointer).Trim())
+            $script:M14CaptureRoot = $captureRoot
+            $expectedTemp = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd([IO.Path]::DirectorySeparatorChar)
+            if ([IO.Path]::GetDirectoryName($captureRoot) -cne $expectedTemp -or
+                    (Split-Path $captureRoot -Leaf) -notmatch '^geordi-m19-capture-[A-Za-z0-9-]+-[0-9a-f]{32}$') {
+                throw 'Private evidence path failed validation before fixture credential registration.'
+            }
         }
     }
     $env:COMPOSE_FILE = (Join-Path $root 'compose.yaml') + [IO.Path]::PathSeparator + (Join-Path $root 'compose.m19.yaml') + [IO.Path]::PathSeparator + (Join-Path $root 'compose.m14.yaml')
     $env:GEORDI_SCHEDULING_ALERT_ENABLED = 'false'
     $null = Get-GeordiM14RenderedComposeConfiguration -RepositoryRoot $root
-    if ($captureRoot) {
+    if (-not $SkipM19Capture -and $captureRoot) {
         $script:DiagnosticInvocationId = [guid]::NewGuid().ToString('N')
         $script:DiagnosticSentinelSource = New-GeordiDiagnosticSentinelSource -CaptureRoot $captureRoot -DiagnosticInvocationId $script:DiagnosticInvocationId
         $env:GEORDI_M19_DIAGNOSTIC_INVOCATION_ID = $script:DiagnosticInvocationId
@@ -545,7 +561,9 @@ try {
     Start-BrowserSession
     Write-Host 'PASS: M19 browser OIDC session and CSRF bootstrap completed.'
     Wait-Until { (Invoke-WebRequest -Uri "$BurnDemoBaseUrl/actuator/health/readiness" -UseBasicParsing -TimeoutSec 10).StatusCode -eq 200 } $deadline 'M14 burn demo did not become ready.'
-    Wait-Until { $null -ne (Json "$FrontendBaseUrl/api/alert-episodes?policyId=$RouteA&limit=50").alertEpisodes } $deadline 'M15 frontend history API proxy did not become ready.'
+    if (-not $M14Only) {
+        Wait-Until { $null -ne (Json "$FrontendBaseUrl/api/alert-episodes?policyId=$RouteA&limit=50").alertEpisodes } $deadline 'M15 frontend history API proxy did not become ready.'
+    }
     $fixtureClock.Stop()
     Write-Host ("history_timing category=fixture_startup_readiness result=PASS seconds={0:N2}" -f $fixtureClock.Elapsed.TotalSeconds)
 
@@ -566,6 +584,11 @@ try {
     $episodeId = $episode[0].id
     if ((Transitions $RouteA).Count -ne 1) { throw 'M14 normal STARTED transition was not persisted exactly once.' }
     Write-HistoryDuration 'M14_initial_condition_and_episode' $m14StartClock
+	
+    if ($M14Only) {
+        Write-Host 'M14_ONLY result=PASS scope=initial_route_a_lifecycle cleanup=ENABLED'
+        return
+    }
 
     $m16Clock = [Diagnostics.Stopwatch]::StartNew()
     $ackActor = 'M19 Operator'

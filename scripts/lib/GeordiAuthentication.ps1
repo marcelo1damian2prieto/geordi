@@ -392,23 +392,76 @@ function Test-GeordiAuthenticatedTransport {
         [string] $RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path,
         [ValidateRange(1,120)][int] $TimeoutSeconds = 45
     )
+
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
     $readiness = $null
+    $readinessError = $null
+
     do {
-        try { $readiness = Invoke-GeordiAnonymousRequest -Uri 'https://geordi.localhost:8443/actuator/health/readiness' -TimeoutSeconds ([math]::Min(10,$TimeoutSeconds)) }
-        catch { $readiness = $null }
-        if ($readiness -and $readiness.StatusCode -eq 200) { break }
+        try {
+            $readiness = Invoke-GeordiAnonymousRequest `
+                -Uri 'https://geordi.localhost:8443/actuator/health/readiness' `
+                -TimeoutSeconds ([math]::Min(10,$TimeoutSeconds))
+
+            if ($null -ne $readiness -and
+                $readiness.PSObject.Properties['StatusCode'] -and
+                [int]$readiness.StatusCode -eq 200) {
+                break
+            }
+        }
+        catch {
+            $readiness = $null
+            $readinessError = $_.Exception.Message
+        }
+
         Start-Sleep -Milliseconds 300
     } while ([DateTimeOffset]::UtcNow -lt $deadline)
-    if ($readiness.StatusCode -ne 200) { throw 'M19 transport preflight failed at anonymous readiness.' }
+
+    if ($null -eq $readiness) {
+        throw "M19 transport preflight: anonymous readiness request failed. Detail: $readinessError"
+    }
+
+    if (!$readiness.PSObject.Properties['StatusCode']) {
+        $typeName = $readiness.GetType().FullName
+        $propertyNames = @($readiness.PSObject.Properties.Name) -join ', '
+        throw "M19 transport preflight: unexpected readiness response type '$typeName'. Properties: $propertyNames"
+    }
+
+    if ([int]$readiness.StatusCode -ne 200) {
+        throw 'M19 transport preflight failed at anonymous readiness.'
+    }
+
     Initialize-GeordiAuthentication -Identity REGRESSION -RepositoryRoot $RepositoryRoot
-    $platform = Invoke-GeordiAuthenticatedRequest -Uri 'https://geordi.localhost:8443/api/platform' -TimeoutSeconds 10
-    if ($platform.StatusCode -ne 200) { throw 'M19 transport preflight failed at authenticated platform read.' }
-    $me = Invoke-GeordiAuthenticatedRequest -Uri 'https://geordi.localhost:8443/api/me' -TimeoutSeconds 10
-    if ($me.StatusCode -ne 200 -or ($me.Content | ConvertFrom-Json).authMode -cne 'BEARER') {
+
+    $platform = Invoke-GeordiAuthenticatedRequest `
+        -Uri 'https://geordi.localhost:8443/api/platform' -TimeoutSeconds 10
+
+    if ($null -eq $platform -or !$platform.PSObject.Properties['StatusCode']) {
+        throw 'M19 transport preflight: authenticated platform response violates the response contract.'
+    }
+
+    if ([int]$platform.StatusCode -ne 200) {
+        throw 'M19 transport preflight failed at authenticated platform read.'
+    }
+
+    $me = Invoke-GeordiAuthenticatedRequest `
+        -Uri 'https://geordi.localhost:8443/api/me' -TimeoutSeconds 10
+
+    if ($null -eq $me -or !$me.PSObject.Properties['StatusCode'] -or
+        !$me.PSObject.Properties['Content']) {
+        throw 'M19 transport preflight: authenticated identity response violates the response contract.'
+    }
+
+    if ([int]$me.StatusCode -ne 200 -or
+        ($me.Content | ConvertFrom-Json).authMode -cne 'BEARER') {
         throw 'M19 transport preflight failed at authenticated identity read.'
     }
-    return [pscustomobject]@{ ReadinessStatus = $readiness.StatusCode; PlatformStatus = $platform.StatusCode; IdentityStatus = $me.StatusCode }
+
+    return [pscustomobject]@{
+        ReadinessStatus = $readiness.StatusCode
+        PlatformStatus = $platform.StatusCode
+        IdentityStatus = $me.StatusCode
+    }
 }
 
 function Clear-GeordiAuthentication {
