@@ -223,3 +223,15 @@ The existing synthetic lifecycle harnesses now use synthetic Compose configurati
 **Safety boundary:** no `up`, `down`, `restart`, `rm`, `prune`, build, volume mutation, CI activation, TLS operation, capture mutation or protected-volume operation is part of this change.
 
 **Validation status:** no PowerShell parser, test script, `-SelfTest`, `-ComposeIntegration`, Docker, Compose or runtime command was executed while implementing this change. The new paths and assertions require subsequent static review before any execution authorization. M19 remains **NOT READY — REMEDIATION REQUIRED**.
+
+ 
+### D2-09 static-review disposition — 2026-11-16
+
+A subsequent read-only review of the final implementation confirmed:
+- Both synthetic replacement harnesses bind their renderer to `New-M12OverlapComposeFixture`; no synthetic caller path invokes the real Compose renderer.
+- `-SelfTest` exercises the injected executor contract and synthetic configuration invariants before the existing synthetic workflow regressions.
+- `-ComposeIntegration` is the only explicit path that calls the real renderer; it renders the normal and combined replacement/isolation configurations and then applies the same isolation assertions.
+- The selector rejects combining `-ComposeIntegration` with `-SelfTest` or `-Case`.
+- The renderer's injected executor receives the complete argument vector, including `compose` and `config --format json`; its result contract is an object with `ExitCode` and `Output`.
+
+This is a static source review only. No parser or test was run, so the new behavior is **NOT VERIFIED BY EXECUTION**. Any future execution of `-ComposeIntegration` still requires separate explicit authorization for Docker CLI configuration rendering only. No lifecycle permission is implied.
