@@ -119,3 +119,22 @@ Stop at the first failure. Keep M10's seven-case suite, fixture-transfer 18-gate
 ### Execution status
 
 This addendum records static inspection only. No test was executed. Prior focused PASS results remain historical evidence; the complete reconstructed sequence has not been rerun end-to-end. Owner approval is still required before any execution, including the config-rendering dependency in Gate 4.
+
+## Final reconstructed regression-set disposition — 2026-11-16
+
+The exact historical accepted-regression membership/order remains unrecoverable from the inspected repository history and checked-in plans. The complete evidence-backed proposal is now documented in `docs/plans/M19-ACCEPTED-REGRESSION-RECONSTRUCTION.md`, Section 11, and remains explicitly labelled **RECONSTRUCTED — NOT HISTORICAL**.
+
+The proposed integrated proof is:
+1. P0 read-only branch/worktree preconditions.
+2. P1 parser for the eight directly involved test/helper files.
+3. P2 five direct `AfterFollowerValidated` microtest cases.
+4. P3 caller/workflow regressions: M11 backend, M12 backend, M12 overlap backend.
+5. P4 capture-generation `AuthContract`, then `Boundaries`.
+6. P5 M12 overlap Collector `-SelfTest` using injected executor and synthetic fixtures.
+7. P6 M12 overlap Collector `-ComposeIntegration`, separately approved Docker CLI `config --format json` only.
+8. P7 read-only diff/scope validation.
+9. P8 fresh independent read-only review.
+
+The D2-09 separation changes the earlier B4 execution classification: `-SelfTest` is now synthetic/Docker-independent, while `-ComposeIntegration` is the explicit real Docker CLI config-render path. Owner-supplied output reports both B4 selectors PASS on 2026-11-16. The full P0–P8 reconstructed sequence remains **NOT RUN**; every prior focused PASS must be rerun in sequence to establish a complete integrated result. Any future P6 invocation requires fresh narrow owner approval.
+
+M10 seven-case tests, fixture-transfer 18-gate/A–S, M11→M12 19-gate remediation, and formal overlap 26-gate sequence remain separate. The formal 26-gate sequence is conditional on P0–P7 green and a clean P8 review. M19 remains **NOT READY — REMEDIATION REQUIRED**.
