@@ -40,6 +40,7 @@ try {
         $inventoryItem = Get-Item -LiteralPath $inventoryFile -Force
         if (($manifestRootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
             ($manifestItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+            [IO.Path]::GetDirectoryName($inventoryFile) -cne $manifestRoot -or
             !$inventoryFile.StartsWith($manifestRootPrefix,[StringComparison]::OrdinalIgnoreCase) -or
             ($inventoryItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
             throw 'Artifact inventory path invalid.'
