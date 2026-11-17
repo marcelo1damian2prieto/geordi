@@ -139,8 +139,12 @@ function New-GeordiM14FixtureOwnershipState {
 
     [pscustomobject]@{
         RepositoryRoot = [IO.Path]::GetFullPath($RepositoryRoot)
+        ResetStarted = $false
         ResetCompleted = $false
+        ResetContainersAbsent = $false
         ResetVolumesAbsent = $false
+        ResetFailureStage = $null
+        ResetFailureMessage = $null
         StartupAttempted = $false
         StartupStartedUtc = $null
         BaselineContainerIds = @()
@@ -269,25 +273,44 @@ function Invoke-GeordiM14FixtureReset {
             throw 'Refusing M14 reset for a Geordi service container owned by a different checkout.'
         }
     }
-    $Ownership.BaselineContainerIds = @($priorContainers | ForEach-Object { [string]$_.Id })
 
-    & $CaptureGeneration $resetServices
-    if ($Ownership.BaselineContainerIds.Count -gt 0) { & $RemoveContainerIds @($Ownership.BaselineContainerIds) }
-    $afterContainers = & $GetInventory
-    if (@($afterContainers.Containers | Where-Object { $_.Project -ceq 'geordi' -and $_.Service -in $resetServices }).Count -gt 0) {
-        throw 'M14 fixture reset did not remove all prior fixture service containers.'
-    }
+    $Ownership.ResetStarted = $true
+    $Ownership.ResetFailureStage = 'capture-baseline'
+    $Ownership.ResetFailureMessage = $null
+    $Ownership.BaselineContainerIds = @(@($Ownership.BaselineContainerIds) + @($priorContainers | ForEach-Object { [string]$_.Id }) | Select-Object -Unique)
 
-    foreach ($logical in $expected.Keys) {
-        $name = $expected[$logical]
-        if (@($ExistingVolumes | Where-Object { $_.Name -ceq $name }).Count -gt 0) { & $RemoveVolume $name }
+    try {
+        & $CaptureGeneration $resetServices
+
+        $Ownership.ResetFailureStage = 'remove-baseline-containers'
+        if ($priorContainers.Count -gt 0) {
+            $ids = @($priorContainers | ForEach-Object { [string]$_.Id })
+            & $RemoveContainerIds $ids
+        }
+        $afterContainers = & $GetInventory
+        if (@($afterContainers.Containers | Where-Object { $_.Project -ceq 'geordi' -and $_.Service -in $resetServices }).Count -gt 0) {
+            throw 'M14 fixture reset did not remove all prior fixture service containers.'
+        }
+        $Ownership.ResetContainersAbsent = $true
+
+        $Ownership.ResetFailureStage = 'remove-dedicated-volumes'
+        foreach ($logical in $expected.Keys) {
+            $name = $expected[$logical]
+            if (@($ExistingVolumes | Where-Object { $_.Name -ceq $name }).Count -gt 0) { & $RemoveVolume $name }
+        }
+        $afterVolumes = & $GetInventory
+        if (@($afterVolumes.Volumes | Where-Object { $_.Name -in @($expected.Values) }).Count -gt 0) {
+            throw 'M14 fixture reset did not remove all prior M14 volumes.'
+        }
+
+        $Ownership.ResetCompleted = $true
+        $Ownership.ResetVolumesAbsent = $true
+        $Ownership.ResetFailureStage = $null
+        $Ownership.ResetFailureMessage = $null
+    } catch {
+        $Ownership.ResetFailureMessage = [string]$_.Exception.Message
+        throw
     }
-    $afterVolumes = & $GetInventory
-    if (@($afterVolumes.Volumes | Where-Object { $_.Name -in @($expected.Values) }).Count -gt 0) {
-        throw 'M14 fixture reset did not remove all prior M14 volumes.'
-    }
-    $Ownership.ResetCompleted = $true
-    $Ownership.ResetVolumesAbsent = $true
 }
 
 function Invoke-GeordiM14OwnedResourceCleanup {
@@ -392,6 +415,7 @@ function Get-GeordiM14MutationPlan {
 
     $services = $Configuration.services
     if ($null -eq $services) { throw 'M14 rendered Compose configuration has no service graph.' }
+
     $recreate = @('victoriametrics','otel-collector','backend')
     $create = @('webhook-receiver-a','webhook-receiver-b')
     $requiredExisting = @('burn-demo','frontend','oidc-fixture','loki','tempo','webhook-receiver','demo-downstream')
@@ -422,12 +446,16 @@ function Get-GeordiM14MutationPlan {
         }
     }
 
-    return [pscustomobject]@{
+    [pscustomobject]@{
         Recreate = $recreate
         Create = $create
         RequiredExisting = $requiredExisting
         NotRequired = $notRequired
         MutationSet = $mutation
+        ExistingStartGroups = @(
+            [pscustomobject]@{ Services=@('loki','tempo','webhook-receiver','oidc-fixture'); Phase='prerequisites' },
+            [pscustomobject]@{ Services=@('demo-downstream','burn-demo','frontend'); Phase='post-backend' }
+        )
         Commands = @(
             [pscustomobject]@{ Services=$create; ForceRecreate=$false; NoDeps=$true },
             [pscustomobject]@{ Services=@('victoriametrics'); ForceRecreate=$true; NoDeps=$true },
@@ -439,17 +467,36 @@ function Get-GeordiM14MutationPlan {
 
 function Assert-GeordiM14MutationPreflight {
     [CmdletBinding()]
-    param([Parameter(Mandatory)] $Plan,
-        [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $ServiceInventory)
+    param(
+        [Parameter(Mandatory)] $Plan,
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $ServiceInventory,
+        [Parameter(Mandatory)][string] $RepositoryRoot
+    )
 
-    foreach ($service in $Plan.RequiredExisting) {
-        $matches = @($ServiceInventory | Where-Object { [string]$_.Service -ceq $service -and $_.Running -and $_.Healthy })
-        if ($matches.Count -ne 1) { throw "M14 dependency '$service' is not uniquely running and healthy." }
+    $root = [IO.Path]::GetFullPath($RepositoryRoot)
+    $required = @($Plan.RequiredExisting + $Plan.Recreate)
+    $optional = @($Plan.Create + $Plan.NotRequired)
+
+    foreach ($service in $required) {
+        $matches = @($ServiceInventory | Where-Object { [string]$_.Project -ceq 'geordi' -and [string]$_.Service -ceq $service })
+        if ($matches.Count -ne 1) {
+            throw "M14 service '$service' must have exactly one existing container before reset; found $($matches.Count)."
+        }
+        if ([IO.Path]::GetFullPath([string]$matches[0].WorkingDirectory) -cne $root) {
+            throw "M14 service '$service' belongs to a different checkout; refusing mutation."
+        }
     }
-    foreach ($service in $Plan.MutationSet) {
-        if ($service -in @('webhook-receiver-a','webhook-receiver-b')) { continue }
-        $matches = @($ServiceInventory | Where-Object { [string]$_.Service -ceq $service -and $_.Running })
-        if ($matches.Count -ne 1) { throw "M14 replacement target '$service' is not uniquely running before handoff." }
+
+    foreach ($service in $optional) {
+        $matches = @($ServiceInventory | Where-Object { [string]$_.Project -ceq 'geordi' -and [string]$_.Service -ceq $service })
+        if ($matches.Count -gt 1) {
+            throw "M14 optional service '$service' has multiple containers; ownership is ambiguous."
+        }
+        foreach ($container in $matches) {
+            if ([IO.Path]::GetFullPath([string]$container.WorkingDirectory) -cne $root) {
+                throw "M14 optional service '$service' belongs to a different checkout; refusing mutation."
+            }
+        }
     }
 }
 
