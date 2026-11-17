@@ -28,7 +28,19 @@ $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $runtimeDirectory = Join-Path $repositoryRoot '.runtime/m19'
 $publicThumbprintPath = Join-Path (Join-Path $repositoryRoot '.runtime') 'm19-ca-thumbprint.txt'
 if (Test-Path -LiteralPath $runtimeDirectory) {
-    throw 'M19 runtime material already exists. Remove it with Remove-GeordiTestTls.ps1 before generating another set.'
+    $tlsOwnedNames = @(
+        'auth-cert.pem', 'auth-key.pem', 'auth-localhost-cert.pem', 'auth-localhost-key.pem',
+        'auth.p12', 'auth.password', 'browser-trust-thumbprint', 'ca.cer', 'ca.pem',
+        'client-secret', 'control-secret', 'geordi-cert.pem', 'geordi-key.pem',
+        'geordi.p12', 'geordi.password', 'truststore.p12', 'truststore.password'
+    )
+    $existingTlsMaterial = @($tlsOwnedNames | Where-Object {
+        Test-Path -LiteralPath (Join-Path $runtimeDirectory $_)
+    })
+    if ($existingTlsMaterial.Count -gt 0) {
+        throw "M19 TLS material already exists ($($existingTlsMaterial -join ', ')). Remove it with Remove-GeordiTestTls.ps1 before generating another set."
+    }
+    Write-Output 'Preserving existing non-TLS M19 runtime files while generating fresh TLS material.'
 }
 if (Test-Path -LiteralPath $publicThumbprintPath) {
     throw 'A prior M19 CA thumbprint record remains; complete exact-thumbprint cleanup before generating another set.'
