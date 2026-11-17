@@ -282,7 +282,6 @@ function Test-GeordiPublishableArtifactContent {
                         $unixEntryType -eq 0xA000 -or $name -match $script:GeordiArtifactForbiddenEntryPattern) {
                         throw 'forbidden_material_detected'
                     }
-                    }
                 }
             } catch {
                 if ([string]$_.Exception.Message -in @('scan_limit_exceeded','forbidden_material_detected')) { throw }
