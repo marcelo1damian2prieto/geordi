@@ -67,7 +67,7 @@ function Assert-DnsSubjectAlternativeName(
         Stop-TlsMaterialValidation "$Label has no Subject Alternative Name extension."
     }
     $formatted = $extension.Format($true)
-    if ($formatted -notmatch "(?im)(?:^|,\\s*)DNS Name\\s*=\\s*$([regex]::Escape($DnsName))(?:\\s*,|$)") {
+    if ($formatted -notmatch "(?im)(?:^|,\s*)DNS Name\s*=\s*$([regex]::Escape($DnsName))(?:\s*,|$)") {
         Stop-TlsMaterialValidation "$Label does not contain the required DNS SAN '$DnsName'."
     }
 }
@@ -106,7 +106,7 @@ function Assert-ChainsToExactCa(
     }
 }
 
-$loadedCertificates = [Collections.Generic.List[IDisposable]]::new()
+$loadedCertificates = [System.Collections.Generic.List[System.IDisposable]]::new()
 try {
     foreach ($name in @(
         'ca.pem', 'ca.cer',
