@@ -235,3 +235,17 @@ A subsequent read-only review of the final implementation confirmed:
 - The renderer's injected executor receives the complete argument vector, including `compose` and `config --format json`; its result contract is an object with `ExitCode` and `Output`.
 
 This is a static source review only. No parser or test was run, so the new behavior is **NOT VERIFIED BY EXECUTION**. Any future execution of `-ComposeIntegration` still requires separate explicit authorization for Docker CLI configuration rendering only. No lifecycle permission is implied.
+
+ 
+### Branch-scope correction after D2-09 — 2026-11-16
+
+The earlier branch-scope snapshot above predates the D2-09 implementation and is retained as historical. The current comparison `m19...d2/audit-boundaries-fix` reports **31 commits ahead, zero behind**, with seven changed paths:
+- `docs/plans/EXECPLAN-M19-POST-FOLLOWER-READINESS.md`
+- `docs/plans/M19-ACCEPTED-REGRESSION-RECONSTRUCTION.md`
+- `docs/plans/M19-D2-TEST-INFRASTRUCTURE-AUDIT.md`
+- `docs/plans/M19-WORKTREE-RESUME-CHECKPOINT.md`
+- `scripts/Test-GeordiCaptureGenerations.ps1`
+- `scripts/Test-GeordiM12OverlapCollector.ps1`
+- `scripts/lib/GeordiM12OverlapCollector.ps1`
+
+The two new script paths implement the D2-09 test-harness separation. No application source, GitLab CI, Compose YAML, TLS/certificates, runtime capture, or protected-volume definitions appear in the current diff. This correction supersedes the earlier five-path branch-scope snapshot.
