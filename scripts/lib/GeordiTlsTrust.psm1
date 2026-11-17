@@ -93,63 +93,7 @@ function Test-GeordiTlsStoreThumbprint {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [ValidatePattern('^[A-Fa-f0-9]{40}
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [ValidateSet('Import', 'VerifyPresent', 'Remove', 'VerifyAbsent')]
-        [string] $Action,
-        [string] $CertificatePath,
-        [Parameter(Mandatory)]
         [ValidatePattern('^[A-Fa-f0-9]{40}$')]
-        [string] $ExpectedThumbprint,
-        [Parameter(Mandatory)]
-        [string] $ExpectedSubject,
-        [ValidateRange(1, 120)]
-        [int] $TimeoutSeconds = 15
-    )
-
-    $actionScript = Join-Path $PSScriptRoot 'Invoke-GeordiTlsTrustAction.ps1'
-    $start = [Diagnostics.ProcessStartInfo]::new((Join-Path $PSHOME 'pwsh.exe'))
-    $start.UseShellExecute = $false
-    $start.CreateNoWindow = $true
-    $start.RedirectStandardInput = $true
-    $start.RedirectStandardOutput = $true
-    $start.RedirectStandardError = $true
-    foreach ($argument in @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', $actionScript,
-        '-Action', $Action, '-ExpectedThumbprint', $ExpectedThumbprint, '-ExpectedSubject', $ExpectedSubject)) {
-        [void]$start.ArgumentList.Add($argument)
-    }
-    if ($CertificatePath) {
-        [void]$start.ArgumentList.Add('-CertificatePath')
-        [void]$start.ArgumentList.Add([IO.Path]::GetFullPath($CertificatePath))
-    }
-
-    $process = [Diagnostics.Process]::new()
-    $process.StartInfo = $start
-    try {
-        if (!$process.Start()) { throw "Could not start bounded LocalMachine $Action operation." }
-        $process.StandardInput.Close()
-        if (!$process.WaitForExit($TimeoutSeconds * 1000)) {
-            try { $process.Kill($true) } catch { }
-            [void]$process.WaitForExit(5000)
-            throw "Bounded LocalMachine $Action operation timed out."
-        }
-        $stdout = $process.StandardOutput.ReadToEnd().Trim()
-        if ($process.ExitCode -ne 0) { throw "Bounded LocalMachine $Action operation failed (exit=$($process.ExitCode))." }
-        $expectedOutput = switch ($Action) {
-            'Import' { 'IMPORT_OK' }
-            'VerifyPresent' { 'PRESENT_OK' }
-            'Remove' { 'REMOVE_OK' }
-            'VerifyAbsent' { 'ABSENT_OK' }
-        }
-        if ($stdout -ne $expectedOutput) { throw "Bounded LocalMachine $Action verification returned an unexpected result." }
-    }
-    finally { $process.Dispose() }
-}
-
-Export-ModuleMember -Function Invoke-GeordiTlsStoreAction, Invoke-GeordiTlsStoreActionBounded, Test-GeordiTlsStoreThumbprint
-)]
         [string] $ExpectedThumbprint,
         [Parameter(Mandatory)]
         [string] $ExpectedSubject
@@ -167,12 +111,12 @@ Export-ModuleMember -Function Invoke-GeordiTlsStoreAction, Invoke-GeordiTlsStore
             throw 'Multiple LocalMachine roots matched the run-owned thumbprint.'
         }
         if ($matches.Count -eq 0) { return $false }
-
         if ($matches[0].Subject -ne $ExpectedSubject -or $matches[0].Issuer -ne $ExpectedSubject) {
             throw 'Matching LocalMachine root subject or issuer does not match the expected ephemeral CA.'
         }
         return $true
-    } finally {
+    }
+    finally {
         if ($certificates) {
             foreach ($certificate in $certificates) { $certificate.Dispose() }
         }
@@ -235,4 +179,4 @@ function Invoke-GeordiTlsStoreActionBounded {
     finally { $process.Dispose() }
 }
 
-Export-ModuleMember -Function Invoke-GeordiTlsStoreAction, Invoke-GeordiTlsStoreActionBounded
+Export-ModuleMember -Function Invoke-GeordiTlsStoreAction, Invoke-GeordiTlsStoreActionBounded, Test-GeordiTlsStoreThumbprint
