@@ -103,7 +103,7 @@ Start-Sleep -Seconds 30
         throw 'Healthy follower did not create its descendant-process evidence.'
     }
     $healthyChildId = [int][IO.File]::ReadAllText($healthyChildPidPath)
-    Stop-GeordiCaptureProcessTree -ProcessId ([int]$healthy.id)
+    Stop-GeordiCaptureProcessTree -ProcessId ([int]$healthy.id) -ExpectedStartUtc ([string]$healthy.startUtc)
     if (Get-Process -Id $healthyChildId -ErrorAction SilentlyContinue) {
         throw 'Stopping the healthy follower left its descendant process running.'
     }
@@ -118,10 +118,11 @@ Start-Sleep -Seconds 30
     $nonStoppingTaskkillPath = Join-Path $root 'taskkill-noop.cmd'
     [IO.File]::WriteAllText($nonStoppingTaskkillPath,"@echo off`r`nexit /b 1`r`n",[Text.UTF8Encoding]::new($false))
     $timeoutProbe = Start-Process -FilePath $powerShellPath -ArgumentList @('-NoLogo','-NoProfile','-Command','Start-Sleep -Seconds 30') -WindowStyle Hidden -PassThru
+    $timeoutProbeStartUtc = $timeoutProbe.StartTime.ToUniversalTime().ToString('o')
     $timeoutClock = [Diagnostics.Stopwatch]::StartNew()
     try {
         try {
-            Stop-GeordiCaptureProcessTree -ProcessId $timeoutProbe.Id -TimeoutSeconds 1 -TaskkillPath $nonStoppingTaskkillPath
+            Stop-GeordiCaptureProcessTree -ProcessId $timeoutProbe.Id -TimeoutSeconds 1 -ExpectedStartUtc $timeoutProbeStartUtc -KillAction { param($processHandle) }
             throw 'Process-tree stop accepted a process that remained alive past its deadline.'
         } catch {
             if ($_.Exception.Message -eq 'Process-tree stop accepted a process that remained alive past its deadline.') { throw }
@@ -135,7 +136,7 @@ Start-Sleep -Seconds 30
     } finally {
         $timeoutClock.Stop()
         if (Get-Process -Id $timeoutProbe.Id -ErrorAction SilentlyContinue) {
-            Stop-GeordiCaptureProcessTree -ProcessId $timeoutProbe.Id -TimeoutSeconds 5
+            Stop-GeordiCaptureProcessTree -ProcessId $timeoutProbe.Id -TimeoutSeconds 5 -ExpectedStartUtc $timeoutProbeStartUtc
         }
     }
 
@@ -183,8 +184,9 @@ Start-Sleep -Seconds 30
     }
     if (Test-Path -LiteralPath $healthyRecord -PathType Leaf) {
         try {
-            $remainingRecord = (Read-GeordiCaptureStartFile -Path $healthyRecord) | ConvertFrom-Json
-            Stop-GeordiCaptureProcessTree -ProcessId ([int]$remainingRecord.id) -TimeoutSeconds 5
+            $remainingRecord = (Read-GeordiCaptureStartFile -Path $healthyRecord) | ConvertFrom-Json -DateKind String -ErrorAction Stop
+            Stop-GeordiCaptureProcessTree -ProcessId ([int]$remainingRecord.id) -TimeoutSeconds 5 `
+                -ExpectedStartUtc ([string]$remainingRecord.startUtc)
         } catch {
             throw "Self-test cleanup could not stop the healthy follower: $($_.Exception.Message)"
         }
