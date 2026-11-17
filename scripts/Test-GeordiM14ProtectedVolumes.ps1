@@ -84,11 +84,17 @@ try {
 
     $m14Source = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'verify-alert-history.ps1'))
     $renderIndex = $m14Source.IndexOf('Get-GeordiM14RenderedComposeConfiguration', [StringComparison]::Ordinal)
+    $tlsPreflightIndex = $m14Source.IndexOf('Test-GeordiM19TlsMaterial.ps1', [StringComparison]::Ordinal)
     $allocationIndex = $m14Source.IndexOf('New-GeordiDiagnosticSentinelSource', [StringComparison]::Ordinal)
     $resetIndex = $m14Source.IndexOf('Reset-M14Fixture $root', [StringComparison]::Ordinal)
-    Assert-ProtectedVolumeTest ($renderIndex -ge 0 -and $renderIndex -lt $allocationIndex -and $renderIndex -lt $resetIndex) `
-        'protected-volume rendering assertion does not precede evidence allocation and fixture reset'
-    Write-Output 'm14_preflight_order=PASS before_diagnostic_evidence_and_fixture_reset'
+    Assert-ProtectedVolumeTest ($renderIndex -ge 0 -and $tlsPreflightIndex -gt $renderIndex -and
+        $tlsPreflightIndex -lt $allocationIndex -and $tlsPreflightIndex -lt $resetIndex) `
+        'TLS material preflight must follow Compose rendering and precede evidence allocation and fixture reset'
+    Assert-ProtectedVolumeTest (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'Test-GeordiM19TlsMaterial.ps1') -PathType Leaf) `
+        'read-only M19 TLS material preflight script is missing'
+    Assert-ProtectedVolumeTest (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'Test-GeordiM19TlsMaterialRegression.ps1') -PathType Leaf) `
+        'M19 TLS material regression test script is missing'
+    Write-Output 'm14_preflight_order=PASS compose_then_tls_validation_before_evidence_and_fixture_reset'
 
     $ownership = [pscustomobject]@{
         ResetCompleted = $true; ResetVolumesAbsent = $true; StartupAttempted = $true
