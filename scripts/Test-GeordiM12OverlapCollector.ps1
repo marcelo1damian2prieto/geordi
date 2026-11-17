@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([switch] $SelfTest,[ValidateSet('PrimaryCleanupSuccess','PrimaryCleanupFailure','WrapperFailures',
+param([switch] $SelfTest,[switch] $ComposeIntegration,[ValidateSet('PrimaryCleanupSuccess','PrimaryCleanupFailure','WrapperFailures',
     'SecondReplacementFailure','SecondSameIdentityFailure','SecondFollowerFailure','SecondReadinessFailure')][string] $Case)
 
 $ErrorActionPreference='Stop'
@@ -10,6 +10,43 @@ function Assert-M12Overlap([bool] $Condition,[string] $Message){
     if(!$Condition){throw "M12 overlap Collector regression failed: $Message"}
 }
 
+function New-M12OverlapComposeFixture([switch] $CollectorReplacementOverlay,[switch] $IsolationOverlay){
+    $services=[ordered]@{}
+    foreach($name in @('victoriametrics','tempo','loki','otel-collector','backend','webhook-receiver','oidc-fixture','demo','burn-demo','m12-burn-demo','demo-downstream','frontend','m12-query-gate')){
+        $services[$name]=[ordered]@{image='synthetic:'+$name;volumes=@()}
+    }
+    $services.backend.depends_on=[ordered]@{'otel-collector'=[ordered]@{condition='service_healthy';restart=$true};victoriametrics=[ordered]@{condition='service_healthy';restart=$true};'m12-query-gate'=[ordered]@{condition='service_healthy'}}
+    $services.'otel-collector'.depends_on=[ordered]@{victoriametrics=[ordered]@{condition='service_healthy';restart=$true}}
+    foreach($name in @('demo','burn-demo','demo-downstream','m12-burn-demo')){$services[$name].depends_on=[ordered]@{'otel-collector'=[ordered]@{condition='service_healthy';restart=$true}}}
+    $services.backend.volumes=@('m19-alert-lifecycle-data:/var/lib/geordi/alerts')
+    $services.victoriametrics.volumes=@('m19-victoriametrics-data:/victoria-metrics-data')
+    $services.'otel-collector'.volumes=@('./otel/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro')
+    if($CollectorReplacementOverlay){foreach($name in @('backend','demo','burn-demo','demo-downstream','m12-burn-demo')){$services[$name].depends_on['otel-collector'].restart=$false}}
+    if($IsolationOverlay){foreach($edge in (Get-GeordiM12OverlapIsolationEdges)){$services[$edge.service].depends_on[$edge.dependency].restart=$false}}
+    return [ordered]@{services=$services;volumes=[ordered]@{'m19-alert-lifecycle-data'=[ordered]@{};'m19-victoriametrics-data'=[ordered]@{}};networks=[ordered]@{default=[ordered]@{}}}
+}
+
+function Test-M12OverlapComposeExecutorContract([string] $RepositoryRoot){
+    $expected=@('compose')+@(Get-GeordiM12OverlapComposeArguments -RepositoryRoot $RepositoryRoot)+@('config','--format','json')
+    $calls=[Collections.Generic.List[object]]::new()
+    $success={param([string[]] $Arguments)$calls.Add(@($Arguments));return [pscustomobject]@{ExitCode=0;Output='{"services":{},"volumes":{},"networks":{}}'}}.GetNewClosure()
+    $normal=Get-GeordiM12OverlapComposeConfiguration -RepositoryRoot $RepositoryRoot -InvokeCompose $success
+    Assert-M12Overlap ($calls.Count -eq 1 -and (@($calls[0])-join "`n") -ceq ($expected -join "`n")) 'normal Compose executor argv mismatch'
+    Assert-M12Overlap ($normal.Contains('services') -and $normal.Contains('volumes') -and $normal.Contains('networks')) 'executor output was not parsed'
+    $expectedOverlay=@('compose')+@(Get-GeordiM12OverlapComposeArguments -RepositoryRoot $RepositoryRoot -CollectorReplacementOverlay -IsolationOverlay)+@('config','--format','json')
+    $overlayCalls=[Collections.Generic.List[object]]::new()
+    $overlayInvoker={param([string[]] $Arguments)$overlayCalls.Add(@($Arguments));return [pscustomobject]@{ExitCode=0;Output='{"services":{},"volumes":{},"networks":{}}'}}.GetNewClosure()
+    $null=Get-GeordiM12OverlapComposeConfiguration -RepositoryRoot $RepositoryRoot -CollectorReplacementOverlay -IsolationOverlay -InvokeCompose $overlayInvoker
+    Assert-M12Overlap ($overlayCalls.Count -eq 1 -and (@($overlayCalls[0])-join "`n") -ceq ($expectedOverlay -join "`n")) 'overlay Compose executor argv mismatch'
+    foreach($failure in @(@{name='nonzero exit';result=[pscustomobject]@{ExitCode=17;Output=''}},@{name='malformed JSON';result=[pscustomobject]@{ExitCode=0;Output='{invalid-json'}},@{name='empty output';result=[pscustomobject]@{ExitCode=0;Output=@()}})){
+        $result=$failure.result
+        $failedInvoker={param([string[]] $Arguments)return $result}.GetNewClosure()
+        $rejected=$false
+        try{$null=Get-GeordiM12OverlapComposeConfiguration -RepositoryRoot $RepositoryRoot -InvokeCompose $failedInvoker}catch{$rejected=$true}
+        Assert-M12Overlap $rejected ("Compose executor accepted "+$failure.name)
+    }
+    Write-Output 'm12_overlap_compose_executor_contract=PASS success=1 overlay_argv=1 failures=3 docker_invocations=0'
+}
 function Test-M12OverlapCiActivation([string] $Source){
     $lines=[Collections.Generic.List[string]]::new()
     foreach($line in ($Source -split "`r?`n")){
@@ -79,9 +116,10 @@ function Test-M12OverlapSourceMap([string] $RepositoryRoot){
     Write-Output 'm12_overlap_collector_lifecycle_map=PASS shared_adapter=1 reset+exercise=2 standalone_default=preserved'
 }
 
-function Test-M12OverlapComposeIsolation([string] $RepositoryRoot){
-    $normal=Get-GeordiM12OverlapComposeConfiguration -RepositoryRoot $RepositoryRoot
-    $isolated=Get-GeordiM12OverlapComposeConfiguration -RepositoryRoot $RepositoryRoot -CollectorReplacementOverlay -IsolationOverlay
+function Test-M12OverlapComposeIsolation([string] $RepositoryRoot,[System.Collections.IDictionary] $NormalConfiguration,[System.Collections.IDictionary] $IsolatedConfiguration){
+    $normal=$NormalConfiguration
+    $isolated=$IsolatedConfiguration
+    if(!$normal -or !$isolated){throw 'Compose configurations must be supplied explicitly.'}
     $edges=Assert-GeordiM12OverlapIsolationConfiguration -NormalConfiguration $normal -IsolatedConfiguration $isolated
     Assert-M12Overlap ($edges.Count -eq 7) 'expected seven restart-only isolation edges'
     $normalPropagation=Get-GeordiM12OverlapRestartDependents -Configuration $normal -Dependencies @('otel-collector','victoriametrics','backend')
@@ -190,7 +228,7 @@ function New-M12OverlapFailureHarness([string] $RepositoryRoot){
     $initial=Start-GeordiCaptureGeneration -CaptureRoot $root -Service 'otel-collector' -ContainerIdentity $initialIdentity `
         -DockerPath 'synthetic-docker' -PowerShellPath 'synthetic-pwsh' -WorkerPath 'synthetic-worker.ps1' `
         -WorkingDirectory $RepositoryRoot -HandoffId '' -StartFollower $startFollower
-    $renderConfiguration=${function:Get-GeordiM12OverlapComposeConfiguration}
+    $renderConfiguration=${function:New-M12OverlapComposeFixture}
     $render={param([string] $RenderRoot,[bool] $ReplacementOverlay)
         return & $renderConfiguration -RepositoryRoot $RenderRoot -CollectorReplacementOverlay:$ReplacementOverlay
     }.GetNewClosure()
@@ -480,7 +518,8 @@ function Test-M12OverlapSequentialCollectorHandoffs([string] $RepositoryRoot){
     }finally{Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue}
 }
 
-if(!$SelfTest -and !$Case){throw 'Use -SelfTest or a focused -Case for offline M12 overlap Collector validation.'}
+if($ComposeIntegration -and ($SelfTest -or $Case)){throw 'Use -ComposeIntegration separately from -SelfTest and -Case.'}
+if(!$SelfTest -and !$Case -and !$ComposeIntegration){throw 'Use -SelfTest, -ComposeIntegration or a focused -Case for M12 overlap Collector validation.'}
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 if($Case){
     switch($Case){
@@ -493,9 +532,18 @@ if($Case){
         'SecondReadinessFailure' { Test-M12OverlapSecondHandoffFailure $root 'readiness' $false }
     }
 }
+if($ComposeIntegration){
+    $normal=Get-GeordiM12OverlapComposeConfiguration -RepositoryRoot $root
+    $isolated=Get-GeordiM12OverlapComposeConfiguration -RepositoryRoot $root -CollectorReplacementOverlay -IsolationOverlay
+    Test-M12OverlapComposeIsolation $root $normal $isolated
+    Write-Output 'm12_overlap_compose_integration=PASS docker_operation=config_render_only lifecycle=NOT_INVOKED'
+}
 if($SelfTest){
+    Test-M12OverlapComposeExecutorContract $root
     Test-M12OverlapSourceMap $root
-    Test-M12OverlapComposeIsolation $root
+    $normalFixture=New-M12OverlapComposeFixture
+    $isolatedFixture=New-M12OverlapComposeFixture -IsolationOverlay
+    Test-M12OverlapComposeIsolation $root $normalFixture $isolatedFixture
     Test-M12OverlapCollectorCommandScope $root
     Test-M12OverlapSequentialCollectorHandoffs $root
     Test-M12OverlapWrapperFailures $root
