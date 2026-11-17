@@ -71,7 +71,13 @@ function Invoke-GeordiTlsStoreAction {
             }
             'Remove' {
                 if ($matches.Count -gt 1) { throw 'Multiple LocalMachine roots matched the run-owned thumbprint.' }
-                if ($matches.Count -eq 1) { $store.Remove($matches[0]) }
+                if ($matches.Count -eq 1) {
+                    $certificate = $matches[0]
+                    if ($certificate.Subject -ne $ExpectedSubject -or $certificate.Issuer -ne $ExpectedSubject) {
+                        throw 'Matching LocalMachine root subject or issuer does not match the expected ephemeral CA.'
+                    }
+                    $store.Remove($certificate)
+                }
                 'REMOVE_OK'
             }
             'VerifyAbsent' {
