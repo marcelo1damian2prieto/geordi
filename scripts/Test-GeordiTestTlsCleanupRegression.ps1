@@ -57,7 +57,7 @@ function Test-GeordiTlsStoreThumbprint {
     [IO.File]::AppendAllText($env:GEORDI_TLS_TEST_STORE_LOG, "Test|$ExpectedThumbprint|$ExpectedSubject" + [Environment]::NewLine)
     $statePath = $env:GEORDI_TLS_TEST_STORE_STATE
     $stored = if (Test-Path -LiteralPath $statePath) { [IO.File]::ReadAllText($statePath).Trim() } else { $null }
-    $storedParts = if ($stored) { $stored -split '\\|', 2 } else { @() }
+    $storedParts = if ($stored) { $stored -split '\|', 2 } else { @() }
     if ($storedParts.Count -gt 0 -and $storedParts[0] -eq $ExpectedThumbprint) {
         if ($storedParts.Count -ne 2 -or $storedParts[1] -ne $ExpectedSubject) {
             throw 'Mock LocalMachine Root subject does not match the expected ephemeral CA.'
@@ -170,7 +170,7 @@ try {
     Assert-CleanupRegression (Test-Path $sentinel) 'normal cleanup deleted a sibling file outside its owned paths.'
     $actions = [IO.File]::ReadAllText($normal.StoreLog)
     Assert-CleanupRegression ($actions -match '(?m)^Remove\|') 'normal cleanup did not request exact-thumbprint removal.'
-    Assert-CleanupRegression ($actions -match '(?m)^VerifyAbsent\|') 'normal cleanup did not verify certificate absence.'
+    Assert-CleanupRegression (($actions -match '(?m)^Test\|') -and (($actions -split [Environment]::NewLine).Count -ge 3)) 'normal cleanup did not verify certificate absence before and after removal.'
     Write-Output 'm19_tls_cleanup_installed_ca=PASS'
 
     # Idempotent cleanup when the exact CA is already absent from the store.
