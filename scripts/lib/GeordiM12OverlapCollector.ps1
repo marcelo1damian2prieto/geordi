@@ -117,7 +117,8 @@ function Assert-GeordiM12OverlapIsolationConfiguration {
         throw 'M12 overlap isolation changed the service inventory.'
     }
     $edges=Get-GeordiM12OverlapIsolationEdges
-    $normalized=Copy-GeordiM12OverlapConfiguration $NormalConfiguration
+    $normalizedNormal=Copy-GeordiM12OverlapConfiguration $NormalConfiguration
+    $normalizedIsolated=Copy-GeordiM12OverlapConfiguration $IsolatedConfiguration
     foreach($edge in $edges){
         if(!$normalServices.Contains($edge.service) -or !$isolatedServices.Contains($edge.service) -or
                 !$normalServices[$edge.service].Contains('depends_on') -or !$isolatedServices[$edge.service].Contains('depends_on') -or
@@ -132,10 +133,11 @@ function Assert-GeordiM12OverlapIsolationConfiguration {
                 ($isolatedEdge.Contains('restart') -and ($isolatedEdge.restart -isnot [bool] -or $isolatedEdge.restart))){
             throw "M12 overlap restart edge '$($edge.service)->$($edge.dependency)' is not isolated from true to false."
         }
-        [void]$normalized.services[$edge.service].depends_on[$edge.dependency].Remove('restart')
+        [void]$normalizedNormal.services[$edge.service].depends_on[$edge.dependency].Remove('restart')
+        [void]$normalizedIsolated.services[$edge.service].depends_on[$edge.dependency].Remove('restart')
     }
-    if((ConvertTo-GeordiM12OverlapCanonicalJson $normalized) -cne
-            (ConvertTo-GeordiM12OverlapCanonicalJson $IsolatedConfiguration)){
+    if((ConvertTo-GeordiM12OverlapCanonicalJson $normalizedNormal) -cne
+            (ConvertTo-GeordiM12OverlapCanonicalJson $normalizedIsolated)){
         throw 'M12 overlap isolation changed configuration beyond the seven approved restart properties.'
     }
     $remaining=Get-GeordiM12OverlapRestartDependents -Configuration $IsolatedConfiguration `
