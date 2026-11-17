@@ -24,10 +24,11 @@ function Get-GeordiM12OverlapComposeConfiguration {
         [scriptblock] $InvokeCompose)
     $arguments=Get-GeordiM12OverlapComposeArguments -RepositoryRoot $RepositoryRoot `
         -CollectorReplacementOverlay:$CollectorReplacementOverlay -IsolationOverlay:$IsolationOverlay
+    $composeArguments=@('compose')+@($arguments)+@('config','--format','json')
     if($InvokeCompose){
-        $result=& $InvokeCompose $arguments
+        $result=& $InvokeCompose $composeArguments
     }else{
-        $output=& docker compose @arguments config --format json 2>$null
+        $output=& docker @composeArguments 2>$null
         $result=[pscustomobject]@{ExitCode=$LASTEXITCODE;Output=@($output)}
     }
     if(!$result -or $null -eq $result.PSObject.Properties['ExitCode'] -or [int]$result.ExitCode -ne 0){
