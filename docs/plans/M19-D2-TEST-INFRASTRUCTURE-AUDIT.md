@@ -1,7 +1,7 @@
 # D2 — M19 Test Infrastructure Audit
 
-**Updated:** 2026-11-16 (America/Buenos_Aires)  
-**Audit branch:** `d2/audit-boundaries-fix`  
+**Updated:** 2026-11-16 (America/Buenos_Aires)\
+**Audit branch:** `d2/audit-boundaries-fix`\
 **Base:** `m19` at `6afb4177135824165c45e2db07f86ebc6d5b00de`
 
 ## Scope
@@ -207,7 +207,7 @@ The current comparison of d2/audit-boundaries-fix against m19 reports 21 commits
 
 The four documentation paths contain the audit/reconstruction/checkpoint updates. The only script path remains the previously reviewed D2 test-harness correction. No application source, GitLab CI, Compose configuration, TLS/certificates, runtime captures or protected-volume definitions appear in the current diff.
 
- 
+
 ## D2-09 — Compose renderer isolation and explicit integration selector — 2026-11-16
 
 **Disposition:** implemented on `d2/audit-boundaries-fix`; execution remains unauthorized and not performed.
@@ -224,7 +224,7 @@ The existing synthetic lifecycle harnesses now use synthetic Compose configurati
 
 **Validation status:** no PowerShell parser, test script, `-SelfTest`, `-ComposeIntegration`, Docker, Compose or runtime command was executed while implementing this change. The new paths and assertions require subsequent static review before any execution authorization. M19 remains **NOT READY — REMEDIATION REQUIRED**.
 
- 
+
 ### D2-09 static-review disposition — 2026-11-16
 
 A subsequent read-only review of the final implementation confirmed:
@@ -236,7 +236,7 @@ A subsequent read-only review of the final implementation confirmed:
 
 This is a static source review only. No parser or test was run, so the new behavior is **NOT VERIFIED BY EXECUTION**. Any future execution of `-ComposeIntegration` still requires separate explicit authorization for Docker CLI configuration rendering only. No lifecycle permission is implied.
 
- 
+
 ### Branch-scope correction after D2-09 — 2026-11-16
 
 The earlier branch-scope snapshot above predates the D2-09 implementation and is retained as historical. The current comparison `m19...d2/audit-boundaries-fix` reports **31 commits ahead, zero behind**, with seven changed paths:
