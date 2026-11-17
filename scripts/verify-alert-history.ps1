@@ -413,7 +413,7 @@ function Reset-M14Fixture([string] $Root, [object] $Ownership) {
             }
         } -RemoveContainerIds {
             param([string[]] $Ids)
-            & docker rm -sf $Ids | Out-Host
+            & docker rm -f $Ids | Out-Host
             if ($LASTEXITCODE -ne 0) { throw 'Unable to remove the exact pre-reset Geordi container identities for M14 fixture acquisition.' }
         } -RemoveVolume {
             param([string] $Name)
@@ -459,7 +459,7 @@ function Remove-M14OwnedFixtureResources([object] $Ownership) {
             }
         } -RemoveContainerIds {
             param([string[]] $Ids)
-            & docker rm -sf $Ids | Out-Host
+            & docker rm -f $Ids | Out-Host
             if ($LASTEXITCODE -ne 0) { throw 'Could not remove the exact M14 fixture containers acquired by this invocation.' }
         } -RemoveVolume {
             param([string] $Name)
