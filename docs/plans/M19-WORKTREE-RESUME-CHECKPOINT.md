@@ -274,3 +274,47 @@ P0 read-only branch/worktree preconditions → P1 parser (eight directly involve
 Owner review/approval of the reconstructed P0–P8 membership and order. No full-sequence tests are authorized by this documentation update. All prior focused PASS items must be rerun fail-fast from P0 to claim the reconstructed set green. P6 must receive fresh narrow approval if it is to be rerun.
 
 Keep M10 seven-case, fixture-transfer 18-gate/A–S, M11→M12 19-gate remediation and formal overlap 26-gate validation separate. Obtain P8 only after P0–P7 are green. M19 remains **NOT READY — REMEDIATION REQUIRED**; M13, Gate 5, CI activation, runtime operations, candidate promotion and M19 acceptance remain blocked.
+
+## 2026-11-16 — D2 reconstructed P0–P8 execution closure
+
+This append-only checkpoint records completion of the owner-approved reconstructed P0–P8 sequence. It supersedes the pending P0–P8 resume instructions above only for this focused sequence. Earlier checkpoint entries remain historical and are not rewritten.
+
+### Results
+
+- P0 read-only preconditions: **PASS** — correct D2 branch, clean worktree, required paths present.
+- P1 parser: **PASS** — all eight affected PowerShell scripts/helpers parsed.
+- P2 shared post-follower seam: **PASS 5/5** — callback absent, ordering, wrong follower, readiness failure, cleanup failure.
+- P3 caller/workflow SelfTests: **PASS 3/3** — M11 backend, M12 backend, M12 overlap backend.
+- P4 capture-generation contracts: **PASS 2/2** — AuthContract (six negative controls) and corrected Boundaries.
+- P5 M12 overlap Collector synthetic SelfTest: **PASS** after the D2 isolation-normalization correction. The earlier failed attempt is retained: it exposed asymmetric comparison normalization of explicit `restart=false` values, not a reason to weaken the seven-edge validation.
+- P6 M12 overlap Collector ComposeIntegration: **PASS** — configuration render only; seven restart edges isolated to zero; remaining configuration equivalent; protected M19 mount configuration unchanged; eight negative propagation cases; lifecycle not invoked.
+- P7 read-only scope/diff: **PASS** — local worktree clean; both `git diff --check` invocations clean; exactly seven committed paths in `m19...HEAD`.
+- P8 fresh read-only static review: **PASS** — no unresolved BLOCKER or HIGH findings identified.
+
+### P7 branch scope
+
+The owner supplied the following exact changed-path inventory:
+
+1. `docs/plans/EXECPLAN-M19-POST-FOLLOWER-READINESS.md`
+2. `docs/plans/M19-ACCEPTED-REGRESSION-RECONSTRUCTION.md`
+3. `docs/plans/M19-D2-TEST-INFRASTRUCTURE-AUDIT.md`
+4. `docs/plans/M19-WORKTREE-RESUME-CHECKPOINT.md`
+5. `scripts/Test-GeordiCaptureGenerations.ps1`
+6. `scripts/Test-GeordiM12OverlapCollector.ps1`
+7. `scripts/lib/GeordiM12OverlapCollector.ps1`
+
+The reported local branch tracking state was `d2/audit-boundaries-fix...github/d2/audit-boundaries-fix`, with no local modifications. The remote compare reported 44 commits ahead of `m19`, zero behind, and the same seven changed paths. The committed comparison and clean local worktree are distinct pieces of evidence.
+
+### P5 correction record
+
+The D2 correction in `scripts/lib/GeordiM12OverlapCollector.ps1` removes the seven approved `restart` properties from both normalized configuration copies before comparing all remaining configuration. It still independently asserts normal `restart=true`, isolated `restart=false` or absent, and zero remaining reverse restart propagation. No Compose YAML, application source, CI, TLS, runtime capture, or protected-volume definition was changed.
+
+### Status and restrictions
+
+The reconstructed P0–P8 sequence is **GREEN for this focused D2 execution**, and its detailed ledger is appended to `M19-ACCEPTED-REGRESSION-RECONSTRUCTION.md`. It remains reconstructed, not historical. P8 is a read-only static review, not independent human sign-off or runtime verification.
+
+The following remain separate and unexecuted by this sequence: M10 seven-case replacement suite; fixture-transfer 18-gate/A–S matrix; M11→M12 19-gate remediation; formal overlap 26-gate sequence.
+
+No Docker lifecycle, runtime validation, TLS/certificate operation, real capture mutation, cleanup, protected-volume operation, CI activation, M13, Gate 5 promotion, candidate promotion, or M19 acceptance is authorized or implied.
+
+**Overall milestone status remains M19 NOT READY — REMEDIATION REQUIRED.**
