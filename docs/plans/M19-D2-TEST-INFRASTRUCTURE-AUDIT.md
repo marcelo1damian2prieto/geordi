@@ -319,3 +319,31 @@ This is evidence for the real Compose configuration-render path only. It is not 
 The parser checks, B synthetic SelfTest, and C real Compose config-render integration are now recorded as **PASS based on owner-supplied console output**. The full accepted regression sequence remains **NOT RUN**; the independent read-only shared-readiness review and formal overlap 26-gate sequence remain pending. M19 remains **NOT READY — REMEDIATION REQUIRED**.
 
 No code, CI, Compose YAML, runtime state, captures, TLS material, or protected volumes were changed as part of recording this evidence.
+
+## D2-11 — Finalized post-follower regression reconstruction — 2026-11-16
+
+The complete evidence-backed proposal is recorded in `docs/plans/M19-ACCEPTED-REGRESSION-RECONSTRUCTION.md`, Section 11. It remains **RECONSTRUCTED — NOT HISTORICAL**: repository history and checked-in plans do not establish the original accepted-set membership/order.
+
+### Current reconstructed layers
+
+- P2: five direct shared-seam microtests.
+- P3: M11 backend, M12 backend, and M12 overlap backend caller/workflow SelfTests.
+- P4: capture-generation AuthContract and Boundaries.
+- P5: M12 overlap Collector synthetic `-SelfTest`.
+- P6: M12 overlap Collector real `-ComposeIntegration`, config-render-only.
+- P7/P8: read-only scope validation and fresh independent review.
+
+P1 defines a reproducible parser inventory of eight directly involved scripts/libraries. P0 confirms branch/worktree preconditions. Exact invocations, coverage, exclusions, prior evidence, rerun requirements, and acceptance criteria are in Section 11 of the reconstruction document.
+
+### D2-09 execution classification correction
+
+The prior addenda described the Collector `-SelfTest` as invoking the real Docker Compose renderer. That description is superseded by D2-09: `-SelfTest` now uses an injected executor and synthetic Compose fixtures and does not invoke Docker. The separate `-ComposeIntegration` selector invokes only `docker compose ... config --format json`.
+
+Owner-supplied execution output on 2026-11-16 reports:
+- Parser for `GeordiM12OverlapCollector.ps1` and `Test-GeordiM12OverlapCollector.ps1`: PASS.
+- `-SelfTest`: PASS; marker states `runtime=NOT_RUN`, `ci=unchanged`.
+- `-ComposeIntegration`: PASS; marker states `docker_operation=config_render_only`, `lifecycle=NOT_INVOKED`.
+
+These are focused results, not a completed P0–P8 run. The complete reconstructed sequence remains **NOT RUN**. Any future P6 rerun requires fresh narrow authorization. No Docker lifecycle, runtime, cleanup, TLS, capture mutation, CI activation, or protected-volume operation is authorized by this addendum.
+
+M19 remains **NOT READY — REMEDIATION REQUIRED**.
