@@ -100,6 +100,9 @@ function Protect-GeordiM14DiagnosticText {
         '(?i)(?:^|\s)(?:set-cookie|cookie)\s*:\s*[^\r\n]*',
         ' [REDACTED COOKIE HEADER]')
     $safe = [regex]::Replace($safe,
+        '(?i)(\\bauthorization\\s*:\\s*)Bearer\\s+[^\\s,;]+',
+        '$1Bearer [REDACTED]')
+    $safe = [regex]::Replace($safe,
         '(?i)(["'']?(?:authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|webhook[_-]?token|password|passwd|secret|credential|api[_-]?key|claim[_-]?token)["'']?\s*[:=]\s*["'']?)[^\s,"'';}]+',
         '$1[REDACTED]')
     $safe = [regex]::Replace($safe,
