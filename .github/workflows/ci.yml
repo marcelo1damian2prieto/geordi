@@ -58,6 +58,15 @@ jobs:
           ./scripts/Test-GeordiM14ComposeScope.ps1 -Case Mutation
           ./scripts/Test-GeordiM14ComposeScope.ps1 -Case Dependencies
           ./scripts/Test-GeordiSchedulerIsolation.ps1 -SelfTest -M14PartialAcquisitionOnly
+          foreach ($path in @('./scripts/verify-alert-history.ps1', './scripts/lib/GeordiSchedulerIsolation.ps1', './scripts/lib/GeordiAuthentication.ps1')) {
+            $tokens = $null
+            $parseErrors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path).Path, [ref]$tokens, [ref]$parseErrors) | Out-Null
+            if ($parseErrors.Count -gt 0) {
+              $parseErrors | ForEach-Object { Write-Error $_.Message }
+              throw "PowerShell parser rejected $path."
+            }
+          }
       - name: Validate Collector configuration
         run: >-
           docker run --rm
