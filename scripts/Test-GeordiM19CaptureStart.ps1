@@ -87,6 +87,21 @@ Start-Sleep -Seconds 30
         }
     }
     Write-Output 'capture_start_case=process_identity_timestamp_preserved result=PASS utc_and_minus_03=PASS fractional_precision=7'
+
+    $selfProcess = Get-Process -Id $PID -ErrorAction Stop
+    $wrongSelfStartUtc = $selfProcess.StartTime.ToUniversalTime().AddSeconds(-1).ToString('o')
+    try {
+        Stop-GeordiCaptureProcessTree -ProcessId $PID -ExpectedStartUtc $wrongSelfStartUtc
+        throw 'Process-tree stop accepted a PID whose creation timestamp did not match.'
+    } catch {
+        if ($_.Exception.Message -eq 'Process-tree stop accepted a PID whose creation timestamp did not match.') { throw }
+        if ($_.Exception.Message -notmatch 'different process identity') { throw }
+    }
+    if (-not (Get-Process -Id $PID -ErrorAction SilentlyContinue)) {
+        throw 'Identity-mismatch rejection terminated the test host process.'
+    }
+    Write-Output 'capture_start_case=stale_pid_identity result=REJECTED_SAFE no_termination=PASS'
+
     if (-not (Test-Path -LiteralPath $healthyRecord) -or [int]$healthy.id -le 0) {
         throw 'Healthy follower startup did not produce bounded process identity evidence.'
     }
