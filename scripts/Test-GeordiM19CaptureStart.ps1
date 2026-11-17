@@ -48,6 +48,45 @@ Start-Sleep -Seconds 30
         -DockerPath $powerShellPath -DockerArguments @('-NoLogo','-NoProfile','-File',$healthyPath,$expectedSince) `
         -WorkingDirectory $root -StandardOutputPath $healthyStdoutPath `
         -StandardErrorPath $healthyStderrPath -ProcessRecordPath $healthyRecord -TimeoutSeconds 5
+
+    if ($healthy.startUtc -isnot [string]) {
+        throw 'Healthy follower process start timestamp was not preserved as an ISO-8601 string.'
+    }
+    $healthyStartUtc = [DateTimeOffset]::Parse(
+        [string]$healthy.startUtc,
+        [Globalization.CultureInfo]::InvariantCulture,
+        [Globalization.DateTimeStyles]::RoundtripKind
+    ).ToUniversalTime()
+    $healthyProcess = Get-Process -Id ([int]$healthy.id) -ErrorAction Stop
+    if ($healthyProcess.StartTime.ToUniversalTime().Ticks -ne $healthyStartUtc.UtcTicks) {
+        throw 'Healthy follower process start timestamp lost UTC identity or fractional precision.'
+    }
+
+    $timestampCases = @(
+        [pscustomobject]@{ Name='utc-z'; Value='2026-11-17T17:44:03.8677046Z' }
+        [pscustomobject]@{ Name='offset-minus-03'; Value='2026-11-17T14:44:03.8677046-03:00' }
+    )
+    foreach ($timestampCase in $timestampCases) {
+        $timestampJson = ConvertTo-Json -InputObject @{ startUtc=$timestampCase.Value } -Compress
+        $timestampRecord = $timestampJson | ConvertFrom-Json -DateKind String -ErrorAction Stop
+        if ($timestampRecord.startUtc -isnot [string]) {
+            throw "Timestamp parser did not preserve the ISO-8601 string for case $($timestampCase.Name)."
+        }
+        $parsedTimestamp = [DateTimeOffset]::Parse(
+            [string]$timestampRecord.startUtc,
+            [Globalization.CultureInfo]::InvariantCulture,
+            [Globalization.DateTimeStyles]::RoundtripKind
+        ).ToUniversalTime()
+        $expectedTimestamp = [DateTimeOffset]::Parse(
+            '2026-11-17T17:44:03.8677046Z',
+            [Globalization.CultureInfo]::InvariantCulture,
+            [Globalization.DateTimeStyles]::RoundtripKind
+        )
+        if ($parsedTimestamp.UtcTicks -ne $expectedTimestamp.UtcTicks) {
+            throw "Timestamp parser changed the instant or fractional precision for case $($timestampCase.Name)."
+        }
+    }
+    Write-Output 'capture_start_case=process_identity_timestamp_preserved result=PASS utc_and_minus_03=PASS fractional_precision=7'
     if (-not (Test-Path -LiteralPath $healthyRecord) -or [int]$healthy.id -le 0) {
         throw 'Healthy follower startup did not produce bounded process identity evidence.'
     }
