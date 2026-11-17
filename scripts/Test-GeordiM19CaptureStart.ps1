@@ -22,6 +22,7 @@ $hangPath = Join-Path $root 'hang.ps1'
 $childPidPath = Join-Path $root 'hang.child.pid'
 $healthyRecord = Join-Path $root 'healthy.process.json'
 $exitRecord = Join-Path $root 'exit.process.json'
+    $startupDiagnosticPath = Join-Path $root 'startup-diagnostic.json'
 try {
     $escapedPowerShellPath = $powerShellPath.Replace("'","''")
     $escapedHealthyChildPidPath = $healthyChildPidPath.Replace("'","''")
@@ -130,6 +131,29 @@ Start-Sleep -Seconds 30
     Write-Output 'capture_start_case=iso8601_argument_preserved result=PASS'
     Write-Output 'capture_start_case=live_follower result=PASS bounded=5s deterministic_stop=PASS'
 
+    $workerFailureClock = [Diagnostics.Stopwatch]::StartNew()
+    try {
+        Invoke-GeordiBoundedLogFollowerStart -PowerShellPath $powerShellPath -WorkerPath $workerPath -DockerPath (Join-Path $root 'missing-docker-executable.exe') -DockerArguments @() -WorkingDirectory $root -StandardOutputPath (Join-Path $root 'worker-failure.stdout') -StandardErrorPath (Join-Path $root 'worker-failure.stderr') -ProcessRecordPath (Join-Path $root 'worker-failure.process.json') -TimeoutSeconds 5 | Out-Null
+        throw 'Worker startup exception was accepted.'
+    } catch {
+        if ($_.Exception.Message -eq 'Worker startup exception was accepted.') { throw }
+    }
+    $workerFailureClock.Stop()
+    if ($workerFailureClock.Elapsed.TotalSeconds -ge 5 -or -not (Test-Path -LiteralPath $startupDiagnosticPath -PathType Leaf)) {
+        throw 'Worker startup exception did not produce a bounded persistent diagnostic.'
+    }
+    $workerDiagnostic = Get-Content -LiteralPath $startupDiagnosticPath -Raw | ConvertFrom-Json -DateKind String -ErrorAction Stop
+    if ($workerDiagnostic.failureStage -cne 'worker-startup' -or $workerDiagnostic.failureCode -cne 'worker-startup-failed' -or
+            [int]$workerDiagnostic.workerExitCode -ne 22 -or [string]::IsNullOrWhiteSpace([string]$workerDiagnostic.exceptionType) -or
+            $workerDiagnostic.cleanupStatus -cne 'confirmed') {
+        throw 'Worker exception diagnostic did not contain the expected bounded classification.'
+    }
+    if ($workerDiagnostic.PSObject.Properties.Name -contains 'message' -or $workerDiagnostic.PSObject.Properties.Name -contains 'arguments') {
+        throw 'Worker diagnostic exposed a forbidden message or execution arguments.'
+    }
+    Remove-Item -LiteralPath $startupDiagnosticPath -Force -ErrorAction Stop
+    Write-Output 'capture_start_case=worker_exception diagnostic=PASS cleanup=confirmed'
+
     $nonStoppingTaskkillPath = Join-Path $root 'taskkill-noop.cmd'
     [IO.File]::WriteAllText($nonStoppingTaskkillPath,"@echo off`r`nexit /b 1`r`n",[Text.UTF8Encoding]::new($false))
     $timeoutProbe = Start-Process -FilePath $powerShellPath -ArgumentList @('-NoLogo','-NoProfile','-Command','Start-Sleep -Seconds 30') -WindowStyle Hidden -PassThru
@@ -169,7 +193,20 @@ Start-Sleep -Seconds 30
     if ($clock.Elapsed.TotalSeconds -ge 5 -or (Test-Path -LiteralPath $exitRecord)) {
         throw 'Exited follower did not fail within the startup bound.'
     }
-    Write-Output ("capture_start_case=early_exit result=FAIL_CLOSED duration_seconds={0:N2} no_orphan=PASS" -f $clock.Elapsed.TotalSeconds)
+    if (-not (Test-Path -LiteralPath $startupDiagnosticPath -PathType Leaf)) {
+        throw 'Early-exit worker did not preserve its startup diagnostic.'
+    }
+    $earlyDiagnostic = Get-Content -LiteralPath $startupDiagnosticPath -Raw | ConvertFrom-Json -DateKind String -ErrorAction Stop
+    if ($earlyDiagnostic.version -ne 1 -or $earlyDiagnostic.failureStage -cne 'worker-readiness' -or
+            $earlyDiagnostic.failureCode -cne 'worker-exited-early' -or [int]$earlyDiagnostic.workerExitCode -ne 21 -or
+            $earlyDiagnostic.cleanupStatus -cne 'not-required' -or $null -ne $earlyDiagnostic.exceptionType) {
+        throw 'Early-exit diagnostic did not contain the expected bounded classification.'
+    }
+    if ($earlyDiagnostic.PSObject.Properties.Name -contains 'message' -or $earlyDiagnostic.PSObject.Properties.Name -contains 'arguments') {
+        throw 'Startup diagnostic exposed a forbidden message or execution arguments.'
+    }
+    Remove-Item -LiteralPath $startupDiagnosticPath -Force -ErrorAction Stop
+    Write-Output ("capture_start_case=early_exit result=FAIL_CLOSED diagnostic=PASS duration_seconds={0:N2} no_orphan=PASS" -f $clock.Elapsed.TotalSeconds)
 
     $clock.Restart()
     try {
@@ -189,7 +226,20 @@ Start-Sleep -Seconds 30
     if (Get-Process -Id $childId -ErrorAction SilentlyContinue) {
         throw 'Hung follower launcher left a descendant process running.'
     }
-    Write-Output ("capture_start_case=launcher_timeout result=FAIL_CLOSED duration_seconds={0:N2} descendant_cleanup=PASS" -f $clock.Elapsed.TotalSeconds)
+    if (-not (Test-Path -LiteralPath $startupDiagnosticPath -PathType Leaf)) {
+        throw 'Launcher timeout did not preserve its startup diagnostic.'
+    }
+    $timeoutDiagnostic = Get-Content -LiteralPath $startupDiagnosticPath -Raw | ConvertFrom-Json -DateKind String -ErrorAction Stop
+    if ($timeoutDiagnostic.version -ne 1 -or $timeoutDiagnostic.failureStage -cne 'launcher-readiness' -or
+            $timeoutDiagnostic.failureCode -cne 'launcher-timeout' -or $null -ne $timeoutDiagnostic.workerExitCode -or
+            $timeoutDiagnostic.cleanupStatus -cne 'confirmed' -or
+            $timeoutDiagnostic.exceptionType -cne 'System.Management.Automation.RuntimeException') {
+        throw 'Launcher-timeout diagnostic did not contain the expected bounded classification.'
+    }
+    if ($timeoutDiagnostic.PSObject.Properties.Name -contains 'message' -or $timeoutDiagnostic.PSObject.Properties.Name -contains 'arguments') {
+        throw 'Startup diagnostic exposed a forbidden message or execution arguments.'
+    }
+    Write-Output ("capture_start_case=launcher_timeout result=FAIL_CLOSED diagnostic=PASS duration_seconds={0:N2} descendant_cleanup=PASS" -f $clock.Elapsed.TotalSeconds)
 } finally {
     $resolvedRoot = [IO.Path]::GetFullPath($root)
     $expectedParent = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd([IO.Path]::DirectorySeparatorChar)
