@@ -12,7 +12,7 @@ function Write-GeordiWorkerStartupDiagnostic {
         [Parameter(Mandatory)][string] $FailureStage,
         [Parameter(Mandatory)][string] $FailureCode,
         [AllowNull()][object] $WorkerExitCode,
-        [AllowNull()][string] $ExceptionType,
+        [AllowNull()][object] $ExceptionType,
         [Parameter(Mandatory)][ValidateSet('confirmed','unconfirmed','not-required')][string] $CleanupStatus
     )
     $fullPath = [IO.Path]::GetFullPath($Path)
