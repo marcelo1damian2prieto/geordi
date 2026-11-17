@@ -312,6 +312,13 @@ try {
     [IO.File]::WriteAllText($inventoryPath, (ConvertTo-Json -InputObject $artifactInventory -Depth 12 -Compress), [Text.UTF8Encoding]::new($false))
     Write-Output 'gate_case=artifact_path_traversal result=FAIL_CLOSED'
 
+    $duplicateInventory = Get-Content -LiteralPath $inventoryPath -Raw | ConvertFrom-Json
+    $duplicateInventory.files[1].path = $duplicateInventory.files[0].path
+    [IO.File]::WriteAllText($inventoryPath, (ConvertTo-Json -InputObject $duplicateInventory -Depth 12 -Compress), [Text.UTF8Encoding]::new($false))
+    Assert-PrivateGateFails { & $artifactScanner -ManifestPath $manifestPath -RootPath $artifactRoot } 'duplicate inventory path' $secret
+    [IO.File]::WriteAllText($inventoryPath, (ConvertTo-Json -InputObject $artifactInventory -Depth 12 -Compress), [Text.UTF8Encoding]::new($false))
+    Write-Output 'gate_case=duplicate_inventory_path result=FAIL_CLOSED'
+
     $requiredArtifactPath = Join-Path $artifactRoot 'backend/target/pmd.xml'
     $requiredArtifactContent = [IO.File]::ReadAllText($requiredArtifactPath)
     Remove-Item -LiteralPath $requiredArtifactPath -Force
