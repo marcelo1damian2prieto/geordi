@@ -227,3 +227,29 @@ The current comparison `m19...d2/audit-boundaries-fix` reports 31 commits ahead,
 - `scripts/lib/GeordiM12OverlapCollector.ps1`
 
 No application source, CI, Compose YAML, TLS/certificates, runtime captures or protected-volume definitions are changed. Earlier five-path snapshots remain historical and are superseded by this branch-scope correction.
+
+## 2026-11-16 — D2-10 M12 overlap Collector B+C execution checkpoint
+
+This append-only checkpoint records the owner-supplied execution evidence for the D2-09 separation. It does not alter prior historical entries or imply completion of the full accepted regression sequence.
+
+### Executed and reported results
+
+1. PowerShell parser:
+   - `scripts/lib/GeordiM12OverlapCollector.ps1` — **PASS**.
+   - `scripts/Test-GeordiM12OverlapCollector.ps1` — **PASS**.
+2. `Test-GeordiM12OverlapCollector.ps1 -SelfTest` — **PASS**. The owner-supplied output reports the injected executor contract, synthetic normal/isolated configuration invariants, seven restart edges versus zero, configuration equivalence, protected M19 mount preservation, eight propagation-negative cases, command scope, handoff/startup ordering, wrapper failures, wrong-follower boundaries, and second-handoff failure scenarios. The final marker states `runtime=NOT_RUN`, `ci=unchanged`, and `backend_generation=deferred`. The immediate `$LASTEXITCODE` guard did not throw.
+3. `Test-GeordiM12OverlapCollector.ps1 -ComposeIntegration` — **PASS**. The owner-supplied output reports real Compose config rendering for normal and isolated configurations, the same isolation/equivalence/protected-mount assertions, and the eight-case negative matrix. Its final marker states `docker_operation=config_render_only` and `lifecycle=NOT_INVOKED`.
+
+### Scope and remaining work
+
+The recorded Compose integration is configuration rendering only. No Docker lifecycle, runtime, cleanup, protected-volume operation, CI activation, TLS/certificate operation, or capture mutation is reported as part of these runs.
+
+B+C validation is now execution-verified by the supplied focused output. The complete accepted regression sequence remains **NOT RUN** and must not be inferred from these focused PASS results. The sequence's historical exact membership/order remains unrecovered; any proposed sequence must remain labelled `RECONSTRUCTED — NOT HISTORICAL` and be submitted for owner approval before execution.
+
+Next sequence remains:
+1. Complete the evidence-backed regression reconstruction and obtain owner approval.
+2. Execute only the approved regression sequence, fail-fast.
+3. Obtain the fresh independent read-only shared-readiness review.
+4. Consider the formal overlap 26-gate sequence only after the approved regression sequence is fully green and the independent review is clean.
+
+M19 remains **NOT READY — REMEDIATION REQUIRED**. M13, Gate 5 promotion/acceptance, CI activation, runtime validation, candidate promotion, and M19 acceptance remain blocked.
