@@ -33,15 +33,49 @@ try {
         try {
             $process.Refresh()
             if (-not $process.HasExited) {
-                & (Join-Path $env:SystemRoot 'System32/taskkill.exe') /PID $process.Id /T /F *> $null
+                # Snapshot the known descendants, then kill through the already
+                # opened Process handle so a reused PID cannot redirect taskkill.
+                $snapshot = @(Get-CimInstance -ClassName Win32_Process -Property ProcessId,ParentProcessId,CreationDate -ErrorAction Stop)
+                $rootSnapshot = @($snapshot | Where-Object { [int]$_.ProcessId -eq $process.Id })
+                if ($rootSnapshot.Count -ne 1) { throw 'Worker could not identify its child process in the process snapshot.' }
+                $treeIds = @([int]$process.Id)
+                $changed = $true
+                while ($changed) {
+                    $changed = $false
+                    foreach ($candidate in $snapshot) {
+                        $candidateId = [int]$candidate.ProcessId
+                        if (($treeIds -contains [int]$candidate.ParentProcessId) -and ($treeIds -notcontains $candidateId)) {
+                            $treeIds += $candidateId
+                            $changed = $true
+                        }
+                    }
+                }
+                $tracked = @($snapshot | Where-Object { $treeIds -contains [int]$_.ProcessId } |
+                    ForEach-Object { [pscustomobject]@{ Id=[int]$_.ProcessId; CreationDate=[string]$_.CreationDate } })
+                $process.Kill($true)
                 [void]$process.WaitForExit(5000)
-                $process.Refresh()
-                if (-not $process.HasExited) { $cleanupConfirmed = $false }
+                $clock = [Diagnostics.Stopwatch]::StartNew()
+                try {
+                    do {
+                        $current = @(Get-CimInstance -ClassName Win32_Process -Property ProcessId,CreationDate -ErrorAction Stop)
+                        $remaining = @(
+                            foreach ($entry in $tracked) {
+                                if (@($current | Where-Object {
+                                    [int]$_.ProcessId -eq $entry.Id -and [string]$_.CreationDate -ceq $entry.CreationDate
+                                }).Count -gt 0) { $entry }
+                            }
+                        )
+                        if ($remaining.Count -eq 0) { break }
+                        if ($clock.Elapsed.TotalSeconds -ge 5) { $cleanupConfirmed = $false; break }
+                        Start-Sleep -Milliseconds 25
+                    } while ($true)
+                } finally { $clock.Stop() }
             }
         } catch {
             $cleanupConfirmed = $false
         }
-        if (Get-Process -Id $process.Id -ErrorAction SilentlyContinue) { $cleanupConfirmed = $false }
+        $process.Refresh()
+        if (-not $process.HasExited) { $cleanupConfirmed = $false }
     }
     if (-not $cleanupConfirmed) { exit 23 }
     exit 22
