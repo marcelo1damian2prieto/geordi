@@ -129,13 +129,20 @@ function Get-PlatformVersion {
 
 function Get-SeriesAttribute {
     param([Parameter(Mandatory)][object] $Series, [Parameter(Mandatory)][string] $Name)
-    foreach ($candidate in @($Name, ($Name -replace '\.', '_'))) {
-        if ($Series -is [System.Collections.IDictionary] -and $Series.Contains($candidate)) {
-            return [string]$Series[$candidate]
-        }
-        $property = $Series.PSObject.Properties[$candidate]
-        if ($null -ne $property) { return [string]$property.Value }
+
+    # VictoriaMetrics series labels are dictionaries with dotted attribute keys;
+    # tests may provide Prometheus-normalized underscore aliases.
+    if ($Series -is [System.Collections.IDictionary]) {
+        if ($Series.Contains($Name)) { return [string]$Series[$Name] }
+        $normalizedName = $Name.Replace('.', '_')
+        if ($Series.Contains($normalizedName)) { return [string]$Series[$normalizedName] }
+        return $null
     }
+
+    $property = $Series.PSObject.Properties[$Name]
+    if ($null -ne $property) { return [string]$property.Value }
+    $normalizedProperty = $Series.PSObject.Properties[$Name.Replace('.', '_')]
+    if ($null -ne $normalizedProperty) { return [string]$normalizedProperty.Value }
     return $null
 }
 
