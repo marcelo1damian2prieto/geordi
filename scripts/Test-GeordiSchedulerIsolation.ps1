@@ -129,6 +129,28 @@ function Test-M14PreflightFailureRegression {
     Assert-EnvironmentSnapshotThroughProvider $before
 }
 
+
+function Test-M14DiagnosticRedaction {
+    $cases = @(
+        @{ Input='Authorization: Bearer abc.def.ghi'; Forbidden='abc.def.ghi' },
+        @{ Input='{"password":"hunter2","message":"startup failed"}'; Forbidden='hunter2' },
+        @{ Input='request https://auth.localhost/callback?code=private-code&state=private-state'; Forbidden='private-code' },
+        @{ Input='-----BEGIN PRIVATE KEY-----secret-material-----END PRIVATE KEY-----'; Forbidden='secret-material' },
+        @{ Input='cookie: session=private-cookie'; Forbidden='private-cookie' }
+    )
+    foreach ($case in $cases) {
+        $safe = Protect-GeordiM14DiagnosticText $case.Input
+        Assert-SchedulerIsolation (!$safe.Contains($case.Forbidden)) 'M14 diagnostic redaction retained a known secret fixture'
+    }
+
+    $source = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'verify-alert-history.ps1'))
+    Assert-SchedulerIsolation ($source.Contains('function Write-M14StartupFailureDiagnostic') -and
+        $source.Contains("docker inspect --format '{{json .State}}'") -and
+        $source.Contains('docker logs --tail 200')) 'M14 startup failure diagnostics omit container state or bounded backend logs'
+    Assert-SchedulerIsolation ($source.Contains('if ($script:M14StartupFailure) { Write-M14StartupFailureDiagnostic }')) 'M14 startup diagnostics are not invoked before lifecycle cleanup'
+    Assert-SchedulerIsolation ($source -notmatch '(?i)docker inspect[^\r\n]*Config\.Env|docker inspect[^\r\n]*\.Config\.Env') 'M14 startup diagnostics must never inspect container environment variables'
+}
+
 function Test-M14PartialAcquisitionRegression {
     $ownership = New-GeordiM14FixtureOwnershipState -RepositoryRoot (Split-Path -Parent $PSScriptRoot)
     $renderedVolumes = [pscustomobject]@{
@@ -282,6 +304,7 @@ try {
     }
     if ($M14PartialAcquisitionOnly) {
         $script:TestM14ResetCalls = 0; $script:TestM14ResetCleanupCalls = 0; $script:TestM14ResetUpCalls = 0
+        Test-M14DiagnosticRedaction
         Test-M14PartialAcquisitionRegression
         Write-Host 'PASS: M14 partial reset/startup ownership and teardown regression.'
         return
