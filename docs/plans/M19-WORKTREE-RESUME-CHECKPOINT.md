@@ -211,3 +211,10 @@ The D2 branch now separates the overlap Collector Compose validation into:
 - `-Case`: existing focused synthetic caller/failure cases.
 
 The selectors `-SelfTest` and `-ComposeIntegration` are mutually exclusive. No test, parser, Docker, Compose, lifecycle, runtime, cleanup, TLS, capture or protected-volume operation was executed during implementation. The new implementation still requires static review. Do not infer a PASS result from the code change. Full accepted regression sequence remains NOT RUN; M19 remains **NOT READY — REMEDIATION REQUIRED**.
+
+ 
+### D2-09 static review update — 2026-11-16
+
+Read-only review of the final source confirms that synthetic harness renderers use the synthetic fixture provider, `-SelfTest` exercises the injected Compose executor and synthetic configuration invariants, and `-ComposeIntegration` is the only selector that invokes the real Docker CLI config renderer. The integration selector is mutually exclusive with `-SelfTest` and `-Case`.
+
+No parser or test was executed. The implementation is statically reviewed but **not execution-verified**. Do not treat this as a PASS. Docker CLI config rendering remains a separate operation requiring its own authorization; lifecycle, runtime, cleanup, TLS, capture and protected-volume operations remain outside scope.
