@@ -10,7 +10,7 @@ function Assert-M12Overlap([bool] $Condition,[string] $Message){
     if(!$Condition){throw "M12 overlap Collector regression failed: $Message"}
 }
 
-function New-M12OverlapComposeFixture([switch] $CollectorReplacementOverlay,[switch] $IsolationOverlay){
+function New-M12OverlapComposeFixture([string] $RepositoryRoot,[switch] $CollectorReplacementOverlay,[switch] $IsolationOverlay){
     $services=[ordered]@{}
     foreach($name in @('victoriametrics','tempo','loki','otel-collector','backend','webhook-receiver','oidc-fixture','demo','burn-demo','m12-burn-demo','demo-downstream','frontend','m12-query-gate')){
         $services[$name]=[ordered]@{image='synthetic:'+$name;volumes=@()}
