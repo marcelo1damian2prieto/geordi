@@ -74,7 +74,7 @@ switch ($Case) {
         Set-Dependency 'frontend' 'backend' $false
         $missing = @($inventory | Where-Object Service -ne 'oidc-fixture')
         $missingRejected = $false
-        try { Assert-GeordiM14MutationPreflight -Plan $plan -ServiceInventory $missing } catch { $missingRejected = $true }
+        try { Assert-GeordiM14MutationPreflight -Plan $plan -ServiceInventory $missing -RepositoryRoot $repositoryRoot } catch { $missingRejected = $true }
         Assert-M14ComposeScope $missingRejected 'a missing required pre-existing dependency was accepted'
         Write-Output 'm14_dependency_propagation=PASS restart_edges=blocked missing_dependency=fail_closed'
     }
