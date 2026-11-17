@@ -74,7 +74,7 @@ function Write-TestLeaf(
         $serial = [byte[]]::new(16)
         [Security.Cryptography.RandomNumberGenerator]::Fill($serial)
         $publicCertificate = $request.Create($Ca, [DateTimeOffset]::UtcNow.AddMinutes(-5), $Ca.NotAfter.AddMinutes(-1), $serial)
-        $certificate = $publicCertificate.CopyWithPrivateKey($key)
+        $certificate = [Security.Cryptography.X509Certificates.RSACertificateExtensions]::CopyWithPrivateKey($publicCertificate, $key)
 
         [IO.File]::WriteAllText(
             (Join-Path $Directory "$Name-cert.pem"),
