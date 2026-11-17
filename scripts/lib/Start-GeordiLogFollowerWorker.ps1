@@ -4,9 +4,47 @@ param([Parameter(Mandatory)][string] $PayloadBase64)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $process = $null
+$diagnosticPath = $null
+
+function Write-GeordiWorkerStartupDiagnostic {
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [Parameter(Mandatory)][string] $FailureStage,
+        [Parameter(Mandatory)][string] $FailureCode,
+        [AllowNull()][object] $WorkerExitCode,
+        [AllowNull()][string] $ExceptionType,
+        [Parameter(Mandatory)][ValidateSet('confirmed','unconfirmed','not-required')][string] $CleanupStatus
+    )
+    $fullPath = [IO.Path]::GetFullPath($Path)
+    $temporaryPath = $fullPath + '.' + [guid]::NewGuid().ToString('N') + '.tmp'
+    $diagnostic = [ordered]@{
+        version = 1
+        failureStage = $FailureStage
+        failureCode = $FailureCode
+        workerExitCode = $WorkerExitCode
+        exceptionType = $ExceptionType
+        cleanupStatus = $CleanupStatus
+        observedUtc = [DateTimeOffset]::UtcNow.ToString('o')
+    }
+    try {
+        [IO.File]::WriteAllText($temporaryPath,(ConvertTo-Json -InputObject $diagnostic -Compress),[Text.UTF8Encoding]::new($false))
+        try {
+            [IO.File]::Move($temporaryPath,$fullPath)
+        } catch {
+            if (-not [IO.File]::Exists($fullPath)) { throw }
+        }
+    } finally {
+        if ([IO.File]::Exists($temporaryPath)) { [IO.File]::Delete($temporaryPath) }
+    }
+}
+
 try {
     $payloadJson = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($PayloadBase64))
     $payload = $payloadJson | ConvertFrom-Json -DateKind String
+    $diagnosticPath = [string]$payload.startupDiagnosticPath
+    if ([string]::IsNullOrWhiteSpace($diagnosticPath)) {
+        $diagnosticPath = Join-Path (Split-Path -Parent ([IO.Path]::GetFullPath([string]$payload.processRecordPath))) 'startup-diagnostic.json'
+    }
     if ($null -ne $payload.targetMetadata) {
         foreach ($key in @('containerId','service','project','createdUtc')) {
             if ([string]::IsNullOrWhiteSpace([string]$payload.targetMetadata.$key)) { throw 'Capture target identity was incomplete.' }
@@ -25,9 +63,15 @@ try {
     [IO.File]::Move($temporaryRecord,[string]$payload.processRecordPath)
     Start-Sleep -Milliseconds 250
     $process.Refresh()
-    if ($process.HasExited) { exit 21 }
+    if ($process.HasExited) {
+        try {
+            Write-GeordiWorkerStartupDiagnostic -Path $diagnosticPath -FailureStage 'worker-readiness' -FailureCode 'worker-exited-early' -WorkerExitCode 21 -ExceptionType $null -CleanupStatus 'not-required'
+        } catch { }
+        exit 21
+    }
     exit 0
 } catch {
+    $workerFailureType = $_.Exception.GetType().FullName
     $cleanupConfirmed = $true
     if ($process) {
         try {
@@ -76,9 +120,19 @@ try {
         } catch {
             $cleanupConfirmed = $false
         }
-        $process.Refresh()
-        if (-not $process.HasExited) { $cleanupConfirmed = $false }
+        try {
+            $process.Refresh()
+            if (-not $process.HasExited) { $cleanupConfirmed = $false }
+        } catch {
+            $cleanupConfirmed = $false
+        }
     }
+    $workerExitCode = if ($cleanupConfirmed) { 22 } else { 23 }
+    $workerFailureCode = if ($cleanupConfirmed) { 'worker-startup-failed' } else { 'worker-cleanup-unconfirmed' }
+    $workerCleanupStatus = if ($cleanupConfirmed) { 'confirmed' } else { 'unconfirmed' }
+    try {
+        Write-GeordiWorkerStartupDiagnostic -Path $diagnosticPath -FailureStage 'worker-startup' -FailureCode $workerFailureCode -WorkerExitCode $workerExitCode -ExceptionType $workerFailureType -CleanupStatus $workerCleanupStatus
+    } catch { }
     if (-not $cleanupConfirmed) { exit 23 }
     exit 22
 }
