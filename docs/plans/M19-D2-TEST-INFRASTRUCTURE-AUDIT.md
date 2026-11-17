@@ -192,3 +192,17 @@ The proposed order is now:
 No test was executed during this static review. Temporary-root cleanup in the inspected harnesses targets generated test roots/files. The reviewed synthetic caller paths use injected adapters for process, volume and replacement behavior; no Docker lifecycle operation, protected-volume operation, real capture mutation, CI activation, TLS operation or runtime action was found in those paths.
 
 The complete reconstructed sequence remains NOT RUN. Prior focused PASS records are unchanged and are not promoted to a full-suite result. M19 remains NOT READY — REMEDIATION REQUIRED.
+
+
+## Documentation-scope correction — 2026-11-16
+
+Earlier statements in this audit and its correction log that described the D2 branch diff as containing only this audit document and scripts/Test-GeordiCaptureGenerations.ps1 reflect the branch state at that earlier point. They are superseded by the later documentation-only reconciliation commits.
+
+The current comparison of d2/audit-boundaries-fix against m19 reports 21 commits ahead, zero behind, and exactly five changed paths:
+- docs/plans/EXECPLAN-M19-POST-FOLLOWER-READINESS.md
+- docs/plans/M19-ACCEPTED-REGRESSION-RECONSTRUCTION.md
+- docs/plans/M19-D2-TEST-INFRASTRUCTURE-AUDIT.md
+- docs/plans/M19-WORKTREE-RESUME-CHECKPOINT.md
+- scripts/Test-GeordiCaptureGenerations.ps1
+
+The four documentation paths contain the audit/reconstruction/checkpoint updates. The only script path remains the previously reviewed D2 test-harness correction. No application source, GitLab CI, Compose configuration, TLS/certificates, runtime captures or protected-volume definitions appear in the current diff.
