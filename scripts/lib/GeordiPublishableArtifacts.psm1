@@ -142,7 +142,7 @@ function Get-GeordiPublishableArtifactInventory {
             @{ path='backend/target/failsafe-reports'; required=$false; directory=$true }
         )
         $allFiles = [Collections.Generic.List[string]]::new()
-        $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
         foreach ($definition in $definitions) {
             $candidate = [IO.Path]::GetFullPath((Join-Path $root ([string]$definition.path)))
             [void](Get-GeordiArtifactRelativePath -Root $root -FullPath $candidate)
@@ -219,12 +219,95 @@ function Test-GeordiPublishableArtifactInventory {
             [int]$expected.fileCount -ne @($expected.files).Count) {
             throw 'inventory_invalid'
         }
-        $expectedPaths = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        $expectedPaths = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
         foreach ($entry in @($expected.files)) {
             $path = [string]$entry.path
-            if ([string]::IsNullOrWhiteSpace($path) -or $path.StartsWith('/') -or
-                $path -match '(^|/)\.\.?(/|$)' -or $path -match '^[A-Za-z]:' -or
-                [string]$entry.sha256 -notmatch '^[0-9a-f]{64}$' -or !$expectedPaths.Add($path)) {
+            if ([string]::IsNullOrWhiteSpace($path) -or $path.StartsWith('/') -or $path.Contains('\\') -or
+                $path.Contains([char]0) -or $path -match '(^|/)\.\.?(/|$)' -or $path -match '//' -or
+                $path.EndsWith('/') -or $path -match '^[A-Za-z]:' -or
+                [string]$entry.sha256 -notmatch '^[0-9a-f]{64}
+                throw 'inventory_invalid'
+            }
+        }
+        $actual = Get-GeordiPublishableArtifactInventory -RootPath $RootPath -Mode $Mode
+        if ([int]$actual.fileCount -ne [int]$expected.fileCount -or
+            [int]$actual.archiveCount -ne [int]$expected.archiveCount -or
+            [long]$actual.archiveEntryCount -ne [long]$expected.archiveEntryCount -or
+            @($actual.files).Count -ne @($expected.files).Count) {
+            throw 'inventory_invalid'
+        }
+        $expectedByPath = [Collections.Generic.Dictionary[string,string]]::new([StringComparer]::Ordinal)
+        foreach ($entry in @($expected.files)) { $expectedByPath.Add([string]$entry.path,[string]$entry.sha256) }
+        foreach ($entry in @($actual.files)) {
+            if (!$expectedByPath.ContainsKey([string]$entry.path) -or
+                $expectedByPath[[string]$entry.path] -cne [string]$entry.sha256) {
+                throw 'artifact_digest_mismatch'
+            }
+        }
+        return $actual
+    } catch {
+        $message = [string]$_.Exception.Message
+        if ($message -in @('artifact_missing','inventory_invalid','artifact_digest_mismatch','archive_invalid',
+                'root_path_rejected','scan_limit_exceeded')) { throw $message }
+        throw 'artifact_validation_failed'
+    }
+}
+
+function Test-GeordiPublishableArtifactContent {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string] $RootPath,
+        [Parameter(Mandatory)][object] $Inventory,
+        [ValidateSet('Production','SelfTest')][string] $Mode = 'Production'
+    )
+
+    try {
+        $root = Resolve-GeordiArtifactRoot -RootPath $RootPath
+        $before = Test-GeordiPublishableArtifactInventory -RootPath $root -ExpectedInventory $Inventory -Mode $Mode
+        $entryCount = 0L
+        foreach ($entry in @($before.files)) {
+            $relative = [string]$entry.path
+            if ([IO.Path]::GetExtension($relative) -notin @('.jar','.zip')) { continue }
+            $path = [IO.Path]::GetFullPath((Join-Path $root ($relative.Replace('/',[IO.Path]::DirectorySeparatorChar))))
+            [void](Get-GeordiArtifactRelativePath -Root $root -FullPath $path)
+            $archive = $null
+            try {
+                $archive = [IO.Compression.ZipFile]::OpenRead($path)
+                foreach ($archiveEntry in $archive.Entries) {
+                    $entryCount++
+                    if ($entryCount -gt $script:GeordiArtifactMaximumArchiveEntries) { throw 'scan_limit_exceeded' }
+                    $name = ([string]$archiveEntry.FullName).Replace('\','/')
+                    $unixEntryType = (([long]$archiveEntry.ExternalAttributes -shr 16) -band 0xF000)
+                    if ([string]::IsNullOrWhiteSpace($name) -or $name.Contains([char]0) -or $name.StartsWith('/') -or
+                        $name -match '^[A-Za-z]:' -or $name -match '(^|/)\.\.?(/|$)' -or
+                        $unixEntryType -eq 0xA000 -or $name -match $script:GeordiArtifactForbiddenEntryPattern) {
+                        throw 'forbidden_material_detected'
+                    }
+                }
+            } catch {
+                if ([string]$_.Exception.Message -in @('scan_limit_exceeded','forbidden_material_detected')) { throw }
+                throw 'archive_invalid'
+            } finally {
+                if ($archive) { $archive.Dispose() }
+            }
+        }
+        if ($entryCount -ne [long]$before.archiveEntryCount) { throw 'inventory_invalid' }
+        $after = Test-GeordiPublishableArtifactInventory -RootPath $root -ExpectedInventory $Inventory -Mode $Mode
+        if ((ConvertTo-Json -InputObject $before -Depth 16 -Compress) -cne
+            (ConvertTo-Json -InputObject $after -Depth 16 -Compress)) {
+            throw 'artifact_digest_mismatch'
+        }
+        return $after
+    } catch {
+        $message = [string]$_.Exception.Message
+        if ($message -in @('artifact_missing','inventory_invalid','artifact_digest_mismatch','archive_invalid',
+                'forbidden_material_detected','root_path_rejected','scan_limit_exceeded')) { throw $message }
+        throw 'artifact_validation_failed'
+    }
+}
+
+Export-ModuleMember -Function Get-GeordiPublishableArtifactInventory,Test-GeordiPublishableArtifactInventory,Test-GeordiPublishableArtifactContent
+ -or !$expectedPaths.Add($path)) {
                 throw 'inventory_invalid'
             }
         }
