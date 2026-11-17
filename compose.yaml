@@ -215,6 +215,12 @@ services:
     restart: unless-stopped
 
   m12-burn-demo:
+    build:
+      context: ./demo
+      dockerfile: Dockerfile
+      args:
+        OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.28.1}
+        OTEL_JAVA_AGENT_SHA256: ${OTEL_JAVA_AGENT_SHA256:-faa89bdeebf9b1f52be4a4374689176717b02a59df2d8f8b6eb9aa39f9292589}
     image: geordi-demo:local
     depends_on:
       otel-collector:
