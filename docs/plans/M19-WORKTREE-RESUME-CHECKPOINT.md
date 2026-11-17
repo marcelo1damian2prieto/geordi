@@ -253,3 +253,24 @@ Next sequence remains:
 4. Consider the formal overlap 26-gate sequence only after the approved regression sequence is fully green and the independent review is clean.
 
 M19 remains **NOT READY — REMEDIATION REQUIRED**. M13, Gate 5 promotion/acceptance, CI activation, runtime validation, candidate promotion, and M19 acceptance remain blocked.
+
+## 2026-11-16 — D2-11 finalized reconstructed regression resume point
+
+The full proposed sequence is documented in `docs/plans/M19-ACCEPTED-REGRESSION-RECONSTRUCTION.md`, Section 11. It is **RECONSTRUCTED — NOT HISTORICAL**, not recovered original membership/order.
+
+### Proposed order
+
+P0 read-only branch/worktree preconditions → P1 parser (eight directly involved files) → P2 five shared-seam cases → P3 M11/M12/M12 overlap-backend caller SelfTests → P4 AuthContract then Boundaries → P5 overlap Collector synthetic `-SelfTest` → P6 separately approved overlap Collector `-ComposeIntegration` (Docker CLI config render only) → P7 read-only diff/scope → P8 fresh independent review.
+
+### Evidence already supplied
+
+- Parser for the D2 overlap library and test script: PASS.
+- Overlap Collector `-SelfTest`: PASS; synthetic executor/configuration fixtures, runtime NOT_RUN, CI unchanged.
+- Overlap Collector `-ComposeIntegration`: PASS; normal and isolated Compose config renders, protected M19 mount configuration unchanged, eight negative propagation cases, lifecycle NOT_INVOKED.
+- Existing focused PASS records for shared microtests, M11, M12 backend, overlap backend, AuthContract and corrected Boundaries remain prior evidence only.
+
+### Required next action
+
+Owner review/approval of the reconstructed P0–P8 membership and order. No full-sequence tests are authorized by this documentation update. All prior focused PASS items must be rerun fail-fast from P0 to claim the reconstructed set green. P6 must receive fresh narrow approval if it is to be rerun.
+
+Keep M10 seven-case, fixture-transfer 18-gate/A–S, M11→M12 19-gate remediation and formal overlap 26-gate validation separate. Obtain P8 only after P0–P7 are green. M19 remains **NOT READY — REMEDIATION REQUIRED**; M13, Gate 5, CI activation, runtime operations, candidate promotion and M19 acceptance remain blocked.
