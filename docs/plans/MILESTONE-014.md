@@ -103,10 +103,12 @@ It does not contact services, invoke Docker, import certificates into OS trust, 
 certificates, or modify runtime material. A failure aborts before M14 fixture reset.
 
 The standalone validator accepts `-RuntimeDirectory` for isolated test fixtures.
-`scripts/Test-GeordiM19TlsMaterialRegression.ps1` runs a positive check against the
-current `.runtime/m19` material and negative checks for a missing password, incorrect
-truststore password, wrong DNS SAN, wrong CA chain, and expired CA. The regression harness
-copies fixtures to a temporary directory and removes those copies on completion.
+`scripts/Test-GeordiM19TlsMaterialRegression.ps1` generates an independent valid TLS
+fixture in the system temporary directory, runs a positive control, and then exercises
+negative cases for missing truststore password, incorrect OIDC/truststore passwords,
+wrong DNS SAN, mismatched frontend private key, wrong CA chain, and expired CA. It does
+not depend on or modify the developer's `.runtime/m19` material. All temporary fixtures
+are removed on completion, including when a regression assertion fails.
 
 The generator remains `scripts/New-GeordiTestTls.ps1`; the preflight never regenerates
 material. Regeneration and trust-store cleanup must continue through the existing
